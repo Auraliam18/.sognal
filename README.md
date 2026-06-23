@@ -1,1 +1,1 @@
-# .sognal
+# signal
