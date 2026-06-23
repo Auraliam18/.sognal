@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hamid Signal Agent — SMC Cycle Panel</title>
+<style>
+:root{
+  --bg:#090d13; --panel:#10161f; --panel2:#161f2b; --line:#212d3d; --line2:#2c3a4d;
+  --txt:#e8eff7; --mut:#8597ad; --dim:#566479;
+  --long:#26d0a4; --short:#ff5d77; --watch:#3fb6f5; --wait:#ffb24c; --valid:#8df0c2; --signal:#28e6a6;
+  --gray:#5b6a7e;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.5}
+body{padding-bottom:env(safe-area-inset-bottom)}
+a{color:var(--watch)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.mono{font-family:var(--mono)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--mut)}
+.dim{color:var(--dim)}
+
+header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#0b1119,#0a0f17 70%,rgba(10,15,23,.92));
+  border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.bar{display:flex;align-items:center;gap:12px;padding:11px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:9px;margin-inline-end:auto}
+.brand b{font-size:16px;letter-spacing:-.01em}
+.brand .v{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line2);padding:1px 6px;border-radius:6px}
+.regime{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--mut);
+  border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--panel)}
+.regime .dot{width:8px;height:8px;border-radius:50%;background:var(--gray)}
+.btn{appearance:none;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);
+  font-family:var(--sans);font-size:13px;padding:8px 13px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(180deg,#1c8f72,#157a5f);border-color:#1c9c7c;color:#eafff7;font-weight:600}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);cursor:pointer;user-select:none}
+.switch i{width:34px;height:19px;border-radius:20px;background:var(--line2);position:relative;transition:background .2s}
+.switch i::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#0a0f17;transition:left .2s}
+.switch.on i{background:var(--long)} .switch.on i::after{left:17px}
+
+.tabs{display:flex;gap:4px;padding:0 12px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:0 0 auto;border:1px solid transparent;background:transparent;color:var(--mut);
+  font-size:13.5px;padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.tab.active{background:var(--panel2);border-color:var(--line2);color:var(--txt)}
+.tab .b{display:inline-block;min-width:18px;font-family:var(--mono);font-size:10.5px;margin-inline-start:6px;
+  background:var(--line);color:var(--mut);border-radius:20px;padding:1px 6px}
+
+main{max-width:1180px;margin:0 auto;padding:16px}
+.progress{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin:0 0 14px}
+.progress>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--watch),var(--long));transition:width .25s}
+.hint{color:var(--mut);font-size:13px;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;background:rgba(22,31,43,.4)}
+
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card .top{display:flex;align-items:center;gap:10px;padding:13px 14px 10px}
+.sym{font-weight:700;font-size:16px;letter-spacing:-.01em}
+.rank{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.side{margin-inline-start:auto;font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px}
+.side.LONG{color:#03150f;background:var(--long)} .side.SHORT{color:#1a0309;background:var(--short)}
+.side.NEUTRAL{color:var(--mut);background:var(--line)}
+.scorebig{font-family:var(--mono);font-size:13px;color:var(--mut);padding:0 14px}
+.scorebig b{color:var(--txt);font-size:15px}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin:11px 0 0;border-top:1px solid var(--line)}
+.levels div{background:var(--panel);padding:9px 8px;text-align:center}
+.levels .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.levels .val{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;margin-top:3px}
+.levels .val.sl{color:var(--short)} .levels .val.tp{color:var(--long)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;padding:11px 14px}
+.tag{font-family:var(--mono);font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:7px;padding:3px 8px}
+.tag.warn{color:var(--wait);border-color:#5a4420}
+
+/* lifecycle rail — the signature device */
+.rail{display:flex;align-items:center;gap:0;padding:11px 14px 13px}
+.rail .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative}
+.rail .step .o{width:11px;height:11px;border-radius:50%;background:var(--line2);border:2px solid var(--bg);z-index:1}
+.rail .step .lab{font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:var(--dim);text-align:center;line-height:1.2;text-transform:uppercase}
+.rail .step::before{content:"";position:absolute;top:5px;left:-50%;width:100%;height:2px;background:var(--line)}
+.rail .step:first-child::before{display:none}
+.rail .step.done .o{background:var(--mut)} .rail .step.done::before{background:var(--mut)}
+.rail .step.cur .o{transform:scale(1.5);box-shadow:0 0 0 4px rgba(40,230,166,.16)}
+.rail .step.cur .lab{font-weight:700}
+.rail.LONG .step.cur .o{background:var(--signal)} .rail.LONG .step.cur .lab{color:var(--valid)}
+.rail.SHORT .step.cur .o{background:var(--short)} .rail.SHORT .step.cur .lab{color:var(--short)}
+.rail.NEUTRAL .step.cur .o{background:var(--watch)} .rail.NEUTRAL .step.cur .lab{color:var(--watch)}
+
+.statuspill{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:6px;text-transform:uppercase}
+.st-SIGNAL{color:#03150f;background:var(--signal)}
+.st-VALID_ENTRY{color:#03150f;background:var(--valid)}
+.st-WAITING_CONFIRMATION{color:#23170a;background:var(--wait)}
+.st-APPROACHING_ENTRY_ZONE{color:#04212e;background:var(--watch)}
+.st-WATCHING{color:var(--watch);background:rgba(63,182,245,.12);border:1px solid #1d4357}
+.st-NO_SETUP,.st-LOW_LIQUIDITY,.st-RANGE_FILTERED,.st-NO_FUTURES,.st-ANALYSIS_ERROR{color:var(--dim);background:var(--line)}
+
+/* single symbol deep dive */
+.dd{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:780px){.dd{grid-template-columns:1.1fr .9fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px}
+.box h3{margin:0 0 11px;font-size:12px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.tfrow{display:grid;grid-template-columns:46px repeat(5,1fr);gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.tfrow:first-of-type{border-top:0}
+.tfrow .tf{font-family:var(--mono);font-weight:700;font-size:13px}
+.tfrow .m{font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;text-align:center;color:var(--mut)}
+.tfrow .m b{color:var(--txt);display:block;font-size:12.5px}
+.tfdir{font-family:var(--mono);font-size:10px;font-weight:700;border-radius:5px;padding:2px 0;text-align:center}
+.scbar{display:grid;grid-template-columns:120px 1fr 38px;gap:10px;align-items:center;margin:8px 0}
+.scbar .n{font-size:12.5px;color:var(--mut)}
+.scbar .track{height:8px;background:var(--line);border-radius:5px;overflow:hidden}
+.scbar .track>i{display:block;height:100%;background:linear-gradient(90deg,var(--watch),var(--long));border-radius:5px}
+.scbar .v{font-family:var(--mono);font-size:12px;text-align:right}
+.checks{display:grid;gap:7px}
+.chk{display:flex;align-items:center;gap:9px;font-size:13px}
+.chk .i{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.chk.ok .i{background:rgba(38,208,164,.16);color:var(--long)} .chk.no .i{background:rgba(255,93,119,.14);color:var(--short)}
+.chk .k{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.trace{font-family:var(--mono);font-size:11.5px;color:var(--mut);line-height:1.9}
+.fbrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.fb{flex:1;min-width:120px;border:1px solid var(--line2);background:var(--panel2);border-radius:10px;padding:10px;
+  font-size:13px;cursor:pointer;text-align:center}
+.fb.win{border-color:#1c6b53;color:var(--long)} .fb.loss{border-color:#7a2233;color:var(--short)}
+.fb.early{border-color:#6b531c;color:var(--wait)} .fb.skip{color:var(--mut)}
+textarea{width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;color:var(--txt);
+  font-family:var(--sans);font-size:13.5px;padding:10px;resize:vertical;min-height:54px;margin-top:8px}
+input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px;color:var(--txt);
+  font-family:var(--mono);font-size:14px;padding:9px 11px;width:100%}
+
+/* calibration */
+.statgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}
+.stat .n{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.stat .v{font-family:var(--mono);font-size:22px;margin-top:5px}
+.fbitem{display:grid;grid-template-columns:74px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.fbitem .t{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.fbitem .s{font-weight:700}
+.fbverdict{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+.v-win{color:#03150f;background:var(--long)} .v-loss{color:#1a0309;background:var(--short)}
+.v-too_early{color:#23170a;background:var(--wait)} .v-reject{color:var(--mut);background:var(--line)} .v-valid_entry{color:#04212e;background:var(--watch)}
+
+.modal{position:fixed;inset:0;z-index:60;background:rgba(5,8,12,.7);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.show{display:flex}
+.sheet{background:var(--panel);border:1px solid var(--line2);border-radius:16px;max-width:460px;width:100%;padding:18px}
+.row{display:flex;flex-direction:column;gap:5px;margin:11px 0}
+.row label{font-size:12.5px;color:var(--mut)}
+.section-title{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+.section-title h2{margin:0;font-size:17px}
+.pbook p,.pbook li{color:var(--mut);font-size:14px}
+.pbook h4{margin:16px 0 6px;font-size:13px;color:var(--txt)}
+.pbook code{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);padding:1px 6px;border-radius:5px;color:var(--valid)}
+.pbook ul{margin:0;padding-inline-start:20px}
+.empty{text-align:center;color:var(--dim);padding:40px 16px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.fade{animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body dir="ltr">
+<header>
+  <div class="bar">
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v1</span></div>
+    <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
+    <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
+    <button class="btn" id="setBtn">تنظیمات</button>
+    <button class="btn primary" id="scanBtn">اسکن بازار</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-t="signals">سیگنال‌ها<span class="b" id="cSig">0</span></button>
+    <button class="tab" data-t="watch">واچ‌لیست<span class="b" id="cWatch">0</span></button>
+    <button class="tab" data-t="single">تحلیل تک‌نماد</button>
+    <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
+    <button class="tab" data-t="playbook">پلی‌بوک</button>
+  </div>
+</header>
+
+<main>
+  <div class="progress" id="prog" style="display:none"><span></span></div>
+  <div id="statusLine" class="hint" style="margin-bottom:14px">
+    آماده. دکمهٔ «اسکن بازار» را بزن تا کل یونیورس پرحجم اسکن شود، یا برو به «تحلیل تک‌نماد» و یک نماد را عمیق بررسی کن.
+    داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
+  </div>
+
+  <section id="view-signals"></section>
+  <section id="view-watch" style="display:none"></section>
+
+  <section id="view-single" style="display:none">
+    <div class="section-title"><span class="eyebrow">deep dive</span><h2>تحلیل تک‌نماد</h2></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <input class="f" id="ddSym" placeholder="نماد، مثلاً BTC یا ETHUSDT" style="max-width:260px" inputmode="text" autocapitalize="characters">
+      <button class="btn primary" id="ddBtn">تحلیل کن</button>
+      <span class="dim mono" id="ddMeta"></span>
+    </div>
+    <div id="ddOut"></div>
+  </section>
+
+  <section id="view-calib" style="display:none">
+    <div class="section-title"><span class="eyebrow">learning loop</span><h2>یادگیری و کالیبراسیون</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:720px">
+      منطق و ستاپ‌های موتور دست‌نخورده‌اند. یادگیری از اینجا می‌آید: هر سیگنال را با نظرت ثبت کن
+      (ورود معتبر / زود است / رد / برد / باخت). با تکرار، آمار زیر نشان می‌دهد کدام ستاپ و کدام بازهٔ امتیاز
+      با سبک تو و با نتیجهٔ واقعی بیشتر هم‌خوان است.
+    </p>
+    <div id="calibStats"></div>
+    <div class="box" style="margin-top:12px"><h3>تاریخچهٔ بازخورد</h3><div id="fbLog"></div></div>
+  </section>
+
+  <section id="view-playbook" style="display:none" class="pbook">
+    <div class="section-title"><span class="eyebrow">PLAYBOOK.md</span><h2>چرخهٔ تحلیل</h2></div>
+    <div class="box">
+      <p>این پنل به‌جای تولیدکنندهٔ یک‌باره خرید/فروش، به‌صورت یک «چرخهٔ تحلیل تکرارشونده» کار می‌کند.</p>
+      <h4>حلقهٔ تحلیل</h4>
+      <ul>
+        <li>بارگذاری داده‌های بازار، یونیورس، تیکر، فاندینگ و کندل مولتی‌تایم‌فریم</li>
+        <li>تشخیص رژیم بازار و حالت ریسک</li>
+        <li>امتیازدهی شرایط روند/مومنتوم/حجم در ۵م، ۱۵م و ۱ساعته</li>
+        <li>دسته‌بندی هر نماد در یک وضعیت چرخهٔ عمر (lifecycle)</li>
+        <li>اعتبارسنجی چک‌لیست اجباری، ریسک/ریوارد، نقدشوندگی و فیلتر رنج (ADX)</li>
+        <li>صدور <code>SIGNAL</code> فقط وقتی همهٔ فیلترهای سخت پاس شوند؛ وگرنه نماد در واچ‌لیست می‌ماند</li>
+        <li>پیگیری نتیجه و ثبت بازخورد برای کالیبراسیون بعدی</li>
+      </ul>
+      <h4>وضعیت‌های چرخهٔ عمر</h4>
+      <ul>
+        <li><code>NO_SETUP</code> — ساختار قابل‌استفاده‌ای نیست</li>
+        <li><code>WATCHING</code> — ستاپ هست ولی ورود آماده نیست</li>
+        <li><code>APPROACHING_ENTRY_ZONE</code> — قیمت به سمت ناحیهٔ موردنظر می‌رود</li>
+        <li><code>WAITING_CONFIRMATION</code> — ناحیه مرتبط است، منتظر تأیید ۵م/۱۵م</li>
+        <li><code>VALID_ENTRY</code> — همهٔ چک‌های پلی‌بوک قبل از فیلترهای نهایی پاس شده</li>
+        <li><code>SIGNAL</code> — سیگنال قابل‌معامله بعد از اعتبارسنجی کامل</li>
+        <li><code>LOW_LIQUIDITY</code> / <code>RANGE_FILTERED</code> — رد شده با گیت حجم / ADX</li>
+      </ul>
+      <h4>چک‌های اجباری قبل از سیگنال</h4>
+      <ul>
+        <li>هم‌جهتی تایم‌فریم بالاتر (۱ساعته)</li>
+        <li>هم‌جهتی تایم‌فریم ستاپ (۱۵م)</li>
+        <li>تأیید تایم‌فریم ورود (۵م + حجم + مومنتوم)</li>
+        <li>اشباع نشدن قیمت (موقعیت باند)</li>
+        <li>قدرت روند کافی (ADX)</li>
+        <li>انبساط حجم</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<!-- settings -->
+<div class="modal" id="setModal">
+  <div class="sheet">
+    <div class="section-title"><span class="eyebrow">settings</span><h2>تنظیمات داده</h2></div>
+    <div class="row"><label>آدرس پایهٔ API بایننس فیوچرز</label><input class="f" id="sApi"></div>
+    <div class="row"><label>تعداد نماد در یونیورس (بیشتر = اسکن کندتر)</label><input class="f" id="sUni" inputmode="numeric"></div>
+    <div class="row"><label>اتصال هم‌زمان (concurrency)</label><input class="f" id="sCon" inputmode="numeric"></div>
+    <div class="row"><label>فاصلهٔ اسکن خودکار (ثانیه)</label><input class="f" id="sInt" inputmode="numeric"></div>
+    <p class="muted" style="font-size:12px">اگر بایننس از طریق اتصال تو در دسترس نبود، آدرس پایه را به یک میرر/پراکسی معتبر تغییر بده. حداقل حجم ۲۵M و سایر آستانه‌ها طبق کد قفل هستند و تغییر نمی‌کنند.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn ghost" id="setClose">بستن</button>
+      <button class="btn primary" id="setSave">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   STORAGE — localStorage with safe in-memory fallback (works on iPad & here)
+   ========================================================================= */
+const DB=(()=>{const mem={};
+  const ok=(()=>{try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true;}catch(e){return false;}})();
+  return{
+    get(k){if(ok){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){}}return (k in mem)?mem[k]:null;},
+    set(k,v){if(ok){try{localStorage.setItem(k,JSON.stringify(v));return;}catch(e){}}mem[k]=v;}
+  };
+})();
+
+/* =========================================================================
+   CONFIG — LOCKED constants ported verbatim from the Python engine + patch.
+   Do not change these: they are the "setups in the code".
+   ========================================================================= */
+const S={
+  kline_limit:180,
+  risk_per_trade_pct:0.35, max_open_positions:8, max_leverage:3,   // from code (not used to alter signals)
+  min_signal_score:74, watch_score:62, ready_score:70, min_confirmation_score:65,
+  strong_signal_score:82, strong_flip_score:86,
+  min_quote_volume_usd:25000000, min_rr:1.8,
+  scan_interval_seconds:300,
+};
+// data-plumbing settings the user may tune (do NOT affect setup logic)
+const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:30,concurrency:4,interval:300},DB.get("cfg")||{});
+
+/* =========================================================================
+   INDICATORS  (standard textbook formulas feeding the engine's field names)
+   ========================================================================= */
+function sma(a,p){if(a.length<p)return null;let s=0;for(let i=a.length-p;i<a.length;i++)s+=a[i];return s/p;}
+function emaSeries(a,p){if(a.length<p)return[];const k=2/(p+1),o=[];let prev=sma(a.slice(0,p),p);o[p-1]=prev;for(let i=p;i<a.length;i++){prev=a[i]*k+prev*(1-k);o[i]=prev;}return o;}
+function emaLast(a,p){const s=emaSeries(a,p);return s.length?s[s.length-1]:a[a.length-1];}
+function rsiWilder(c,p=14){if(c.length<p+1)return 50;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d;}g/=p;l/=p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p;}if(l===0)return 100;const rs=g/l;return 100-100/(1+rs);}
+function macdHist(c,f=12,s=26,sig=9){if(c.length<s+sig)return 0;const ef=emaSeries(c,f),es=emaSeries(c,s),m=[];for(let i=0;i<c.length;i++)if(ef[i]!=null&&es[i]!=null)m.push(ef[i]-es[i]);if(m.length<sig)return 0;const sl=emaSeries(m,sig),li=m.length-1;return m[li]-sl[li];}
+function atr(h,l,c,p=14){if(c.length<p+1)return 0;const tr=[];for(let i=1;i<c.length;i++)tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));let a=0;for(let i=0;i<p;i++)a+=tr[i];a/=p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a;}
+function adx(h,l,c,p=14){if(c.length<2*p)return 0;const tr=[],pdm=[],ndm=[];for(let i=1;i<c.length;i++){const up=h[i]-h[i-1],dn=l[i-1]-l[i];pdm.push(up>dn&&up>0?up:0);ndm.push(dn>up&&dn>0?dn:0);tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));}
+  const wl=a=>{let s=0;for(let i=0;i<p;i++)s+=a[i];const o=[s];for(let i=p;i<a.length;i++){s=s-s/p+a[i];o.push(s);}return o;};
+  const t=wl(tr),pd=wl(pdm),nd=wl(ndm),dx=[];for(let i=0;i<t.length;i++){const pdi=100*pd[i]/(t[i]||1),ndi=100*nd[i]/(t[i]||1),sum=pdi+ndi;dx.push(sum===0?0:100*Math.abs(pdi-ndi)/sum);}if(dx.length<p)return dx.length?dx[dx.length-1]:0;let a=0;for(let i=0;i<p;i++)a+=dx[i];a/=p;for(let i=p;i<dx.length;i++)a=(a*(p-1)+dx[i])/p;return a;}
+function bbPos(c,p=20,m=2){if(c.length<p)return 50;const mid=sma(c,p);let v=0;for(let i=c.length-p;i<c.length;i++)v+=(c[i]-mid)**2;const sd=Math.sqrt(v/p),up=mid+m*sd,lo=mid-m*sd,x=c[c.length-1];if(up===lo)return 50;return Math.max(0,Math.min(100,(x-lo)/(up-lo)*100));}
+const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+
+/* per-timeframe metrics — produces every field the engine consumes.
+   NOTE: the base long_score/short_score formula was not in the supplied diff,
+   so it is reconstructed transparently here; everything downstream is verbatim. */
+function timeframeMetrics(cd,tf){
+  const h=cd.map(c=>c.h),l=cd.map(c=>c.l),c=cd.map(c=>c.c),v=cd.map(c=>c.v);
+  const close=c[c.length-1];
+  const ema9=emaLast(c,9),ema21=emaLast(c,21),ema50=emaLast(c,Math.min(50,c.length-1));
+  const rsi=rsiWilder(c,14),mh=macdHist(c),adxV=adx(h,l,c,14),bb=bbPos(c,20,2),a=atr(h,l,c,14);
+  const look=Math.min(20,h.length),rh=Math.max(...h.slice(-look)),rl=Math.min(...l.slice(-look));
+  const vl=v.slice(-Math.min(20,v.length)),vm=vl.reduce((x,y)=>x+y,0)/vl.length,
+        vsd=Math.sqrt(vl.reduce((x,y)=>x+(y-vm)**2,0)/vl.length)||1,vz=(v[v.length-1]-vm)/vsd;
+  const reasons=[];let ls=0,ss=0;
+  if(close>ema21){ls+=12;reasons.push(tf+": close>EMA21");}else{ss+=12;reasons.push(tf+": close<EMA21");}
+  if(ema9>ema21)ls+=10;else ss+=10;
+  if(ema21>ema50)ls+=8;else ss+=8;
+  if(mh>0){ls+=15;reasons.push(tf+": MACD↑");}else if(mh<0){ss+=15;reasons.push(tf+": MACD↓");}
+  if(rsi>=50&&rsi<=72)ls+=10;else if(rsi<=50&&rsi>=28)ss+=10;
+  if(rsi>72)ss+=4;if(rsi<28)ls+=4;
+  const vzc=clamp(vz,0,3);ls+=vzc*5;ss+=vzc*5;
+  if(bb>50)ls+=8;else ss+=8;
+  ls=clamp(ls,0,100);ss=clamp(ss,0,100);
+  let direction="NEUTRAL";if(ls-ss>=8)direction="LONG";else if(ss-ls>=8)direction="SHORT";
+  return{tf,close,ema9,ema21,ema50,rsi,macd_hist:mh,adx:adxV,bb_position:bb,atr:a,recent_high:rh,recent_low:rl,volume_z:vz,long_score:ls,short_score:ss,direction,reasons};
+}
+
+/* =========================================================================
+   PLAYBOOK + SCORECARD  — ported verbatim from the patch
+   ========================================================================= */
+function setupPlaybook(direction,m5,m15,m1h,current){
+  const pullback_ref=m15.ema21;
+  const near_pullback=current?Math.abs(current-pullback_ref)/current<=0.008:false;
+  const breakout_long=current>=m15.recent_high*0.998;
+  const breakout_short=current<=m15.recent_low*1.002;
+  const volume_ok=Math.max(m5.volume_z,m15.volume_z)>=0.8;
+  const momentum_ok=(direction==="LONG"&&m5.macd_hist>0)||(direction==="SHORT"&&m5.macd_hist<0);
+  const confirmation_ok=m5.direction===direction&&volume_ok&&momentum_ok;
+  let name;
+  if(direction==="LONG"&&breakout_long)name="BREAKOUT_CONTINUATION";
+  else if(direction==="SHORT"&&breakout_short)name="BREAKOUT_CONTINUATION";
+  else if(near_pullback)name="EMA21_PULLBACK";
+  else name="MOMENTUM_WATCH";
+  const mandatory={
+    higher_tf_direction:m1h.direction===direction,
+    setup_tf_direction:m15.direction===direction,
+    entry_tf_confirmation:confirmation_ok,
+    not_overextended:10<m15.bb_position&&m15.bb_position<90,
+    trend_strength:m15.adx>=14||m5.adx>=18,
+    volume_expansion:volume_ok,
+  };
+  const blockers=Object.keys(mandatory).filter(k=>!mandatory[k]);
+  let lifecycle;
+  if(blockers.length===0&&name!=="MOMENTUM_WATCH")lifecycle="VALID_ENTRY";
+  else if(blockers.length<=2&&(near_pullback||breakout_long||breakout_short))lifecycle="WAITING_CONFIRMATION";
+  else if((direction==="LONG"||direction==="SHORT")&&(m15.direction===direction||m1h.direction===direction))lifecycle="APPROACHING_ENTRY_ZONE";
+  else lifecycle="NO_SETUP";
+  return{name,lifecycle,entry_zone:{low:Math.min(current,pullback_ref)*0.998,high:Math.max(current,pullback_ref)*1.002,reference:"15m EMA21 / breakout structure"},mandatory_checks:mandatory,blockers};
+}
+function scoreBreakdown(direction,score,rr,tf_agreement,funding_penalty,context_penalty,m5,m15,m1h){
+  const trend=tf_agreement>=3?20:tf_agreement===2?14:6;
+  const entry=(m5.direction===direction&&m15.direction===direction)?20:(m15.direction===direction)?12:5;
+  const momentum=((direction==="LONG"&&m15.macd_hist>0)||(direction==="SHORT"&&m15.macd_hist<0))?15:8;
+  const vmax=Math.max(m5.volume_z,m15.volume_z);const volume=vmax>=1.3?15:vmax>=0.5?9:3;
+  const risk=rr>=2?15:rr>=S.min_rr?10:4;
+  const market=!context_penalty?10:6;
+  const timing=(15<m15.bb_position&&m15.bb_position<85)?5:2;
+  const total=clamp(trend+entry+momentum+volume+risk+market+timing-funding_penalty,0,100);
+  return{trend_alignment:trend,entry_zone_quality:entry,momentum,volume_confirmation:volume,risk_reward:risk,market_context:market,timing,computed_total:Math.round(total*100)/100,engine_score:Math.round(score*100)/100};
+}
+
+/* =========================================================================
+   ANALYZE  — direction blend, SL/TP, status gates : ported verbatim
+   ========================================================================= */
+function analyzeSymbol(asset,m5,m15,m1h,current,funding_rate,market_context){
+  const long_total=0.35*m5.long_score+0.40*m15.long_score+0.25*m1h.long_score;
+  const short_total=0.35*m5.short_score+0.40*m15.short_score+0.25*m1h.short_score;
+  let direction="NEUTRAL";
+  if(long_total-short_total>=6)direction="LONG";else if(short_total-long_total>=6)direction="SHORT";
+  const tf_agreement=[m5,m15,m1h].filter(m=>m.direction===direction).length;
+  const risk_mode=market_context.risk_mode||"UNKNOWN";
+  const funding_penalty=(direction==="LONG"&&funding_rate>0.0006)?6:(direction==="SHORT"&&funding_rate<-0.0006)?6:0;
+  const context_penalty=(risk_mode==="RISK_OFF")?8:0;
+  let score=clamp((direction==="LONG"?long_total:direction==="SHORT"?short_total:Math.max(long_total,short_total))-funding_penalty-context_penalty,0,100);
+  const atr15=m15.atr;let stop,stop_distance,tp1,tp2;
+  if(direction==="LONG"){const ssl=Math.min(m15.recent_low,current-atr15*1.15);stop=clamp(ssl,current*(1-0.028),current*(1-0.0035));stop_distance=current-stop;tp1=current+stop_distance*1.15;tp2=current+stop_distance*2.1;}
+  else if(direction==="SHORT"){const ssl=Math.max(m15.recent_high,current+atr15*1.15);stop=clamp(ssl,current*(1+0.0035),current*(1+0.028));stop_distance=stop-current;tp1=current-stop_distance*1.15;tp2=current-stop_distance*2.1;}
+  else{stop=current;stop_distance=0;tp1=current;tp2=current;}
+  const rr=stop_distance>0?2.1:0.0;
+  const playbook=setupPlaybook(direction,m5,m15,m1h,current);
+  const scorecard=scoreBreakdown(direction,score,rr,tf_agreement,funding_penalty,context_penalty,m5,m15,m1h);
+  const reasons=[].concat(m5.reasons,m15.reasons,m1h.reasons);
+  if(funding_penalty)reasons.push("Funding penalty "+funding_rate.toFixed(5));
+  if(context_penalty)reasons.push("Market context penalty "+risk_mode);
+  let status=playbook.lifecycle;
+  const enough_confirmation=tf_agreement>=3||(tf_agreement>=2&&score>=S.strong_signal_score);
+  const trend_quality_ok=(m15.adx>=16||m5.adx>=18)&&m15.adx>=12;
+  if(["LONG","SHORT"].includes(direction)&&score>=S.min_signal_score&&enough_confirmation&&trend_quality_ok&&rr>=S.min_rr&&playbook.blockers.length===0)status="SIGNAL";
+  else if(["LONG","SHORT"].includes(direction)&&score>=S.ready_score&&rr>=S.min_rr)status="WAITING_CONFIRMATION";
+  else if(["LONG","SHORT"].includes(direction)&&score>=S.watch_score)status="WATCHING";
+  if(asset.quoteVolume<S.min_quote_volume_usd)status="LOW_LIQUIDITY";
+  if(m15.adx<14&&m5.adx<14)status="RANGE_FILTERED";
+  return{
+    scan_time:new Date().toISOString(),asset_symbol:asset.asset_symbol,binance_symbol:asset.binance_symbol,rank:asset.rank,
+    status,direction,score:Math.round(score*100)/100,
+    grade:score>=S.strong_signal_score?"HIGH":score>=S.min_signal_score?"MEDIUM":"LOW",
+    entry:current,stop_loss:stop,tp1,tp2,rr,tf_agreement,funding_rate,
+    quote_volume:asset.quoteVolume,change_24h_pct:asset.change_24h_pct,
+    setup:playbook.name,lifecycle:status,entry_zone:playbook.entry_zone,
+    mandatory_checks:playbook.mandatory_checks,blockers:playbook.blockers,scorecard,
+    decision_trace:["1 data_loaded","2 market_regime="+risk_mode,"3 setup="+playbook.name,"4 lifecycle="+status,"5 blockers="+(playbook.blockers.join(",")||"none")],
+    risk_mode,metrics:{"5m":m5,"15m":m15,"1h":m1h},reasons:reasons.slice(0,12)
+  };
+}
+
+/* =========================================================================
+   BINANCE API CLIENT  (runs in the user's browser; data stays local)
+   ========================================================================= */
+async function jget(path){
+  const r=await fetch(CFG.apiBase+path,{cache:"no-store"});
+  if(!r.ok)throw new Error("HTTP "+r.status+" "+path);
+  return r.json();
+}
+function parseKlines(raw){return raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));}
+async function fetchKlines(sym,iv,limit=S.kline_limit){return parseKlines(await jget(`/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${limit}`));}
+async function fetchTickers(){return jget(`/fapi/v1/ticker/24hr`);}
+async function fetchFundingMap(){const a=await jget(`/fapi/v1/premiumIndex`);const m={};a.forEach(x=>m[x.symbol]=+x.lastFundingRate||0);return m;}
+
+/* market regime — reconstructed (browser side), clearly labeled in UI */
+async function fetchMarketContext(){
+  try{
+    const k1h=await fetchKlines("BTCUSDT","1h",S.kline_limit);
+    const m=timeframeMetrics(k1h,"1h");
+    const chg=(k1h[k1h.length-1].c/k1h[Math.max(0,k1h.length-24)].c-1)*100;
+    let risk_mode="NEUTRAL";
+    if(m.direction==="LONG"&&chg>0)risk_mode="RISK_ON";
+    else if(m.direction==="SHORT"&&chg<-1.5)risk_mode="RISK_OFF";
+    return{risk_mode,btc_dir:m.direction,btc_change_24h:chg};
+  }catch(e){return{risk_mode:"UNKNOWN"};}
+}
+async function buildUniverse(tickers){
+  return tickers.filter(t=>t.symbol.endsWith("USDT")&&!/(_|UPUSDT|DOWNUSDT|BULL|BEAR)/.test(t.symbol))
+    .map(t=>({binance_symbol:t.symbol,asset_symbol:t.symbol.replace("USDT",""),quoteVolume:+t.quoteVolume,change_24h_pct:+t.priceChangePercent,lastPrice:+t.lastPrice}))
+    .sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0,CFG.universe)
+    .map((a,i)=>(a.rank=i+1,a));
+}
+async function analyzeOne(asset,funding,ctx){
+  const[c5,c15,c1h]=await Promise.all([fetchKlines(asset.binance_symbol,"5m"),fetchKlines(asset.binance_symbol,"15m"),fetchKlines(asset.binance_symbol,"1h")]);
+  const m5=timeframeMetrics(c5,"5m"),m15=timeframeMetrics(c15,"15m"),m1h=timeframeMetrics(c1h,"1h");
+  const cur=asset.lastPrice||m5.close;
+  return analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+}
+async function pool(items,worker,limit,onEach){
+  const q=items.slice();let done=0;const out=[];
+  async function run(){while(q.length){const it=q.shift();try{const r=await worker(it);out.push(r);}catch(e){out.push({error:String(e),asset_symbol:it.asset_symbol,binance_symbol:it.binance_symbol,status:"ANALYSIS_ERROR"});}done++;onEach&&onEach(done);}}
+  await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
+  return out;
+}
+
+/* =========================================================================
+   STATE + SCAN
+   ========================================================================= */
+const STATE={signals:[],watchlist:[],universe:[],market_context:{},last_scan_at:null,scanning:false};
+const LIFE=["NO_SETUP","WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY","SIGNAL"];
+const LIFE_SHORT={NO_SETUP:"no setup",WATCHING:"watching",APPROACHING_ENTRY_ZONE:"approach",WAITING_CONFIRMATION:"confirm",VALID_ENTRY:"valid",SIGNAL:"signal"};
+
+async function runScan(){
+  if(STATE.scanning)return;STATE.scanning=true;setScanning(true);
+  try{
+    setStatus("در حال خواندن تیکرها و رژیم بازار…");
+    const[tickers,funding,ctx]=await Promise.all([fetchTickers(),fetchFundingMap(),fetchMarketContext()]);
+    STATE.market_context=ctx;renderRegime();
+    const uni=await buildUniverse(tickers);
+    setStatus(`در حال تحلیل ${uni.length} نماد پرحجم…`);showProg(0,uni.length);
+    const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>showProg(d,uni.length));
+    rows.sort((a,b)=>(a.rank||999)-(b.rank||999));
+    STATE.universe=rows;
+    STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
+    STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
+    STATE.last_scan_at=new Date();
+    hideProg();
+    setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
+    renderAll();
+  }catch(e){
+    hideProg();
+    setStatus(`اتصال به بایننس ناموفق بود (${e.message}). اتصالت را بررسی کن یا در «تنظیمات» آدرس پایهٔ API را به یک میرر معتبر تغییر بده. «تحلیل تک‌نماد» هم می‌تواند کمک کند چون درخواست کمتری دارد.`);
+  }finally{STATE.scanning=false;setScanning(false);}
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const fmt=(n,d)=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n);d=d??(a>=100?2:a>=1?4:a>=0.01?5:8);return Number(n).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});};
+const fmtVol=v=>v>=1e9?(v/1e9).toFixed(2)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":(v/1e3).toFixed(0)+"K";
+const fmtTime=d=>d?new Date(d).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"—";
+function setStatus(t){$("#statusLine").textContent=t;}
+function setScanning(on){$("#scanBtn").disabled=on;$("#scanBtn").textContent=on?"در حال اسکن…":"اسکن بازار";}
+function showProg(d,t){const p=$("#prog");p.style.display="block";p.firstElementChild.style.width=(t?d/t*100:0)+"%";}
+function hideProg(){const p=$("#prog");p.firstElementChild.style.width="100%";setTimeout(()=>p.style.display="none",350);}
+function renderRegime(){
+  const c=STATE.market_context||{},col={RISK_ON:"var(--long)",RISK_OFF:"var(--short)",NEUTRAL:"var(--watch)",UNKNOWN:"var(--gray)"}[c.risk_mode]||"var(--gray)";
+  $("#regime").firstElementChild.style.background=col;
+  const fa={RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی",UNKNOWN:"نامشخص"}[c.risk_mode]||"نامشخص";
+  $("#regimeTxt").innerHTML=`رژیم بازار: ${fa} `+(c.btc_dir?`· BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}%`:"");
+}
+function railHTML(status,direction){
+  const idx=LIFE.indexOf(status);const rej=idx<0;
+  return `<div class="rail ${direction}">`+LIFE.map((s,i)=>{
+    const cls=rej?"":i<idx?"done":i===idx?"cur":"";
+    return `<div class="step ${cls}"><span class="o"></span><span class="lab">${LIFE_SHORT[s]}</span></div>`;
+  }).join("")+`</div>`;
+}
+function chkLabelFa(k){return{higher_tf_direction:"جهت ۱ساعته",setup_tf_direction:"جهت ۱۵م",entry_tf_confirmation:"تأیید ۵م",not_overextended:"اشباع نشده",trend_strength:"قدرت روند",volume_expansion:"انبساط حجم"}[k]||k;}
+
+function signalCard(r){
+  const z=r.entry_zone||{};
+  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(r.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`]
+    .concat((r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}✕</span>`)).join("");
+  return `<div class="card fade">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
+      <span class="side ${r.direction}">${r.direction}</span></div>
+    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · <span class="statuspill st-${r.status}">${r.status}</span></div>
+    <div class="levels">
+      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+    </div>
+    ${railHTML(r.status,r.direction)}
+    <div class="tags">${tags}</div>
+    <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل و ثبت بازخورد</button></div>
+  </div>`;
+}
+function renderSignals(){
+  $("#cSig").textContent=STATE.signals.length;
+  const v=$("#view-signals");
+  v.innerHTML=`<div class="section-title"><span class="eyebrow">tradable</span><h2>سیگنال‌ها</h2></div>`+
+    (STATE.signals.length?`<div class="grid">${STATE.signals.map(signalCard).join("")}</div>`:
+    `<div class="empty">هنوز سیگنالی نیست. سیگنال فقط وقتی صادر می‌شود که همهٔ فیلترهای سخت پاس شوند — بقیه در واچ‌لیست می‌مانند. یک اسکن بزن.</div>`);
+}
+function watchRow(r){
+  return `<div class="card fade">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
+      <span class="side ${r.direction}">${r.direction}</span>
+      <span class="statuspill st-${r.status}" style="margin-inline-start:8px">${LIFE_SHORT[r.status]||r.status}</span></div>
+    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(r.rr,2)}</div>
+    ${railHTML(r.status,r.direction)}
+    <div class="tags">${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
+    <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل</button></div>
+  </div>`;
+}
+function renderWatch(){
+  $("#cWatch").textContent=STATE.watchlist.length;
+  const v=$("#view-watch");
+  v.innerHTML=`<div class="section-title"><span class="eyebrow">forming</span><h2>واچ‌لیست</h2></div>`+
+    (STATE.watchlist.length?`<div class="grid">${STATE.watchlist.map(watchRow).join("")}</div>`:
+    `<div class="empty">واچ‌لیست خالی است. بعد از اسکن، ستاپ‌های در حال شکل‌گیری اینجا می‌آیند.</div>`);
+}
+
+/* deep dive */
+let lastDeep=null;
+async function deepAnalyze(symInput){
+  let sym=(symInput||"").trim().toUpperCase();if(!sym)return;
+  if(!sym.endsWith("USDT"))sym+="USDT";
+  $("#ddOut").innerHTML=`<div class="empty">در حال تحلیل ${sym}…</div>`;$("#ddMeta").textContent="";
+  try{
+    const[funding,ctx]=await Promise.all([fetchFundingMap().catch(()=>({})),fetchMarketContext()]);
+    STATE.market_context=ctx;renderRegime();
+    let last=funding["__price"];
+    let asset={binance_symbol:sym,asset_symbol:sym.replace("USDT",""),quoteVolume:Infinity,change_24h_pct:0,lastPrice:0,rank:"-"};
+    try{const t=await jget(`/fapi/v1/ticker/24hr?symbol=${sym}`);asset.quoteVolume=+t.quoteVolume;asset.change_24h_pct=+t.priceChangePercent;asset.lastPrice=+t.lastPrice;}catch(e){}
+    const r=await analyzeOne(asset,funding,ctx);
+    lastDeep=r;renderDeep(r);
+    $("#ddMeta").textContent=`${fmtVol(r.quote_volume)} · ${fmtTime(new Date())}`;
+  }catch(e){$("#ddOut").innerHTML=`<div class="empty">تحلیل ${sym} ناموفق: ${e.message}. نماد یا اتصال را بررسی کن.</div>`;}
+}
+function renderDeep(r){
+  const M=r.metrics,tfRow=(tf,m)=>`<div class="tfrow">
+    <div class="tf">${tf}</div>
+    <div class="m">close<b>${fmt(m.close)}</b></div>
+    <div class="m">RSI<b>${m.rsi.toFixed(0)}</b></div>
+    <div class="m">ADX<b>${m.adx.toFixed(0)}</b></div>
+    <div class="m">BB%<b>${m.bb_position.toFixed(0)}</b></div>
+    <div class="tfdir side ${m.direction}">${m.direction}</div></div>`;
+  const sc=r.scorecard,bar=(fa,v,max)=>`<div class="scbar"><span class="n">${fa}</span><span class="track"><i style="width:${v/max*100}%"></i></span><span class="v">${v}</span></div>`;
+  const checks=Object.entries(r.mandatory_checks).map(([k,v])=>`<div class="chk ${v?"ok":"no"}"><span class="i">${v?"✓":"✕"}</span><span>${chkLabelFa(k)}</span><span class="k" style="margin-inline-start:auto">${k}</span></div>`).join("");
+  $("#ddOut").innerHTML=`
+  <div class="card" style="margin-bottom:12px">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="side ${r.direction}">${r.direction}</span>
+      <span class="statuspill st-${r.status}" style="margin-inline-start:auto">${r.status}</span></div>
+    <div class="scorebig">امتیاز موتور <b>${fmt(r.score,1)}</b> · ستاپ ${r.setup} · RR ${fmt(r.rr,2)} · TF ${r.tf_agreement}/3</div>
+    <div class="levels">
+      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+    </div>
+    ${railHTML(r.status,r.direction)}
+  </div>
+  <div class="dd">
+    <div class="box"><h3>تایم‌فریم‌ها</h3>${tfRow("5m",M["5m"])}${tfRow("15m",M["15m"])}${tfRow("1h",M["1h"])}
+      <h3 style="margin-top:14px">ناحیهٔ ورود</h3>
+      <div class="num muted" style="font-size:13px">${fmt(r.entry_zone.low)} → ${fmt(r.entry_zone.high)} <span class="dim">(${r.entry_zone.reference})</span></div>
+      <h3 style="margin-top:14px">رد پای تصمیم</h3>
+      <div class="trace">${r.decision_trace.map(t=>"› "+t).join("<br>")}</div>
+    </div>
+    <div class="box"><h3>تفکیک امتیاز</h3>
+      ${bar("روند",sc.trend_alignment,20)}${bar("کیفیت ناحیهٔ ورود",sc.entry_zone_quality,20)}
+      ${bar("مومنتوم",sc.momentum,15)}${bar("تأیید حجم",sc.volume_confirmation,15)}
+      ${bar("ریسک/ریوارد",sc.risk_reward,15)}${bar("رژیم بازار",sc.market_context,10)}${bar("تایمینگ",sc.timing,5)}
+      <div class="scorebig" style="padding:8px 0 0">جمع محاسبه‌شده <b>${sc.computed_total}</b></div>
+      <h3 style="margin-top:14px">چک‌لیست اجباری</h3><div class="checks">${checks}</div>
+    </div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>بازخورد — به موتور یاد بده مثل تو قضاوت کند</h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">نظرت دربارهٔ این ستاپ چیست؟ ثبت می‌شود و در «کالیبراسیون» جمع‌بندی می‌شود.</p>
+    <div class="fbrow">
+      <div class="fb" onclick="recordFb('valid_entry')">ورود معتبر</div>
+      <div class="fb early" onclick="recordFb('too_early')">زود است</div>
+      <div class="fb skip" onclick="recordFb('reject')">رد</div>
+      <div class="fb win" onclick="recordFb('win')">نتیجه: برد</div>
+      <div class="fb loss" onclick="recordFb('loss')">نتیجه: باخت</div>
+    </div>
+    <textarea id="fbNote" placeholder="یادداشت اختیاری (مثلاً: منتظر بستهٔ کندل ۵م بمان)"></textarea>
+  </div>`;
+}
+function openDeep(sym){selectTab("single");$("#ddSym").value=sym;deepAnalyze(sym);window.scrollTo({top:0,behavior:"smooth"});}
+
+/* feedback + calibration (additive — does not touch the engine) */
+function getFb(){return DB.get("feedback")||[];}
+function recordFb(verdict){
+  if(!lastDeep){return;}
+  const r=lastDeep,item={time:new Date().toISOString(),symbol:r.binance_symbol,asset:r.asset_symbol,verdict,
+    note:($("#fbNote").value||"").slice(0,1000),setup:r.setup,direction:r.direction,score:r.score,lifecycle:r.status,rr:r.rr};
+  const fb=getFb();fb.unshift(item);fb.splice(500);DB.set("feedback",fb);
+  $("#cFb").textContent=fb.length;$("#fbNote").value="";renderCalib();
+  const map={valid_entry:"ورود معتبر",too_early:"زود است",reject:"رد",win:"برد",loss:"باخت"};
+  setStatus(`بازخورد ثبت شد: ${r.asset_symbol} → ${map[verdict]}. این داده در «کالیبراسیون» جمع می‌شود.`);
+}
+function renderCalib(){
+  const fb=getFb();$("#cFb").textContent=fb.length;
+  const total=fb.length,wins=fb.filter(f=>f.verdict==="win").length,loss=fb.filter(f=>f.verdict==="loss").length,
+    decided=wins+loss,wr=decided?Math.round(wins/decided*100):null;
+  // per setup
+  const bySetup={};fb.forEach(f=>{(bySetup[f.setup]=bySetup[f.setup]||{n:0,win:0,loss:0,valid:0,early:0,reject:0});const s=bySetup[f.setup];s.n++;if(f.verdict==="win")s.win++;if(f.verdict==="loss")s.loss++;if(f.verdict==="valid_entry")s.valid++;if(f.verdict==="too_early")s.early++;if(f.verdict==="reject")s.reject++;});
+  // per score band
+  const band=f=>f.score>=82?"82+":f.score>=74?"74–82":f.score>=62?"62–74":"<62";
+  const byBand={};fb.forEach(f=>{const b=band(f);(byBand[b]=byBand[b]||{n:0,win:0,loss:0});byBand[b].n++;if(f.verdict==="win")byBand[b].win++;if(f.verdict==="loss")byBand[b].loss++;});
+  const stat=(n,v)=>`<div class="stat"><div class="n">${n}</div><div class="v">${v}</div></div>`;
+  let html=`<div class="statgrid">
+    ${stat("کل بازخورد",total)}
+    ${stat("نرخ برد",wr==null?"—":wr+"%")}
+    ${stat("برد / باخت",wins+" / "+loss)}
+    ${stat("ورود معتبر",fb.filter(f=>f.verdict==="valid_entry").length)}
+  </div>`;
+  const setupRows=Object.entries(bySetup).map(([k,s])=>{const d=s.win+s.loss,w=d?Math.round(s.win/d*100):null;
+    return `<div class="fbitem"><div class="s mono">${k}</div>
+      <div class="muted mono" style="font-size:11.5px">n=${s.n} · valid=${s.valid} · early=${s.early} · reject=${s.reject}</div>
+      <div class="num">${w==null?"—":w+"% WR"}</div></div>`;}).join("");
+  const bandRows=Object.entries(byBand).sort().reverse().map(([k,s])=>{const d=s.win+s.loss,w=d?Math.round(s.win/d*100):null;
+    return `<div class="fbitem"><div class="s mono">امتیاز ${k}</div><div class="muted mono" style="font-size:11.5px">n=${s.n}</div><div class="num">${w==null?"—":w+"% WR"}</div></div>`;}).join("");
+  html+=`<div class="box" style="margin-top:12px"><h3>عملکرد به تفکیک ستاپ</h3>${setupRows||'<div class="empty">هنوز داده‌ای نیست</div>'}</div>`;
+  html+=`<div class="box" style="margin-top:12px"><h3>عملکرد به تفکیک بازهٔ امتیاز</h3>${bandRows||'<div class="empty">هنوز داده‌ای نیست</div>'}</div>`;
+  $("#calibStats").innerHTML=html;
+  $("#fbLog").innerHTML=fb.slice(0,60).map(f=>`<div class="fbitem">
+    <div class="t">${fmtTime(f.time)}</div>
+    <div><span class="s">${f.asset}</span> <span class="dim mono" style="font-size:11px">${f.direction} · ${f.setup} · ${f.score}</span>${f.note?`<div class="muted" style="font-size:12px">${f.note.replace(/</g,"&lt;")}</div>`:""}</div>
+    <div class="fbverdict v-${f.verdict}">${f.verdict}</div></div>`).join("")||'<div class="empty">هنوز بازخوردی ثبت نشده</div>';
+}
+function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();}
+
+/* =========================================================================
+   TABS / SETTINGS / AUTO
+   ========================================================================= */
+function selectTab(t){
+  $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
+  ["signals","watch","single","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+}
+$("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
+$("#scanBtn").onclick=runScan;
+$("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
+$("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
+
+const setModal=$("#setModal");
+$("#setBtn").onclick=()=>{$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;setModal.classList.add("show");};
+$("#setClose").onclick=()=>setModal.classList.remove("show");
+$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||30,5,80);CFG.concurrency=clamp(+$("#sCon").value||4,1,8);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);setModal.classList.remove("show");setStatus("تنظیمات ذخیره شد.");};
+setModal.addEventListener("click",e=>{if(e.target===setModal)setModal.classList.remove("show");});
+
+let autoTimer=null;const autoSw=$("#autoSw");
+autoSw.onclick=()=>{const on=!autoSw.classList.contains("on");autoSw.classList.toggle("on",on);DB.set("auto",on);
+  if(on){runScan();autoTimer=setInterval(runScan,CFG.interval*1000);}else{clearInterval(autoTimer);autoTimer=null;}};
+if(DB.get("auto")){autoSw.classList.add("on");autoTimer=setInterval(runScan,CFG.interval*1000);}
+
+/* boot */
+renderCalib();fetchMarketContext().then(c=>{STATE.market_context=c;renderRegime();}).catch(()=>{});
+window.openDeep=openDeep;window.recordFb=recordFb;
+</script>
+</body>
+</html>
