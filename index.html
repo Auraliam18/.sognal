@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hamid Signal Agent — SMC Cycle + Patterns</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#090d13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Signal Agent">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<style>
+:root{
+  --bg:#090d13; --panel:#10161f; --panel2:#161f2b; --line:#212d3d; --line2:#2c3a4d;
+  --txt:#e8eff7; --mut:#8597ad; --dim:#566479;
+  --long:#26d0a4; --short:#ff5d77; --watch:#3fb6f5; --wait:#ffb24c; --valid:#8df0c2; --signal:#28e6a6;
+  --gray:#5b6a7e;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.5}
+body{padding-bottom:env(safe-area-inset-bottom)}
+a{color:var(--watch)}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.mono{font-family:var(--mono)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--mut)}
+.dim{color:var(--dim)}
+
+header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#0b1119,#0a0f17 70%,rgba(10,15,23,.92));
+  border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.bar{display:flex;align-items:center;gap:12px;padding:11px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:9px;margin-inline-end:auto}
+.brand b{font-size:16px;letter-spacing:-.01em}
+.brand .v{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line2);padding:1px 6px;border-radius:6px}
+.regime{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--mut);
+  border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--panel)}
+.regime .dot{width:8px;height:8px;border-radius:50%;background:var(--gray)}
+.btn{appearance:none;border:1px solid var(--line2);background:var(--panel2);color:var(--txt);
+  font-family:var(--sans);font-size:13px;padding:8px 13px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(180deg,#1c8f72,#157a5f);border-color:#1c9c7c;color:#eafff7;font-weight:600}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);cursor:pointer;user-select:none}
+.switch i{width:34px;height:19px;border-radius:20px;background:var(--line2);position:relative;transition:background .2s}
+.switch i::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#0a0f17;transition:left .2s}
+.switch.on i{background:var(--long)} .switch.on i::after{left:17px}
+
+.tabs{display:flex;gap:4px;padding:0 12px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{flex:0 0 auto;border:1px solid transparent;background:transparent;color:var(--mut);
+  font-size:13.5px;padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.tab.active{background:var(--panel2);border-color:var(--line2);color:var(--txt)}
+.tab .b{display:inline-block;min-width:18px;font-family:var(--mono);font-size:10.5px;margin-inline-start:6px;
+  background:var(--line);color:var(--mut);border-radius:20px;padding:1px 6px}
+
+main{max-width:1180px;margin:0 auto;padding:16px}
+.progress{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin:0 0 14px}
+.progress>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--watch),var(--long));transition:width .25s}
+.hint{color:var(--mut);font-size:13px;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;background:rgba(22,31,43,.4)}
+
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card .top{display:flex;align-items:center;gap:10px;padding:13px 14px 10px}
+.sym{font-weight:700;font-size:16px;letter-spacing:-.01em}
+.rank{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.side{margin-inline-start:auto;font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px}
+.side.LONG{color:#03150f;background:var(--long)} .side.SHORT{color:#1a0309;background:var(--short)}
+.side.NEUTRAL{color:var(--mut);background:var(--line)}
+.scorebig{font-family:var(--mono);font-size:13px;color:var(--mut);padding:0 14px}
+.scorebig b{color:var(--txt);font-size:15px}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin:11px 0 0;border-top:1px solid var(--line)}
+.levels div{background:var(--panel);padding:9px 8px;text-align:center}
+.levels .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.levels .val{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;margin-top:3px}
+.levels .val.sl{color:var(--short)} .levels .val.tp{color:var(--long)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;padding:11px 14px}
+.tag{font-family:var(--mono);font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:7px;padding:3px 8px}
+.tag.warn{color:var(--wait);border-color:#5a4420}
+.tag.pat{color:var(--watch);border-color:#1d4357}
+
+/* lifecycle rail — the signature device */
+.rail{display:flex;align-items:center;gap:0;padding:11px 14px 13px}
+.rail .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative}
+.rail .step .o{width:11px;height:11px;border-radius:50%;background:var(--line2);border:2px solid var(--bg);z-index:1}
+.rail .step .lab{font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:var(--dim);text-align:center;line-height:1.2;text-transform:uppercase}
+.rail .step::before{content:"";position:absolute;top:5px;left:-50%;width:100%;height:2px;background:var(--line)}
+.rail .step:first-child::before{display:none}
+.rail .step.done .o{background:var(--mut)} .rail .step.done::before{background:var(--mut)}
+.rail .step.cur .o{transform:scale(1.5);box-shadow:0 0 0 4px rgba(40,230,166,.16)}
+.rail .step.cur .lab{font-weight:700}
+.rail.LONG .step.cur .o{background:var(--signal)} .rail.LONG .step.cur .lab{color:var(--valid)}
+.rail.SHORT .step.cur .o{background:var(--short)} .rail.SHORT .step.cur .lab{color:var(--short)}
+.rail.NEUTRAL .step.cur .o{background:var(--watch)} .rail.NEUTRAL .step.cur .lab{color:var(--watch)}
+
+.statuspill{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:6px;text-transform:uppercase}
+.st-SIGNAL{color:#03150f;background:var(--signal)}
+.st-VALID_ENTRY{color:#03150f;background:var(--valid)}
+.st-WAITING_CONFIRMATION{color:#23170a;background:var(--wait)}
+.st-APPROACHING_ENTRY_ZONE{color:#04212e;background:var(--watch)}
+.st-WATCHING{color:var(--watch);background:rgba(63,182,245,.12);border:1px solid #1d4357}
+.st-NO_SETUP,.st-LOW_LIQUIDITY,.st-RANGE_FILTERED,.st-NO_FUTURES,.st-ANALYSIS_ERROR{color:var(--dim);background:var(--line)}
+
+/* single symbol deep dive */
+.dd{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:780px){.dd{grid-template-columns:1.1fr .9fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px}
+.box h3{margin:0 0 11px;font-size:12px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.tfrow{display:grid;grid-template-columns:46px repeat(5,1fr);gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.tfrow:first-of-type{border-top:0}
+.tfrow .tf{font-family:var(--mono);font-weight:700;font-size:13px}
+.tfrow .m{font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;text-align:center;color:var(--mut)}
+.tfrow .m b{color:var(--txt);display:block;font-size:12.5px}
+.tfdir{font-family:var(--mono);font-size:10px;font-weight:700;border-radius:5px;padding:2px 0;text-align:center}
+.scbar{display:grid;grid-template-columns:120px 1fr 38px;gap:10px;align-items:center;margin:8px 0}
+.scbar .n{font-size:12.5px;color:var(--mut)}
+.scbar .track{height:8px;background:var(--line);border-radius:5px;overflow:hidden}
+.scbar .track>i{display:block;height:100%;background:linear-gradient(90deg,var(--watch),var(--long));border-radius:5px}
+.scbar .v{font-family:var(--mono);font-size:12px;text-align:right}
+.checks{display:grid;gap:7px}
+.chk{display:flex;align-items:center;gap:9px;font-size:13px}
+.chk .i{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.chk.ok .i{background:rgba(38,208,164,.16);color:var(--long)} .chk.no .i{background:rgba(255,93,119,.14);color:var(--short)}
+.chk .k{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+.trace{font-family:var(--mono);font-size:11.5px;color:var(--mut);line-height:1.9}
+.fbrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.fb{flex:1;min-width:120px;border:1px solid var(--line2);background:var(--panel2);border-radius:10px;padding:10px;
+  font-size:13px;cursor:pointer;text-align:center}
+.fb.win{border-color:#1c6b53;color:var(--long)} .fb.loss{border-color:#7a2233;color:var(--short)}
+.fb.early{border-color:#6b531c;color:var(--wait)} .fb.skip{color:var(--mut)}
+textarea{width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;color:var(--txt);
+  font-family:var(--sans);font-size:13.5px;padding:10px;resize:vertical;min-height:54px;margin-top:8px}
+input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px;color:var(--txt);
+  font-family:var(--mono);font-size:14px;padding:9px 11px;width:100%}
+
+/* === pattern chart + match panel (new layer) === */
+.patwrap{position:relative;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.patwrap canvas{display:block;width:100%;touch-action:pan-y}
+.patlegend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--mut)}
+.patlegend span{display:inline-flex;align-items:center;gap:6px}
+.patlegend i{width:16px;height:0;border-top:2px dashed;display:inline-block}
+.patmatch{border:1px solid var(--line2);background:var(--panel2);border-radius:11px;padding:12px 13px;margin-top:11px}
+.patmatch .h{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.patmatch .nm{font-weight:700;font-size:15.5px}
+.patmatch .kind{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line2);border-radius:6px;padding:2px 7px}
+.patmatch .badge{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px}
+.b-LONG{color:#03150f;background:var(--long)} .b-SHORT{color:#1a0309;background:var(--short)} .b-NEUTRAL{color:var(--mut);background:var(--line)}
+.patmatch .conf{margin-inline-start:auto;font-family:var(--mono);font-size:11px;color:var(--mut)}
+.patmatch p{margin:9px 0 0;color:var(--mut);font-size:13.5px;line-height:1.75}
+.patmatch .lv{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-top:11px}
+.patmatch .lv div{background:var(--panel);padding:8px 6px;text-align:center}
+.patmatch .lv .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.patmatch .lv .v{font-family:var(--mono);font-size:12.5px;margin-top:3px}
+.patmatch .lv .v.tp{color:var(--long)} .patmatch .lv .v.sl{color:var(--short)}
+.candsig{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.candsig .c{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-radius:7px;padding:3px 9px;color:var(--mut)}
+.candsig .c.L{color:var(--valid);border-color:#1c6b53} .candsig .c.S{color:var(--short);border-color:#7a2233}
+.confluence{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:13px;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);background:rgba(22,31,43,.55)}
+.confluence .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.patnone{color:var(--dim);font-size:13px;padding:6px 0}
+.verdict{border-radius:12px;padding:12px 14px;margin-top:11px;border:1px solid var(--line2);background:var(--panel2)}
+.verdict .vh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.verdict .vic{font-size:16px}
+.verdict .vtt{font-weight:800;font-size:13.5px}
+.verdict .vb{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid var(--line2)}
+.verdict .vb.b-LONG{color:var(--long)} .verdict .vb.b-SHORT{color:var(--short)} .verdict .vb.b-NEUTRAL{color:var(--gray)}
+.verdict .vmsg{font-weight:700;font-size:14px;margin-top:8px}
+.verdict .vdet{color:var(--mut);font-size:12.8px;line-height:1.7;margin-top:5px}
+.verdict.v-conflict{border-color:var(--short);background:linear-gradient(180deg,rgba(255,93,119,.14),rgba(255,93,119,.04));animation:vpulse 1.6s ease-in-out 3}
+.verdict.v-conflict .vtt{color:var(--short)} .verdict.v-conflict .vmsg{color:#ffb3c0}
+.verdict.v-caution{border-color:var(--wait);background:linear-gradient(180deg,rgba(255,178,76,.12),rgba(255,178,76,.03))}
+.verdict.v-caution .vtt{color:var(--wait)}
+.verdict.v-aligned{border-color:var(--long);background:linear-gradient(180deg,rgba(38,208,164,.12),rgba(38,208,164,.03))}
+.verdict.v-aligned .vtt{color:var(--long)}
+.verdict.v-neutral .vtt{color:var(--mut)}
+@keyframes vpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,93,119,0)}50%{box-shadow:0 0 0 3px rgba(255,93,119,.18)}}
+.patref{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:10px}
+.patref .it{border:1px solid var(--line);border-radius:10px;padding:11px;background:var(--panel2)}
+.patref .it .t{font-weight:600;font-size:13.5px;display:flex;gap:8px;align-items:center}
+.patref .it .d{color:var(--mut);font-size:12.5px;margin-top:5px;line-height:1.65}
+.patref .it code{font-family:var(--mono);font-size:11px;background:var(--panel);border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:var(--valid)}
+.tinytag{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:5px;font-weight:700}
+
+/* calibration */
+.statgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}
+.stat .n{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.stat .v{font-family:var(--mono);font-size:22px;margin-top:5px}
+.fbitem{display:grid;grid-template-columns:74px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.fbitem .t{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.fbitem .s{font-weight:700}
+.fbverdict{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+.v-win{color:#03150f;background:var(--long)} .v-loss{color:#1a0309;background:var(--short)}
+.v-too_early{color:#23170a;background:var(--wait)} .v-reject{color:var(--mut);background:var(--line)} .v-valid_entry{color:#04212e;background:var(--watch)}
+
+.modal{position:fixed;inset:0;z-index:60;background:rgba(5,8,12,.7);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.show{display:flex}
+.sheet{background:var(--panel);border:1px solid var(--line2);border-radius:16px;max-width:460px;width:100%;padding:18px}
+.row{display:flex;flex-direction:column;gap:5px;margin:11px 0}
+.row label{font-size:12.5px;color:var(--mut)}
+.section-title{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+.section-title h2{margin:0;font-size:17px}
+.pbook p,.pbook li{color:var(--mut);font-size:14px}
+.pbook h4{margin:16px 0 6px;font-size:13px;color:var(--txt)}
+.pbook code{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);padding:1px 6px;border-radius:5px;color:var(--valid)}
+.pbook ul{margin:0;padding-inline-start:20px}
+.empty{text-align:center;color:var(--dim);padding:40px 16px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.fade{animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body dir="ltr">
+<header>
+  <div class="bar">
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4 · اسکلپ+رادار</span></div>
+    <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
+    <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
+    <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
+    <button class="btn" id="setBtn">تنظیمات</button>
+    <button class="btn primary" id="scanBtn">اسکن بازار</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-t="signals">سیگنال‌ها<span class="b" id="cSig">0</span></button>
+    <button class="tab" data-t="watch">واچ‌لیست<span class="b" id="cWatch">0</span></button>
+    <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
+    <button class="tab" data-t="scalp">اسکلپ ۱م (رنج)</button>
+    <button class="tab" data-t="radar">رادار پامپ</button>
+    <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
+    <button class="tab" data-t="playbook">پلی‌بوک و الگوها</button>
+  </div>
+</header>
+
+<main>
+  <div class="progress" id="prog" style="display:none"><span></span></div>
+  <div id="statusLine" class="hint" style="margin-bottom:14px">
+    آماده. دکمهٔ «اسکن بازار» را بزن تا کل یونیورس پرحجم اسکن شود، یا برو به «تحلیل تک‌نماد + الگو»؛ آنجا بعد از تحلیل کامل،
+    چارت ۱۵دقیقه‌ای با ۲۰۰ کندل اخیر باز می‌شود و الگوهای کلاسیک روی همان چارت علامت‌گذاری و هدف الگو ترسیم می‌شود.
+    داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
+  </div>
+
+  <section id="view-signals"></section>
+  <section id="view-watch" style="display:none"></section>
+
+  <section id="view-single" style="display:none">
+    <div class="section-title"><span class="eyebrow">deep dive + pattern scan</span><h2>تحلیل تک‌نماد + الگو</h2></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <input class="f" id="ddSym" placeholder="نماد، مثلاً BTC یا ETHUSDT" style="max-width:260px" inputmode="text" autocapitalize="characters">
+      <button class="btn primary" id="ddBtn">تحلیل کن</button>
+      <span class="dim mono" id="ddMeta"></span>
+    </div>
+    <div id="ddOut"></div>
+  </section>
+
+  <section id="view-scalp" style="display:none">
+    <div class="section-title"><span class="eyebrow">1m reverse-IBS · range scalp</span><h2>اسکلپ ۱ دقیقه‌ای — رنج‌مارکت</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
+      ستاپ: <b>اینداسمنت معتبر (سوییپ لبهٔ رنج) → CHoCH → اولین BOS هم‌جهتِ چرخش</b>، فقط در حالت رنج و روی تک‌ارز.
+      ضدِ سوییپ وارد می‌شویم و به سمت لبهٔ مقابلِ رنج هدف می‌گیریم. این پنل کاملاً مستقل از موتورِ قفل‌شده است.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 14px">
+      <input class="f" id="scSym" placeholder="نماد، مثلاً BTC یا SOLUSDT" style="max-width:260px" inputmode="text" autocapitalize="characters">
+      <button class="btn primary" id="scBtn">تحلیل اسکلپ ۱م</button>
+      <span class="dim mono" id="scMeta"></span>
+    </div>
+    <div id="scOut"></div>
+  </section>
+
+  <section id="view-radar" style="display:none">
+    <div class="section-title"><span class="eyebrow">1h pump radar · correlation · pre-pump similarity</span><h2>رادار پامپ + ارزهای مشابه</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
+      ارزی که در یک کندل ۱ساعته <b>≥۸٪</b> پریده را پیدا می‌کند؛ سپس (۱) ارزهای <b>هم‌بسته</b> با آن و
+      (۲) ارزهایی که چارت فعلی‌شان شبیهِ <b>«قبل از پامپِ»</b> همان ارز است را لیست می‌کند تا کاندیدِ پامپ بعدی را زیر نظر بگیری.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 14px">
+      <button class="btn primary" id="raBtn">اسکن رادار پامپ</button>
+      <span class="dim mono">آستانه ۸٪ · بالاترین‌حجم‌ها · ۱ساعته</span>
+    </div>
+    <div id="raOut"></div>
+  </section>
+
+  <section id="view-calib" style="display:none">
+    <div class="section-title"><span class="eyebrow">learning loop</span><h2>یادگیری و کالیبراسیون</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:720px">
+      منطق و ستاپ‌های موتور دست‌نخورده‌اند. لایهٔ الگو و چارت هم فقط افزوده شده و امتیازدهی هستهٔ قفل‌شده را تغییر نمی‌دهد.
+      یادگیری از اینجا می‌آید: هر سیگنال را با نظرت ثبت کن (ورود معتبر / زود است / رد / برد / باخت). با تکرار، آمار زیر نشان می‌دهد
+      کدام ستاپ و کدام بازهٔ امتیاز با سبک تو و با نتیجهٔ واقعی بیشتر هم‌خوان است.
+    </p>
+    <div id="calibStats"></div>
+    <div class="box" style="margin-top:12px"><h3>تاریخچهٔ بازخورد</h3><div id="fbLog"></div></div>
+  </section>
+
+  <section id="view-playbook" style="display:none" class="pbook">
+    <div class="section-title"><span class="eyebrow">PLAYBOOK.md</span><h2>چرخهٔ تحلیل و کتابخانهٔ الگوها</h2></div>
+    <div class="box">
+      <p>این پنل به‌جای تولیدکنندهٔ یک‌باره خرید/فروش، به‌صورت یک «چرخهٔ تحلیل تکرارشونده» کار می‌کند.</p>
+      <h4>حلقهٔ تحلیل</h4>
+      <ul>
+        <li>بارگذاری داده‌های بازار، یونیورس، تیکر، فاندینگ و کندل مولتی‌تایم‌فریم</li>
+        <li>تشخیص رژیم بازار و حالت ریسک</li>
+        <li>امتیازدهی شرایط روند/مومنتوم/حجم در ۵م، ۱۵م و ۱ساعته</li>
+        <li>دسته‌بندی هر نماد در یک وضعیت چرخهٔ عمر (lifecycle)</li>
+        <li>اعتبارسنجی چک‌لیست اجباری، ریسک/ریوارد، نقدشوندگی و فیلتر رنج (ADX)</li>
+        <li>صدور <code>SIGNAL</code> فقط وقتی همهٔ فیلترهای سخت پاس شوند؛ وگرنه نماد در واچ‌لیست می‌ماند</li>
+        <li><b>لایهٔ الگو (جدید):</b> در تحلیل تک‌نماد، ۲۰۰ کندل ۱۵م اسکن می‌شود؛ الگوهای کلاسیک تشخیص و روی چارت ترسیم می‌شوند و هدف الگو محاسبه می‌شود</li>
+        <li>پیگیری نتیجه و ثبت بازخورد برای کالیبراسیون بعدی</li>
+      </ul>
+      <h4>وضعیت‌های چرخهٔ عمر</h4>
+      <ul>
+        <li><code>NO_SETUP</code> — ساختار قابل‌استفاده‌ای نیست</li>
+        <li><code>WATCHING</code> — ستاپ هست ولی ورود آماده نیست</li>
+        <li><code>APPROACHING_ENTRY_ZONE</code> — قیمت به سمت ناحیهٔ موردنظر می‌رود</li>
+        <li><code>WAITING_CONFIRMATION</code> — ناحیه مرتبط است، منتظر تأیید ۵م/۱۵م</li>
+        <li><code>VALID_ENTRY</code> — همهٔ چک‌های پلی‌بوک قبل از فیلترهای نهایی پاس شده</li>
+        <li><code>SIGNAL</code> — سیگنال قابل‌معامله بعد از اعتبارسنجی کامل</li>
+        <li><code>LOW_LIQUIDITY</code> / <code>RANGE_FILTERED</code> — رد شده با گیت حجم / ADX</li>
+      </ul>
+    </div>
+    <div class="box" style="margin-top:12px">
+      <h3>کتابخانهٔ الگوهای کلاسیک</h3>
+      <p class="muted" style="margin-top:-4px;font-size:13px">
+        قاعدهٔ هدف (measure rule) و جهت هر الگو طبق منابع استاندارد تحلیل تکنیکال (CFA curriculum، FOREX.com، الگوهای کلاسیک و کار آماری بالکوفسکی).
+        قاعدهٔ پایه برای همه: ارتفاع الگو را از نقطهٔ شکست در جهت شکست تصویر کن؛ این «حداقل» هدف است، نه سقف.
+      </p>
+      <div class="patref" id="patRef"></div>
+      <p class="muted" style="font-size:12px;margin-top:12px">
+        الگوهای شمعی (پوشا، چکش، ستاره، دوجی، ستارهٔ صبح/شام) نقطهٔ ورود و حد ضرر می‌دهند ولی هدف عددی مثل الگوهای نموداری ندارند؛
+        پس فقط به‌عنوان تأییدِ ورود استفاده می‌شوند.
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- settings -->
+<div class="modal" id="setModal">
+  <div class="sheet">
+    <div class="section-title"><span class="eyebrow">settings</span><h2>تنظیمات داده</h2></div>
+    <div class="row"><label>آدرس پایهٔ API بایننس فیوچرز</label><input class="f" id="sApi"></div>
+    <div class="row"><label>تعداد نماد در یونیورس (بیشتر = اسکن کندتر)</label><input class="f" id="sUni" inputmode="numeric"></div>
+    <div class="row"><label>اتصال هم‌زمان (concurrency)</label><input class="f" id="sCon" inputmode="numeric"></div>
+    <div class="row"><label>فاصلهٔ اسکن خودکار (ثانیه)</label><input class="f" id="sInt" inputmode="numeric"></div>
+    <p class="muted" style="font-size:12px">اگر بایننس از طریق اتصال تو در دسترس نبود، آدرس پایه را به یک میرر/پراکسی معتبر تغییر بده. حداقل حجم ۲۵M و سایر آستانه‌ها طبق کد قفل هستند و تغییر نمی‌کنند.</p>
+    <div class="section-title" style="margin-top:14px"><span class="eyebrow">cloud sync (Vercel)</span><h2 style="font-size:15px">ذخیرهٔ ابری (اختیاری)</h2></div>
+    <div class="row"><label>آدرس پروژهٔ Vercel (مثلاً https://hamid-signal.vercel.app)</label><input class="f" id="sSyncBase" inputmode="url" autocapitalize="none" placeholder="https://...vercel.app"></div>
+    <div class="row"><label>کلید شخصی (هر رشتهٔ دلخواه و ثابت؛ همین کلید روی هر دستگاه = همان داده)</label><input class="f" id="sSyncKey" autocapitalize="none" placeholder="مثلاً hamid-369-lamerd"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="syncNowBtn">آزمایش/همگام‌سازی اکنون</button></div>
+    <p class="muted" style="font-size:12px">تا وقتی این دو خانه را پر نکنی، سینک ابری خاموش است و همه‌چیز فقط روی همین دستگاه ذخیره می‌شود (که برای تو کافی است). با پرکردن، داده‌ها بین آیپد و هر دستگاه دیگری با همین کلید یکی می‌شوند.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn ghost" id="setClose">بستن</button>
+      <button class="btn primary" id="setSave">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   STORAGE — localStorage with safe in-memory fallback (works on iPad & here)
+   ========================================================================= */
+const DB=(()=>{const mem={};
+  const ok=(()=>{try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true;}catch(e){return false;}})();
+  return{
+    get(k){if(ok){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){}}return (k in mem)?mem[k]:null;},
+    set(k,v){if(ok){try{localStorage.setItem(k,JSON.stringify(v));return;}catch(e){}}mem[k]=v;}
+  };
+})();
+
+/* =========================================================================
+   PERSISTENCE (Path A) — کل وضعیت پنل در localStorage سیو می‌شود تا بعد از
+   رفرشِ سافاری (خاموش/روشن یا سوییچ اپ) فوراً از حافظه برگردد. هیچ منطقِ
+   سیگنال‌دهی را تغییر نمی‌دهد؛ فقط snapshot ذخیره/بازیابی می‌کند.
+   + SYNC ابری (Path B) — اختیاری؛ با «کلید شخصی» به API روی Vercel وصل می‌شود.
+   ========================================================================= */
+const SNAP_KEY="hsa_state_v4";
+function buildSnapshot(){
+  return {v:4,updatedAt:Date.now(),
+    signals:STATE.signals,watchlist:STATE.watchlist,universe:STATE.universe,
+    market_context:STATE.market_context,
+    last_scan_at:STATE.last_scan_at?new Date(STATE.last_scan_at).toISOString():null,
+    feedback:(DB.get("feedback")||[])};
+}
+function restoreSnapshot(snap){
+  if(!snap||typeof snap!=="object")return false;
+  try{
+    if(Array.isArray(snap.signals))STATE.signals=snap.signals;
+    if(Array.isArray(snap.watchlist))STATE.watchlist=snap.watchlist;
+    if(Array.isArray(snap.universe))STATE.universe=snap.universe;
+    if(snap.market_context)STATE.market_context=snap.market_context;
+    STATE.last_scan_at=snap.last_scan_at?new Date(snap.last_scan_at):STATE.last_scan_at;
+    if(Array.isArray(snap.feedback))DB.set("feedback",snap.feedback);
+    return true;
+  }catch(e){return false;}
+}
+function saveLocal(){const s=buildSnapshot();DB.set(SNAP_KEY,s);return s;}
+
+const SYNC=(()=>{
+  let cfg=Object.assign({base:"",key:""},DB.get("sync")||{});
+  const url=()=>cfg.base.replace(/\/$/,"")+"/api/state?key="+encodeURIComponent(cfg.key);
+  const on=()=>!!(cfg.base&&cfg.key);
+  async function pull(){if(!on())return null;try{const r=await fetch(url(),{cache:"no-store"});if(!r.ok)return null;const j=await r.json();return (j&&j.data)?j.data:null;}catch(e){return null;}}
+  async function push(snap){if(!on())return false;try{const r=await fetch(url(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:snap||buildSnapshot()})});return r.ok;}catch(e){return false;}}
+  function set(base,key){cfg={base:(base||"").trim(),key:(key||"").trim()};DB.set("sync",cfg);}
+  function get(){return {base:cfg.base,key:cfg.key,on:on()};}
+  return {pull,push,set,get,on};
+})();
+function renderSyncStatus(){
+  const el=$("#syncPill");if(!el)return;
+  const s=SYNC.get();
+  el.textContent=s.on?"ابری: روشن ☁︎":"ابری: خاموش";
+  el.style.color=s.on?"var(--long)":"var(--dim)";
+}
+
+/* =========================================================================
+   CONFIG — LOCKED constants ported verbatim from the Python engine + patch.
+   Do not change these: they are the "setups in the code".
+   ========================================================================= */
+const S={
+  kline_limit:180,
+  risk_per_trade_pct:0.35, max_open_positions:8, max_leverage:3,   // from code (not used to alter signals)
+  min_signal_score:74, watch_score:62, ready_score:70, min_confirmation_score:65,
+  strong_signal_score:82, strong_flip_score:86,
+  min_quote_volume_usd:25000000, min_rr:1.8,
+  scan_interval_seconds:300,
+};
+// data-plumbing settings the user may tune (do NOT affect setup logic)
+const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:30,concurrency:4,interval:300},DB.get("cfg")||{});
+
+/* =========================================================================
+   INDICATORS  (standard textbook formulas feeding the engine's field names)
+   ========================================================================= */
+function sma(a,p){if(a.length<p)return null;let s=0;for(let i=a.length-p;i<a.length;i++)s+=a[i];return s/p;}
+function emaSeries(a,p){if(a.length<p)return[];const k=2/(p+1),o=[];let prev=sma(a.slice(0,p),p);o[p-1]=prev;for(let i=p;i<a.length;i++){prev=a[i]*k+prev*(1-k);o[i]=prev;}return o;}
+function emaLast(a,p){const s=emaSeries(a,p);return s.length?s[s.length-1]:a[a.length-1];}
+function rsiWilder(c,p=14){if(c.length<p+1)return 50;let g=0,l=0;for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d;}g/=p;l/=p;for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p;}if(l===0)return 100;const rs=g/l;return 100-100/(1+rs);}
+function macdHist(c,f=12,s=26,sig=9){if(c.length<s+sig)return 0;const ef=emaSeries(c,f),es=emaSeries(c,s),m=[];for(let i=0;i<c.length;i++)if(ef[i]!=null&&es[i]!=null)m.push(ef[i]-es[i]);if(m.length<sig)return 0;const sl=emaSeries(m,sig),li=m.length-1;return m[li]-sl[li];}
+function atr(h,l,c,p=14){if(c.length<p+1)return 0;const tr=[];for(let i=1;i<c.length;i++)tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));let a=0;for(let i=0;i<p;i++)a+=tr[i];a/=p;for(let i=p;i<tr.length;i++)a=(a*(p-1)+tr[i])/p;return a;}
+function adx(h,l,c,p=14){if(c.length<2*p)return 0;const tr=[],pdm=[],ndm=[];for(let i=1;i<c.length;i++){const up=h[i]-h[i-1],dn=l[i-1]-l[i];pdm.push(up>dn&&up>0?up:0);ndm.push(dn>up&&dn>0?dn:0);tr.push(Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])));}
+  const wl=a=>{let s=0;for(let i=0;i<p;i++)s+=a[i];const o=[s];for(let i=p;i<a.length;i++){s=s-s/p+a[i];o.push(s);}return o;};
+  const t=wl(tr),pd=wl(pdm),nd=wl(ndm),dx=[];for(let i=0;i<t.length;i++){const pdi=100*pd[i]/(t[i]||1),ndi=100*nd[i]/(t[i]||1),sum=pdi+ndi;dx.push(sum===0?0:100*Math.abs(pdi-ndi)/sum);}if(dx.length<p)return dx.length?dx[dx.length-1]:0;let a=0;for(let i=0;i<p;i++)a+=dx[i];a/=p;for(let i=p;i<dx.length;i++)a=(a*(p-1)+dx[i])/p;return a;}
+function bbPos(c,p=20,m=2){if(c.length<p)return 50;const mid=sma(c,p);let v=0;for(let i=c.length-p;i<c.length;i++)v+=(c[i]-mid)**2;const sd=Math.sqrt(v/p),up=mid+m*sd,lo=mid-m*sd,x=c[c.length-1];if(up===lo)return 50;return Math.max(0,Math.min(100,(x-lo)/(up-lo)*100));}
+const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
+
+/* per-timeframe metrics — produces every field the engine consumes.
+   NOTE: the base long_score/short_score formula was not in the supplied diff,
+   so it is reconstructed transparently here; everything downstream is verbatim. */
+function timeframeMetrics(cd,tf){
+  const h=cd.map(c=>c.h),l=cd.map(c=>c.l),c=cd.map(c=>c.c),v=cd.map(c=>c.v);
+  const close=c[c.length-1];
+  const ema9=emaLast(c,9),ema21=emaLast(c,21),ema50=emaLast(c,Math.min(50,c.length-1));
+  const rsi=rsiWilder(c,14),mh=macdHist(c),adxV=adx(h,l,c,14),bb=bbPos(c,20,2),a=atr(h,l,c,14);
+  const look=Math.min(20,h.length),rh=Math.max(...h.slice(-look)),rl=Math.min(...l.slice(-look));
+  const vl=v.slice(-Math.min(20,v.length)),vm=vl.reduce((x,y)=>x+y,0)/vl.length,
+        vsd=Math.sqrt(vl.reduce((x,y)=>x+(y-vm)**2,0)/vl.length)||1,vz=(v[v.length-1]-vm)/vsd;
+  const reasons=[];let ls=0,ss=0;
+  if(close>ema21){ls+=16;reasons.push(tf+": close>EMA21");}else{ss+=16;reasons.push(tf+": close<EMA21");}
+  if(ema9>ema21)ls+=13;else ss+=13;
+  if(ema21>ema50)ls+=11;else ss+=11;
+  if(mh>0){ls+=20;reasons.push(tf+": MACD↑");}else if(mh<0){ss+=20;reasons.push(tf+": MACD↓");}
+  if(rsi>=50&&rsi<=72)ls+=14;else if(rsi<=50&&rsi>=28)ss+=14;
+  if(rsi>72)ss+=5;if(rsi<28)ls+=5;
+  const vzc=clamp(vz,0,3);ls+=vzc*6;ss+=vzc*6;
+  if(bb>50)ls+=8;else ss+=8;
+  ls=clamp(ls,0,100);ss=clamp(ss,0,100);
+  let direction="NEUTRAL";if(ls-ss>=8)direction="LONG";else if(ss-ls>=8)direction="SHORT";
+  return{tf,close,ema9,ema21,ema50,rsi,macd_hist:mh,adx:adxV,bb_position:bb,atr:a,recent_high:rh,recent_low:rl,volume_z:vz,long_score:ls,short_score:ss,direction,reasons};
+}
+
+/* =========================================================================
+   PLAYBOOK + SCORECARD  — ported verbatim from the patch
+   ========================================================================= */
+function setupPlaybook(direction,m5,m15,m1h,current){
+  const pullback_ref=m15.ema21;
+  const near_pullback=current?Math.abs(current-pullback_ref)/current<=0.008:false;
+  const breakout_long=current>=m15.recent_high*0.998;
+  const breakout_short=current<=m15.recent_low*1.002;
+  const volume_ok=Math.max(m5.volume_z,m15.volume_z)>=0.8;
+  const momentum_ok=(direction==="LONG"&&m5.macd_hist>0)||(direction==="SHORT"&&m5.macd_hist<0);
+  const confirmation_ok=m5.direction===direction&&volume_ok&&momentum_ok;
+  let name;
+  if(direction==="LONG"&&breakout_long)name="BREAKOUT_CONTINUATION";
+  else if(direction==="SHORT"&&breakout_short)name="BREAKOUT_CONTINUATION";
+  else if(near_pullback)name="EMA21_PULLBACK";
+  else name="MOMENTUM_WATCH";
+  const mandatory={
+    higher_tf_direction:m1h.direction===direction,
+    setup_tf_direction:m15.direction===direction,
+    entry_tf_confirmation:confirmation_ok,
+    not_overextended:10<m15.bb_position&&m15.bb_position<90,
+    trend_strength:m15.adx>=14||m5.adx>=18,
+    volume_expansion:volume_ok,
+  };
+  const blockers=Object.keys(mandatory).filter(k=>!mandatory[k]);
+  let lifecycle;
+  if(blockers.length===0&&name!=="MOMENTUM_WATCH")lifecycle="VALID_ENTRY";
+  else if(blockers.length<=2&&(near_pullback||breakout_long||breakout_short))lifecycle="WAITING_CONFIRMATION";
+  else if((direction==="LONG"||direction==="SHORT")&&(m15.direction===direction||m1h.direction===direction))lifecycle="APPROACHING_ENTRY_ZONE";
+  else lifecycle="NO_SETUP";
+  return{name,lifecycle,entry_zone:{low:Math.min(current,pullback_ref)*0.998,high:Math.max(current,pullback_ref)*1.002,reference:"15m EMA21 / breakout structure"},mandatory_checks:mandatory,blockers};
+}
+function scoreBreakdown(direction,score,rr,tf_agreement,funding_penalty,context_penalty,m5,m15,m1h){
+  const trend=tf_agreement>=3?20:tf_agreement===2?14:6;
+  const entry=(m5.direction===direction&&m15.direction===direction)?20:(m15.direction===direction)?12:5;
+  const momentum=((direction==="LONG"&&m15.macd_hist>0)||(direction==="SHORT"&&m15.macd_hist<0))?15:8;
+  const vmax=Math.max(m5.volume_z,m15.volume_z);const volume=vmax>=1.3?15:vmax>=0.5?9:3;
+  const risk=rr>=2?15:rr>=S.min_rr?10:4;
+  const market=!context_penalty?10:6;
+  const timing=(15<m15.bb_position&&m15.bb_position<85)?5:2;
+  const total=clamp(trend+entry+momentum+volume+risk+market+timing-funding_penalty,0,100);
+  return{trend_alignment:trend,entry_zone_quality:entry,momentum,volume_confirmation:volume,risk_reward:risk,market_context:market,timing,computed_total:Math.round(total*100)/100,engine_score:Math.round(score*100)/100};
+}
+
+/* =========================================================================
+   ANALYZE  — direction blend, SL/TP, status gates : ported verbatim
+   ========================================================================= */
+function analyzeSymbol(asset,m5,m15,m1h,current,funding_rate,market_context){
+  const long_total=0.35*m5.long_score+0.40*m15.long_score+0.25*m1h.long_score;
+  const short_total=0.35*m5.short_score+0.40*m15.short_score+0.25*m1h.short_score;
+  let direction="NEUTRAL";
+  if(long_total-short_total>=6)direction="LONG";else if(short_total-long_total>=6)direction="SHORT";
+  const tf_agreement=[m5,m15,m1h].filter(m=>m.direction===direction).length;
+  const risk_mode=market_context.risk_mode||"UNKNOWN";
+  const funding_penalty=(direction==="LONG"&&funding_rate>0.0006)?6:(direction==="SHORT"&&funding_rate<-0.0006)?6:0;
+  const context_penalty=(risk_mode==="RISK_OFF")?8:0;
+  let score=clamp((direction==="LONG"?long_total:direction==="SHORT"?short_total:Math.max(long_total,short_total))-funding_penalty-context_penalty,0,100);
+  const atr15=m15.atr;let stop,stop_distance,tp1,tp2;
+  if(direction==="LONG"){const ssl=Math.min(m15.recent_low,current-atr15*1.15);stop=clamp(ssl,current*(1-0.028),current*(1-0.0035));stop_distance=current-stop;tp1=current+stop_distance*1.15;tp2=current+stop_distance*2.1;}
+  else if(direction==="SHORT"){const ssl=Math.max(m15.recent_high,current+atr15*1.15);stop=clamp(ssl,current*(1+0.0035),current*(1+0.028));stop_distance=stop-current;tp1=current-stop_distance*1.15;tp2=current-stop_distance*2.1;}
+  else{stop=current;stop_distance=0;tp1=current;tp2=current;}
+  const rr=stop_distance>0?2.1:0.0;
+  const playbook=setupPlaybook(direction,m5,m15,m1h,current);
+  const scorecard=scoreBreakdown(direction,score,rr,tf_agreement,funding_penalty,context_penalty,m5,m15,m1h);
+  const reasons=[].concat(m5.reasons,m15.reasons,m1h.reasons);
+  if(funding_penalty)reasons.push("Funding penalty "+funding_rate.toFixed(5));
+  if(context_penalty)reasons.push("Market context penalty "+risk_mode);
+  let status=playbook.lifecycle;
+  const enough_confirmation=tf_agreement>=3||(tf_agreement>=2&&score>=S.strong_signal_score);
+  const trend_quality_ok=(m15.adx>=16||m5.adx>=18)&&m15.adx>=12;
+  if(["LONG","SHORT"].includes(direction)&&score>=S.min_signal_score&&enough_confirmation&&trend_quality_ok&&rr>=S.min_rr&&playbook.blockers.length===0)status="SIGNAL";
+  else if(["LONG","SHORT"].includes(direction)&&score>=S.ready_score&&rr>=S.min_rr)status="WAITING_CONFIRMATION";
+  else if(["LONG","SHORT"].includes(direction)&&score>=S.watch_score)status="WATCHING";
+  /* --- تمرکز روی کریپتو: کالاها (طلا/نقره/نفت) باید سدِ خیلی بالاتری رد کنند ---
+     فقط «تنزل» می‌دهد؛ آستانه‌های قفل‌شده و رفتار کریپتو دست‌نخورده می‌مانند. */
+  if(typeof COMMODITY_KEEP!=="undefined"&&COMMODITY_KEEP.has(asset.asset_symbol)){
+    const cSignalMin=Math.max(S.strong_signal_score,S.min_signal_score+12); // ۸۶: فقط سیگنال قوی
+    if(status==="SIGNAL"&&!(score>=cSignalMin&&score>=S.strong_signal_score))status="WAITING_CONFIRMATION";
+    if(status==="WAITING_CONFIRMATION"&&score<S.ready_score+12)status="WATCHING";
+    if(status==="WATCHING"&&score<S.watch_score+12)status="NO_SETUP";
+  }
+  if(asset.quoteVolume<S.min_quote_volume_usd)status="LOW_LIQUIDITY";
+  if(m15.adx<14&&m5.adx<14)status="RANGE_FILTERED";
+  return{
+    scan_time:new Date().toISOString(),asset_symbol:asset.asset_symbol,binance_symbol:asset.binance_symbol,rank:asset.rank,
+    status,direction,score:Math.round(score*100)/100,
+    grade:score>=S.strong_signal_score?"HIGH":score>=S.min_signal_score?"MEDIUM":"LOW",
+    entry:current,stop_loss:stop,tp1,tp2,rr,tf_agreement,funding_rate,
+    quote_volume:asset.quoteVolume,change_24h_pct:asset.change_24h_pct,
+    setup:playbook.name,lifecycle:status,entry_zone:playbook.entry_zone,
+    mandatory_checks:playbook.mandatory_checks,blockers:playbook.blockers,scorecard,
+    decision_trace:["1 data_loaded","2 market_regime="+risk_mode,"3 setup="+playbook.name,"4 lifecycle="+status,"5 blockers="+(playbook.blockers.join(",")||"none")],
+    risk_mode,metrics:{"5m":m5,"15m":m15,"1h":m1h},reasons:reasons.slice(0,12)
+  };
+}
+
+/* =========================================================================
+   PATTERN ENGINE v2 (additive layer — does NOT touch the locked engine)
+   Classical patterns + Al Brooks price-action patterns + final validation.
+   ========================================================================= */
+(function (root) {
+  "use strict";
+
+  /* ---------- small math helpers (local, no clash with engine) ---------- */
+  function patSMA(a, p) { if (a.length < p) return null; let s = 0; for (let i = a.length - p; i < a.length; i++) s += a[i]; return s / p; }
+  function patATR(h, l, c, p) {
+    p = p || 14; if (c.length < p + 1) { // fallback: avg range
+      let s = 0; for (let i = 0; i < c.length; i++) s += (h[i] - l[i]); return (s / c.length) || (c[c.length - 1] * 0.004);
+    }
+    const tr = []; for (let i = 1; i < c.length; i++) tr.push(Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1])));
+    let a = 0; for (let i = 0; i < p; i++) a += tr[i]; a /= p;
+    for (let i = p; i < tr.length; i++) a = (a * (p - 1) + tr[i]) / p; return a;
+  }
+  function lineFit(pts) { const n = pts.length; let sx = 0, sy = 0, sxx = 0, sxy = 0; for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; } const d = n * sxx - sx * sx || 1; const slope = (n * sxy - sx * sy) / d; const intercept = (sy - slope * sx) / n; return { slope, intercept }; }
+  const clampp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+  /* ---------- tunable detection thresholds (separate from locked engine) ---------- */
+  const PCFG = {
+    pivotK: 4,
+    eqTol: 0.03,
+    flatTol: 0.02,
+    hsShoulderTol: 0.07,
+    minHeightAtrMult: 1.5,
+    recentBars: 110,
+    impulseOverlap: 0.72,
+    breakoutBodyAtr: 1.3,
+    confActionable: 62,
+    confConflict: 80,
+    minHeightPct: 0.018,
+    pushRetrace: 0.20,
+  };
+
+  /* ---------- pattern metadata (Persian) ---------- */
+  const PATLIB = {
+    DOUBLE_TOP:        { fa: "سقف دوقلو", short: "DOUBLE TOP", kind: "بازگشتی", dir: "SHORT", tier: "A", rule: "هدف = خط گردن − ارتفاع الگو.", note: "دو قلهٔ هم‌تراز (M) و شکست خط گردن. در پرایس‌اکشن همان پرچم نزولی L2 است." },
+    DOUBLE_BOTTOM:     { fa: "کف دوقلو", short: "DOUBLE BOTTOM", kind: "بازگشتی", dir: "LONG", tier: "A", rule: "هدف = خط گردن + ارتفاع الگو.", note: "شکل W؛ دو کف هم‌تراز و شکست سقف میانی. همان پرچم صعودی H2 است." },
+    HEAD_SHOULDERS:    { fa: "سر و شانه", short: "H&S", kind: "بازگشتی", dir: "SHORT", tier: "A", rule: "هدف = خط گردن − (سر − گردن).", note: "از معتبرترین الگوهای بازگشتی؛ شکست گردن با حجم لازم است." },
+    INV_HEAD_SHOULDERS:{ fa: "سر و شانهٔ معکوس", short: "INV H&S", kind: "بازگشتی", dir: "LONG", tier: "A", rule: "هدف = خط گردن + (گردن − سر).", note: "انتهای روند نزولی؛ بازگشت صعودی پس از شکست گردن." },
+    ASC_TRIANGLE:      { fa: "مثلث صعودی", short: "ASC TRIANGLE", kind: "ادامه‌دهنده", dir: "LONG", tier: "A", rule: "هدف = نقطهٔ شکست + بیشترین ارتفاع مثلث.", note: "سقف افقی + کف‌های بالارونده؛ معمولاً شکست به بالا." },
+    DESC_TRIANGLE:     { fa: "مثلث نزولی", short: "DESC TRIANGLE", kind: "ادامه‌دهنده", dir: "SHORT", tier: "A", rule: "هدف = نقطهٔ شکست − بیشترین ارتفاع مثلث.", note: "کف افقی + سقف‌های پایین‌رونده؛ معمولاً شکست به پایین." },
+    SYM_TRIANGLE:      { fa: "مثلث متقارن", short: "SYM TRIANGLE", kind: "ادامه‌دهنده", dir: "NEUTRAL", tier: "A", rule: "هدف = ارتفاع مثلث از نقطهٔ شکست در جهت روند.", note: "سقف‌های پایین‌رونده و کف‌های بالارونده همگرا؛ شکست هم‌جهت روند." },
+    RECTANGLE:         { fa: "مستطیل / رنج", short: "RECTANGLE", kind: "دوطرفه", dir: "NEUTRAL", tier: "A", rule: "هدف = ارتفاع باکس از نقطهٔ شکست در جهت شکست.", note: "سقف و کف افقی موازی؛ فقط در جهت شکست تأییدشده." },
+    RISING_WEDGE:      { fa: "گوه/کنج صعودی (۳ حرکت)", short: "RISING WEDGE", kind: "بازگشتی", dir: "SHORT", tier: "A", rule: "هدف = حداقل تا ابتدای گوه، به پایین.", note: "سه حرکت صعودی با مومنتوم رو به کاهش؛ ال‌بروکس: شکست خلاف شیب (نزولی) ~۷۵٪." },
+    FALLING_WEDGE:     { fa: "گوه/کنج نزولی (۳ حرکت)", short: "FALLING WEDGE", kind: "بازگشتی", dir: "LONG", tier: "A", rule: "هدف = حداقل تا ابتدای گوه، به بالا.", note: "سه حرکت نزولی با مومنتوم رو به کاهش؛ شکست صعودی." },
+    BULL_FLAG:         { fa: "پرچم صعودی", short: "BULL FLAG", kind: "ادامه‌دهنده", dir: "LONG", tier: "A", rule: "هدف = طول میله + نقطهٔ شکست.", note: "میلهٔ صعودی تند + اصلاح کوچک؛ ادامهٔ روند." },
+    BEAR_FLAG:         { fa: "پرچم نزولی", short: "BEAR FLAG", kind: "ادامه‌دهنده", dir: "SHORT", tier: "A", rule: "هدف = طول میله از نقطهٔ شکست به پایین.", note: "میلهٔ نزولی تند + اصلاح کوچک؛ ادامهٔ نزول." },
+    H2_BULL_FLAG:      { fa: "پرچم صعودی H2 (دو پایه)", short: "H2 BULL", kind: "ادامه‌دهنده", dir: "LONG", tier: "A", rule: "هدف = اندازهٔ گام قبلی روند از نقطهٔ ورود.", note: "ال‌بروکس: پولبک دوپایه در روند صعودی؛ خرید روی تلاش دوم صعودی." },
+    L2_BEAR_FLAG:      { fa: "پرچم نزولی L2 (دو پایه)", short: "L2 BEAR", kind: "ادامه‌دهنده", dir: "SHORT", tier: "A", rule: "هدف = اندازهٔ گام قبلی روند به پایین.", note: "ال‌بروکس: پولبک دوپایه در روند نزولی؛ فروش روی تلاش دوم نزولی." },
+    CHANNEL:           { fa: "کانال", short: "CHANNEL", kind: "ادامه/برگشت", dir: "NEUTRAL", tier: "A", rule: "برگشت از مرز کانال؛ شکست خلاف شیب محتمل‌تر.", note: "ال‌بروکس: کانال صعودی را مثل پرچم نزولی ببین (~۷۵٪ شکست خط روند به پایین)." },
+    BREAKOUT:          { fa: "شکست (کندل روند)", short: "BREAKOUT", kind: "ادامه‌دهنده", dir: "NEUTRAL", tier: "A", rule: "هدف = ارتفاع رنج/میله از نقطهٔ شکست.", note: "ال‌بروکس: کندل روندی بزرگ که حمایت/مقاومت را با بسته‌شدن می‌شکند؛ بالاترین احتمال ادامه." },
+    MEASURED_MOVE:     { fa: "گام اندازه‌گیری‌شده", short: "MEASURED MOVE", kind: "ادامه‌دهنده", dir: "NEUTRAL", tier: "B", rule: "گام۱ ≈ گام۲؛ هدف = ارتفاع گام اول از انتهای پولبک.", note: "روندها معمولاً دو گام هم‌اندازه دارند." },
+    TRADING_RANGE:     { fa: "برگشت دامنهٔ معاملاتی", short: "RANGE REV", kind: "برگشتی", dir: "NEUTRAL", tier: "B", rule: "خرید کف رنج / فروش سقف رنج؛ ترجیحاً سیگنال دوم.", note: "ال‌بروکس: داخل رنج، برگشت از لبه‌ها رایج‌تر از شکست است." },
+    FINAL_FLAG:        { fa: "پرچم نهایی", short: "FINAL FLAG", kind: "برگشتی", dir: "NEUTRAL", tier: "B", rule: "شکست پرچم در انتهای روند ممتد → برگشت.", note: "ال‌بروکس: پولبک افقی نزدیک حمایت/مقاومت در انتهای روند؛ برگشت در قالب ادامه." },
+    MAJOR_TREND_REVERSAL:{ fa: "برگشت روند ماژور", short: "MAJOR REV", kind: "برگشتی", dir: "NEUTRAL", tier: "doc", rule: "روند → شکست کانال → ادامه → پولبک دوم خلاف روند.", note: "ال‌بروکس: ورود ابتدای روند جدید؛ احتمال ~۴۰٪ با حد ضرر فشرده." },
+    OPENING_REVERSAL:  { fa: "برگشت باز", short: "OPEN REV", kind: "برگشتی", dir: "NEUTRAL", tier: "doc", rule: "۶۰–۹۰ دقیقهٔ اول، حرکت اولیه برمی‌گردد.", note: "وابسته به اوپن روزانه؛ روی کریپتوی ۲۴ساعته خودکار تشخیص داده نمی‌شود." },
+    MAGNET:            { fa: "آهن‌ربا (حمایت/مقاومت)", short: "MAGNET", kind: "مفهوم", dir: "NEUTRAL", tier: "doc", rule: "سقف/کف قبلی، خط روند، کانال، MA، گام اندازه‌گیری‌شده.", note: "مفهوم است نه ستاپ؛ نزدیک‌ترین سقف/کف مهم روی چارت به‌صورت خط راهنما کشیده می‌شود." },
+  };
+
+  /* ---------- pivots & alternating swings ---------- */
+  function getPivots(cd, k) {
+    k = k || PCFG.pivotK; const n = cd.length, H = [], L = [];
+    for (let i = k; i < n - k; i++) {
+      let ih = true, il = true;
+      for (let j = i - k; j <= i + k; j++) { if (j === i) continue; if (cd[j].h > cd[i].h) ih = false; if (cd[j].l < cd[i].l) il = false; }
+      if (ih) H.push({ i, price: cd[i].h });
+      if (il) L.push({ i, price: cd[i].l });
+    }
+    const merge = (arr, better) => { const o = []; for (const p of arr) { const last = o[o.length - 1]; if (last && p.i - last.i <= k) { if (better(p.price, last.price)) o[o.length - 1] = p; } else o.push(p); } return o; };
+    return { H: merge(H, (a, b) => a > b), L: merge(L, (a, b) => a < b) };
+  }
+  function swings(cd, k) {
+    const { H, L } = getPivots(cd, k);
+    const all = H.map(p => ({ i: p.i, price: p.price, t: "H" })).concat(L.map(p => ({ i: p.i, price: p.price, t: "L" }))).sort((a, b) => a.i - b.i);
+    const out = [];
+    for (const p of all) { const last = out[out.length - 1];
+      if (!last || last.t !== p.t) out.push(p);
+      else if ((p.t === "H" && p.price > last.price) || (p.t === "L" && p.price < last.price)) out[out.length - 1] = p; }
+    return out;
+  }
+  function lastSeq(sw, types) {
+    for (let end = sw.length - 1; end >= types.length - 1; end--) {
+      let ok = true;
+      for (let t = 0; t < types.length; t++) if (sw[end - types.length + 1 + t].t !== types[t]) { ok = false; break; }
+      if (ok) return sw.slice(end - types.length + 1, end + 1);
+    }
+    return null;
+  }
+  function overlapRatio(cd, i0, i1) {
+    let travel = 0; for (let i = i0 + 1; i <= i1; i++) travel += Math.abs(cd[i].c - cd[i - 1].c);
+    const net = Math.abs(cd[i1].c - cd[i0].c); return travel > 0 ? net / travel : 1;
+  }
+  function trendContext(cd) {
+    const n = cd.length, c = cd.map(x => x.c), w = Math.min(50, n - 1);
+    const slope = (c[n - 1] - c[n - 1 - w]) / (c[n - 1 - w] || 1);
+    return slope > 0.01 ? "UP" : slope < -0.01 ? "DOWN" : "RANGE";
+  }
+
+  function mk(o) { o.confidence = clampp(Math.round(o.confidence), 0, 99); return o; }
+
+  function dDoubleTop(cd, sw, A, lastC, n, ctx) {
+    const s = lastSeq(sw, ["H", "L", "H"]); if (!s) return null;
+    const [p1, t, p2] = s; if (p2.i < n - PCFG.recentBars) return null;
+    const top = (p1.price + p2.price) / 2, height = top - t.price, eq = Math.abs(p1.price - p2.price) / top;
+    if (eq > PCFG.eqTol || height < A * PCFG.minHeightAtrMult) return null;
+    const neck = t.price, confirmed = lastC < neck, target = neck - height;
+    const cont = ctx === "DOWN"; const key = cont ? "L2_BEAR_FLAG" : "DOUBLE_TOP";
+    let conf = 56 + (1 - eq / PCFG.eqTol) * 16 + Math.min(14, height / A * 4) + (confirmed ? 12 : 0);
+    return mk({ key, dir: "SHORT", confirmed, confidence: conf, height, breakoutIdx: t.i, entry: neck, target, stop: top * 1.012,
+      points: [{ i: p1.i, price: p1.price, label: "P1" }, { i: p2.i, price: p2.price, label: "P2" }, { i: t.i, price: t.price, label: "neck" }],
+      lines: [{ x1: p1.i, y1: neck, x2: n - 1, y2: neck, color: "#3fb6f5", dash: [5, 4] }] });
+  }
+  function dDoubleBottom(cd, sw, A, lastC, n, ctx) {
+    const s = lastSeq(sw, ["L", "H", "L"]); if (!s) return null;
+    const [b1, p, b2] = s; if (b2.i < n - PCFG.recentBars) return null;
+    const bot = (b1.price + b2.price) / 2, height = p.price - bot, eq = Math.abs(b1.price - b2.price) / bot;
+    if (eq > PCFG.eqTol || height < A * PCFG.minHeightAtrMult) return null;
+    const neck = p.price, confirmed = lastC > neck, target = neck + height;
+    const cont = ctx === "UP"; const key = cont ? "H2_BULL_FLAG" : "DOUBLE_BOTTOM";
+    let conf = 56 + (1 - eq / PCFG.eqTol) * 16 + Math.min(14, height / A * 4) + (confirmed ? 12 : 0);
+    return mk({ key, dir: "LONG", confirmed, confidence: conf, height, breakoutIdx: p.i, entry: neck, target, stop: bot * 0.988,
+      points: [{ i: b1.i, price: b1.price, label: "B1" }, { i: b2.i, price: b2.price, label: "B2" }, { i: p.i, price: p.price, label: "neck" }],
+      lines: [{ x1: b1.i, y1: neck, x2: n - 1, y2: neck, color: "#3fb6f5", dash: [5, 4] }] });
+  }
+  function dHeadShoulders(cd, sw, A, lastC, n) {
+    const s = lastSeq(sw, ["H", "L", "H", "L", "H"]); if (!s) return null;
+    const [ls, t1, hd, t2, rs] = s; if (rs.i < n - PCFG.recentBars) return null;
+    if (!(hd.price > ls.price && hd.price > rs.price)) return null;
+    const shEq = Math.abs(ls.price - rs.price) / ((ls.price + rs.price) / 2);
+    const prom = (hd.price - Math.max(ls.price, rs.price)) / hd.price;
+    if (shEq > PCFG.hsShoulderTol || prom < 0.01) return null;
+    const neckAt = i => t1.price + (t2.price - t1.price) * (i - t1.i) / ((t2.i - t1.i) || 1);
+    const neckNow = neckAt(n - 1), height = hd.price - (t1.price + t2.price) / 2;
+    if (height < A * PCFG.minHeightAtrMult) return null;
+    const confirmed = lastC < neckNow, target = neckNow - height;
+    let conf = 60 + (1 - shEq / PCFG.hsShoulderTol) * 14 + Math.min(12, prom * 400) + (confirmed ? 12 : 0);
+    return mk({ key: "HEAD_SHOULDERS", dir: "SHORT", confirmed, confidence: conf, height, breakoutIdx: t2.i, entry: neckNow, target, stop: hd.price * 1.008,
+      points: [{ i: ls.i, price: ls.price, label: "LS" }, { i: hd.i, price: hd.price, label: "H" }, { i: rs.i, price: rs.price, label: "RS" }],
+      lines: [{ x1: t1.i, y1: t1.price, x2: n - 1, y2: neckAt(n - 1), color: "#3fb6f5", dash: [5, 4] }] });
+  }
+  function dInvHeadShoulders(cd, sw, A, lastC, n) {
+    const s = lastSeq(sw, ["L", "H", "L", "H", "L"]); if (!s) return null;
+    const [ls, t1, hd, t2, rs] = s; if (rs.i < n - PCFG.recentBars) return null;
+    if (!(hd.price < ls.price && hd.price < rs.price)) return null;
+    const shEq = Math.abs(ls.price - rs.price) / ((ls.price + rs.price) / 2);
+    const prom = (Math.min(ls.price, rs.price) - hd.price) / hd.price;
+    if (shEq > PCFG.hsShoulderTol || prom < 0.01) return null;
+    const neckAt = i => t1.price + (t2.price - t1.price) * (i - t1.i) / ((t2.i - t1.i) || 1);
+    const neckNow = neckAt(n - 1), height = (t1.price + t2.price) / 2 - hd.price;
+    if (height < A * PCFG.minHeightAtrMult) return null;
+    const confirmed = lastC > neckNow, target = neckNow + height;
+    let conf = 60 + (1 - shEq / PCFG.hsShoulderTol) * 14 + Math.min(12, prom * 400) + (confirmed ? 12 : 0);
+    return mk({ key: "INV_HEAD_SHOULDERS", dir: "LONG", confirmed, confidence: conf, height, breakoutIdx: t2.i, entry: neckNow, target, stop: hd.price * 0.992,
+      points: [{ i: ls.i, price: ls.price, label: "LS" }, { i: hd.i, price: hd.price, label: "H" }, { i: rs.i, price: rs.price, label: "RS" }],
+      lines: [{ x1: t1.i, y1: t1.price, x2: n - 1, y2: neckAt(n - 1), color: "#3fb6f5", dash: [5, 4] }] });
+  }
+  function dWedge(cd, sw, A, lastC, n) {
+    let s = lastSeq(sw, ["H", "L", "H", "L", "H"]);
+    if (s) { const [h1, l1, h2, l2, h3] = s;
+      if (h1.price < h2.price && h2.price < h3.price && l1.price < l2.price && h3.i > n - PCFG.recentBars) {
+        const p1 = h2.price - l1.price, up1 = h2.price - h1.price;
+        const span = h3.i - h1.i;
+        if (span >= 10) {
+          const height = h3.price - l1.price; const lowerTl = lineFit([[l1.i, l1.price], [l2.i, l2.price]]);
+          const brk = lowerTl.slope * (n - 1) + lowerTl.intercept; const confirmed = lastC < brk;
+          const target = l1.price; let conf = 58 + Math.min(10, span / 6) + (confirmed ? 14 : 0);
+          return mk({ key: "RISING_WEDGE", dir: "SHORT", confirmed, confidence: conf, height, breakoutIdx: l2.i, entry: brk, target, stop: h3.price * 1.006,
+            points: [{ i: h1.i, price: h1.price, label: "1" }, { i: h2.i, price: h2.price, label: "2" }, { i: h3.i, price: h3.price, label: "3" }],
+            lines: [
+              { x1: h1.i, y1: h1.price, x2: n - 1, y2: lineFit([[h1.i, h1.price], [h3.i, h3.price]]).slope * (n - 1) + lineFit([[h1.i, h1.price], [h3.i, h3.price]]).intercept, color: "#ffb24c", dash: [6, 4] },
+              { x1: l1.i, y1: l1.price, x2: n - 1, y2: brk, color: "#ffb24c", dash: [6, 4] }
+            ] });
+        }
+      }
+    }
+    s = lastSeq(sw, ["L", "H", "L", "H", "L"]);
+    if (s) { const [l1, h1, l2, h2, l3] = s;
+      if (l1.price > l2.price && l2.price > l3.price && h1.price > h2.price && l3.i > n - PCFG.recentBars) {
+        const span = l3.i - l1.i;
+        if (span >= 10) {
+          const height = h1.price - l3.price; const upperTl = lineFit([[h1.i, h1.price], [h2.i, h2.price]]);
+          const brk = upperTl.slope * (n - 1) + upperTl.intercept; const confirmed = lastC > brk;
+          const target = h1.price; let conf = 58 + Math.min(10, span / 6) + (confirmed ? 14 : 0);
+          return mk({ key: "FALLING_WEDGE", dir: "LONG", confirmed, confidence: conf, height, breakoutIdx: h2.i, entry: brk, target, stop: l3.price * 0.994,
+            points: [{ i: l1.i, price: l1.price, label: "1" }, { i: l2.i, price: l2.price, label: "2" }, { i: l3.i, price: l3.price, label: "3" }],
+            lines: [
+              { x1: l1.i, y1: l1.price, x2: n - 1, y2: lineFit([[l1.i, l1.price], [l3.i, l3.price]]).slope * (n - 1) + lineFit([[l1.i, l1.price], [l3.i, l3.price]]).intercept, color: "#ffb24c", dash: [6, 4] },
+              { x1: h1.i, y1: h1.price, x2: n - 1, y2: brk, color: "#ffb24c", dash: [6, 4] }
+            ] });
+        }
+      }
+    }
+    return null;
+  }
+  function dTrendlines(cd, sw, A, lastC, n, ctx) {
+    const recent = sw.filter(s => s.i > n - PCFG.recentBars);
+    const Hs = recent.filter(s => s.t === "H").slice(-3), Ls = recent.filter(s => s.t === "L").slice(-3);
+    if (Hs.length < 2 || Ls.length < 2) return null;
+    const i0 = Math.min(Hs[0].i, Ls[0].i);
+    if (overlapRatio(cd, i0, n - 1) > PCFG.impulseOverlap) return null;
+    const fh = lineFit(Hs.map(p => [p.i, p.price])), fl = lineFit(Ls.map(p => [p.i, p.price]));
+    const hNow = fh.slope * (n - 1) + fh.intercept, lNow = fl.slope * (n - 1) + fl.intercept;
+    const rsh = fh.slope / lastC, rsl = fl.slope / lastC, F = 0.0004;
+    const flat = v => Math.abs(v) < F, up = v => v >= F, dn = v => v <= -F;
+    const heightL = (fh.slope * i0 + fh.intercept) - (fl.slope * i0 + fl.intercept);
+    if (heightL < A * PCFG.minHeightAtrMult) return null;
+    const gapNow = hNow - lNow, converging = gapNow < heightL * 0.8, parallel = Math.abs(rsh - rsl) < F * 0.8;
+    const mkTL = (key, dir, confirmed, target, stop, conf) => mk({ key, dir, confirmed, confidence: conf, height: heightL, breakoutIdx: n - 1, entry: dir === "LONG" ? hNow : lNow, target, stop,
+      points: [], lines: [
+        { x1: Hs[0].i, y1: fh.slope * Hs[0].i + fh.intercept, x2: n - 1, y2: hNow, color: "#ffb24c", dash: [6, 4] },
+        { x1: Ls[0].i, y1: fl.slope * Ls[0].i + fl.intercept, x2: n - 1, y2: lNow, color: "#ffb24c", dash: [6, 4] }] });
+    const touches = Hs.length + Ls.length;
+    const baseConf = 52 + Math.min(touches, 6) * 2;
+    if (flat(rsh) && up(rsl)) { const c = lastC >= hNow; return mkTL("ASC_TRIANGLE", "LONG", c, hNow + heightL, lNow * 0.997, baseConf + (c ? 12 : 0)); }
+    if (flat(rsl) && dn(rsh)) { const c = lastC <= lNow; return mkTL("DESC_TRIANGLE", "SHORT", c, lNow - heightL, hNow * 1.003, baseConf + (c ? 12 : 0)); }
+    if (dn(rsh) && up(rsl) && converging) { const dir = ctx === "DOWN" ? "SHORT" : "LONG"; const c = dir === "LONG" ? lastC >= hNow : lastC <= lNow; return mkTL("SYM_TRIANGLE", dir, c, dir === "LONG" ? hNow + heightL : lNow - heightL, dir === "LONG" ? lNow : hNow, baseConf + (c ? 12 : 0)); }
+    if (flat(rsh) && flat(rsl)) { const dir = lastC >= hNow * 0.999 ? "LONG" : lastC <= lNow * 1.001 ? "SHORT" : "NEUTRAL"; const c = dir !== "NEUTRAL"; return mkTL("RECTANGLE", dir, c, dir === "LONG" ? hNow + heightL : dir === "SHORT" ? lNow - heightL : lastC, dir === "LONG" ? lNow : hNow, baseConf + (c ? 8 : 0)); }
+    if (parallel && up(rsh) && up(rsl)) { const c = lastC <= lNow; return mkTL("CHANNEL", "SHORT", c, lNow - heightL, hNow * 1.003, baseConf - 2 + (c ? 10 : 0)); }
+    if (parallel && dn(rsh) && dn(rsl)) { const c = lastC >= hNow; return mkTL("CHANNEL", "LONG", c, hNow + heightL, lNow * 0.997, baseConf - 2 + (c ? 10 : 0)); }
+    return null;
+  }
+  function dFlag(cd, A, n) {
+    if (n < 22) return null;
+    const flagLen = 10, poleLen = 8, poleEnd = n - flagLen, poleStart = Math.max(0, poleEnd - poleLen);
+    const c = cd.map(x => x.c);
+    const poleMove = c[poleEnd - 1] - c[poleStart];
+    const consol = cd.slice(-flagLen), ch = Math.max(...consol.map(x => x.h)), cl = Math.min(...consol.map(x => x.l)), range = ch - cl;
+    if (Math.abs(poleMove) < A * 3 || range <= 0 || range >= Math.abs(poleMove) * 0.6) return null;
+    const dir = poleMove > 0 ? "LONG" : "SHORT", key = poleMove > 0 ? "BULL_FLAG" : "BEAR_FLAG";
+    const brk = dir === "LONG" ? ch : cl, target = brk + Math.sign(poleMove) * Math.abs(poleMove);
+    const confirmed = (dir === "LONG" && c[n - 1] >= ch) || (dir === "SHORT" && c[n - 1] <= cl);
+    let conf = 56 + Math.min(14, Math.abs(poleMove) / A * 3) + (confirmed ? 12 : 0);
+    return mk({ key, dir, confirmed, confidence: conf, height: Math.abs(poleMove), breakoutIdx: n - 1, entry: brk, target, stop: dir === "LONG" ? cl * 0.997 : ch * 1.003,
+      points: [{ i: poleStart, price: c[poleStart], label: "pole" }, { i: poleEnd - 1, price: c[poleEnd - 1], label: "" }],
+      lines: [
+        { x1: poleStart, y1: c[poleStart], x2: poleEnd - 1, y2: c[poleEnd - 1], color: "#8df0c2", dash: [] },
+        { x1: poleEnd, y1: ch, x2: n - 1, y2: ch, color: "#ffb24c", dash: [5, 4] },
+        { x1: poleEnd, y1: cl, x2: n - 1, y2: cl, color: "#ffb24c", dash: [5, 4] }] });
+  }
+  function dBreakout(cd, sw, A, n) {
+    if (n < 6) return null; const last = cd[n - 1];
+    const body = Math.abs(last.c - last.o); if (body < A * PCFG.breakoutBodyAtr) return null;
+    const Hs = sw.filter(s => s.t === "H"), Ls = sw.filter(s => s.t === "L");
+    const up = last.c > last.o;
+    if (up && Hs.length) { const ref = Hs[Hs.length - 1]; if (ref.i < n - 1 && last.c > ref.price) {
+      const target = last.c + body; let conf = 60 + Math.min(15, body / A * 4);
+      return mk({ key: "BREAKOUT", dir: "LONG", confirmed: true, confidence: conf, height: body, breakoutIdx: n - 1, entry: ref.price, target, stop: last.l * 0.998,
+        points: [{ i: ref.i, price: ref.price, label: "S/R" }], lines: [{ x1: ref.i, y1: ref.price, x2: n - 1, y2: ref.price, color: "#3fb6f5", dash: [5, 4] }] }); } }
+    if (!up && Ls.length) { const ref = Ls[Ls.length - 1]; if (ref.i < n - 1 && last.c < ref.price) {
+      const target = last.c - body; let conf = 60 + Math.min(15, body / A * 4);
+      return mk({ key: "BREAKOUT", dir: "SHORT", confirmed: true, confidence: conf, height: body, breakoutIdx: n - 1, entry: ref.price, target, stop: last.h * 1.002,
+        points: [{ i: ref.i, price: ref.price, label: "S/R" }], lines: [{ x1: ref.i, y1: ref.price, x2: n - 1, y2: ref.price, color: "#3fb6f5", dash: [5, 4] }] }); } }
+    return null;
+  }
+  function dTradingRange(cd, sw, A, lastC, n) {
+    const recent = sw.filter(s => s.i > n - PCFG.recentBars);
+    const Hs = recent.filter(s => s.t === "H"), Ls = recent.filter(s => s.t === "L");
+    if (Hs.length < 2 || Ls.length < 2) return null;
+    const topAvg = (Hs[Hs.length - 1].price + Hs[Hs.length - 2].price) / 2;
+    const botAvg = (Ls[Ls.length - 1].price + Ls[Ls.length - 2].price) / 2;
+    const topEq = Math.abs(Hs[Hs.length - 1].price - Hs[Hs.length - 2].price) / topAvg;
+    const botEq = Math.abs(Ls[Ls.length - 1].price - Ls[Ls.length - 2].price) / botAvg;
+    const rng = topAvg - botAvg; if (rng < A * 2 || topEq > PCFG.flatTol || botEq > PCFG.flatTol) return null;
+    if (lastC > topAvg || lastC < botAvg) return null;
+    const nearTop = (topAvg - lastC) / rng < 0.18, nearBot = (lastC - botAvg) / rng < 0.18;
+    if (!nearTop && !nearBot) return null;
+    const dir = nearBot ? "LONG" : "SHORT", target = nearBot ? topAvg : botAvg, stop = nearBot ? botAvg * 0.99 : topAvg * 1.01;
+    return mk({ key: "TRADING_RANGE", dir, confirmed: false, confidence: 60, height: rng, breakoutIdx: n - 1, entry: lastC, target, stop,
+      points: [], lines: [{ x1: i0OrFirst(recent), y1: topAvg, x2: n - 1, y2: topAvg, color: "#5b6a7e", dash: [3, 4] }, { x1: i0OrFirst(recent), y1: botAvg, x2: n - 1, y2: botAvg, color: "#5b6a7e", dash: [3, 4] }] });
+  }
+  function i0OrFirst(arr) { return arr.length ? arr[0].i : 0; }
+  function dFinalFlag(cd, A, n, ctx) {
+    if (n < 30 || ctx === "RANGE") return null;
+    const c = cd.map(x => x.c); const w = 20; const move = c[n - 1] - c[n - 1 - w];
+    if (Math.abs(move) < A * 4) return null;
+    const fl = 8, consol = cd.slice(-fl), ch = Math.max(...consol.map(x => x.h)), cl = Math.min(...consol.map(x => x.l));
+    if ((ch - cl) > A * 1.4) return null;
+    const dir = ctx === "UP" ? "SHORT" : "LONG"; const target = dir === "SHORT" ? cl - (ch - cl) * 2 : ch + (ch - cl) * 2;
+    return mk({ key: "FINAL_FLAG", dir, confirmed: false, confidence: 58, height: Math.abs(move), breakoutIdx: n - 1, entry: dir === "SHORT" ? cl : ch, target, stop: dir === "SHORT" ? ch * 1.004 : cl * 0.996,
+      points: [], lines: [{ x1: n - fl, y1: ch, x2: n - 1, y2: ch, color: "#ffb24c", dash: [4, 4] }, { x1: n - fl, y1: cl, x2: n - 1, y2: cl, color: "#ffb24c", dash: [4, 4] }] });
+  }
+
+  function detectChartPatterns(cd, piv) {
+    const out = [], n = cd.length;
+    if (n < 30) return out;
+    const highs = cd.map(c => c.h), lows = cd.map(c => c.l), closes = cd.map(c => c.c);
+    const A = patATR(highs, lows, closes, 14) || closes[n - 1] * 0.004;
+    const lastC = closes[n - 1];
+    const sw = swings(cd, PCFG.pivotK);
+    const ctx = trendContext(cd);
+    const run = fn => { try { const r = fn(); if (r) out.push(r); } catch (e) {} };
+    run(() => dHeadShoulders(cd, sw, A, lastC, n));
+    run(() => dInvHeadShoulders(cd, sw, A, lastC, n));
+    run(() => dWedge(cd, sw, A, lastC, n));
+    run(() => dDoubleTop(cd, sw, A, lastC, n, ctx));
+    run(() => dDoubleBottom(cd, sw, A, lastC, n, ctx));
+    run(() => dTrendlines(cd, sw, A, lastC, n, ctx));
+    run(() => dFlag(cd, A, n));
+    run(() => dBreakout(cd, sw, A, n));
+    run(() => dTradingRange(cd, sw, A, lastC, n));
+    run(() => dFinalFlag(cd, A, n, ctx));
+    const best = {}; for (const p of out) { if (!best[p.key] || p.confidence > best[p.key].confidence) best[p.key] = p; }
+    return Object.values(best).sort((a, b) => (b.confirmed - a.confirmed) || (b.confidence - a.confidence));
+  }
+
+  function detectCandles(cd) {
+    const out = [], n = cd.length; if (n < 3) return out;
+    const a = cd[n - 3], b = cd[n - 2], c = cd[n - 1];
+    const body = x => Math.abs(x.c - x.o), rng = x => (x.h - x.l) || 1e-9, up = x => x.c >= x.o;
+    const upper = x => x.h - Math.max(x.o, x.c), lower = x => Math.min(x.o, x.c) - x.l;
+    if (!up(b) && up(c) && c.c >= b.o && c.o <= b.c && body(c) > body(b)) out.push({ name: "Bullish Engulfing", fa: "پوشای صعودی", dir: "LONG" });
+    if (up(b) && !up(c) && c.o >= b.c && c.c <= b.o && body(c) > body(b)) out.push({ name: "Bearish Engulfing", fa: "پوشای نزولی", dir: "SHORT" });
+    if (lower(c) > body(c) * 2 && upper(c) < body(c)) out.push({ name: "Hammer", fa: "چکش", dir: "LONG" });
+    if (upper(c) > body(c) * 2 && lower(c) < body(c)) out.push({ name: "Shooting Star", fa: "ستارهٔ دنباله‌دار", dir: "SHORT" });
+    if (body(c) <= rng(c) * 0.1) out.push({ name: "Doji", fa: "دوجی", dir: "NEUTRAL" });
+    if (!up(a) && body(b) < rng(b) * 0.4 && up(c) && c.c > (a.o + a.c) / 2) out.push({ name: "Morning Star", fa: "ستارهٔ صبحگاهی", dir: "LONG" });
+    if (up(a) && body(b) < rng(b) * 0.4 && !up(c) && c.c < (a.o + a.c) / 2) out.push({ name: "Evening Star", fa: "ستارهٔ شامگاهی", dir: "SHORT" });
+    return out;
+  }
+
+  function validateAgainstEngine(engineDir, pats) {
+    const actionable = pats.filter(p => p.dir !== "NEUTRAL" && (p.confirmed || p.confidence >= PCFG.confActionable));
+    const aligned = actionable.filter(p => p.dir === engineDir).sort((a, b) => b.confidence - a.confidence);
+    const opposed = actionable.filter(p => p.dir !== engineDir).sort((a, b) => b.confidence - a.confidence);
+    const hardOpposed = opposed.find(p => PATLIB[p.key].tier === "A" && p.confirmed && p.confidence >= PCFG.confConflict && (p.height / (p.entry || 1)) >= PCFG.minHeightPct);
+    const dominates = hardOpposed && (!aligned.length || hardOpposed.confidence >= aligned[0].confidence + 6);
+    if (engineDir !== "LONG" && engineDir !== "SHORT") {
+      return { severity: "neutral", pattern: aligned[0] || opposed[0] || null,
+        headline: "موتور جهت قطعی نداد", detail: "صحت‌سنجی الگو خنثی است؛ معیار جهت‌دار برای مقایسه وجود ندارد." };
+    }
+    if (dominates) {
+      return { severity: "conflict", pattern: hardOpposed,
+        headline: "تضاد: الگوی معتبر خلاف جهت موتور",
+        detail: "موتور «" + faDir(engineDir) + "» داده ولی الگوی «" + PATLIB[hardOpposed.key].fa + "» جهت «" + faDir(hardOpposed.dir) + "» را نشان می‌دهد. طبق منطق خودت: یا الگو درست تشخیص داده نشده (نقاط روی چارت را چک کن) یا فیلترهای موتور این ساختار را ندیده‌اند. تا رفع ابهام، صبر/پرهیز." };
+    }
+    if (opposed.length && !aligned.length) {
+      return { severity: "caution", pattern: opposed[0],
+        headline: "هشدار نرم: الگوی در حال شکل‌گیری خلاف جهت",
+        detail: "الگوی «" + PATLIB[opposed[0].key].fa + "» (هنوز تأییدنشده) خلاف جهت موتور است. تا تأیید شکست، وزن کم بده؛ صرفاً برای آگاهی." };
+    }
+    if (aligned.length) {
+      return { severity: "aligned", pattern: aligned[0],
+        headline: "تأیید: الگو هم‌سو با موتور",
+        detail: "الگوی «" + PATLIB[aligned[0].key].fa + "» جهت موتور («" + faDir(engineDir) + "») را تأیید می‌کند؛ هم‌گرایی، اعتبار ستاپ را بالا می‌برد." };
+    }
+    return { severity: "neutral", pattern: null,
+      headline: "الگوی واضحی یافت نشد",
+      detail: "در ۲۰۰ کندل ۱۵م الگوی کلاسیک/پرایس‌اکشن معتبری نبود — این طبیعی است و اشکالی ندارد. تصمیم بر پایهٔ موتور بماند." };
+  }
+  function faDir(d) { return d === "LONG" ? "صعودی" : d === "SHORT" ? "نزولی" : "خنثی"; }
+
+  const api = { PATLIB, PCFG, lineFit, getPivots, swings, lastSeq, trendContext, overlapRatio, patATR, detectChartPatterns, detectCandles, validateAgainstEngine, faDir };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else { for (const k in api) root[k] = api[k]; }
+})(typeof window !== "undefined" ? window : globalThis);
+
+
+/* =========================================================================
+   CANDLESTICK CHART RENDERER + PATTERN OVERLAY  (canvas, runs locally)
+   ========================================================================= */
+const COL={up:"#26d0a4",dn:"#ff5d77",grid:"#1b2533",axis:"#566479",txt:"#8597ad",
+  ema21:"#3fb6f5",ema50:"#a479e2",last:"#8597ad",panel:"#10161f"};
+function rr_(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function dline(g,x1,y1,x2,y2,color,dash,w){g.save();g.strokeStyle=color;g.lineWidth=w||1.3;g.setLineDash(dash||[]);g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.restore();}
+
+function drawChart(cv,cd,pat){
+  const dpr=window.devicePixelRatio||1;
+  const cssW=Math.max(280,(cv.parentElement&&cv.parentElement.clientWidth)||cv.clientWidth||700);
+  const cssH=Math.max(300,Math.min(480,Math.round(cssW*0.5)));
+  cv.style.width="100%";cv.style.height=cssH+"px";
+  cv.width=Math.round(cssW*dpr);cv.height=Math.round(cssH*dpr);
+  const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,cssW,cssH);g.font="10px ui-monospace,Menlo,monospace";
+
+  const R=60,Tm=10,Bm=20,gap=8,volH=Math.round(cssH*0.16);
+  const price={x:8,y:Tm,w:cssW-8-R,h:cssH-Tm-Bm-volH-gap};
+  const vol={x:8,y:price.y+price.h+gap,w:cssW-8-R,h:volH};
+  const n=cd.length;
+
+  let hi=-Infinity,lo=Infinity;
+  for(const c of cd){if(c.h>hi)hi=c.h;if(c.l<lo)lo=c.l;}
+  if(pat){[pat.target,pat.stop,pat.entry].forEach(p=>{if(p!=null&&isFinite(p)){if(p>hi)hi=p;if(p<lo)lo=p;}});}
+  const pad=(hi-lo)*0.06||hi*0.01;hi+=pad;lo-=pad;
+  const mapX=i=>price.x+(i+0.5)/n*price.w;
+  const mapY=p=>price.y+(1-(p-lo)/((hi-lo)||1))*price.h;
+  const cw=Math.max(1,price.w/n*0.62);
+
+  g.textBaseline="middle";g.textAlign="left";
+  for(let s=0;s<=4;s++){
+    const p=lo+(hi-lo)*s/4,y=mapY(p);
+    g.strokeStyle=COL.grid;g.lineWidth=1;g.beginPath();g.moveTo(price.x,y);g.lineTo(price.x+price.w,y);g.stroke();
+    g.fillStyle=COL.axis;g.fillText(fmt(p),price.x+price.w+6,y);
+  }
+  g.textAlign="center";g.textBaseline="top";
+  for(let s=0;s<=5;s++){
+    const i=Math.round((n-1)*s/5),x=mapX(i),t=cd[i]&&cd[i].t?new Date(cd[i].t):null;
+    g.strokeStyle=COL.grid;g.beginPath();g.moveTo(x,price.y);g.lineTo(x,price.y+price.h);g.stroke();
+    if(t)g.fillStyle=COL.axis,g.fillText(t.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}),x,vol.y+vol.h+4);
+  }
+
+  const closes=cd.map(c=>c.c),e21=emaSeries(closes,21),e50=emaSeries(closes,50);
+  const drawEma=(arr,col)=>{g.save();g.strokeStyle=col;g.lineWidth=1.2;g.beginPath();let started=false;for(let i=0;i<n;i++){if(arr[i]==null)continue;const x=mapX(i),y=mapY(arr[i]);if(!started){g.moveTo(x,y);started=true;}else g.lineTo(x,y);}g.stroke();g.restore();};
+  drawEma(e21,COL.ema21);drawEma(e50,COL.ema50);
+
+  let vmax=0;for(const c of cd)if(c.v>vmax)vmax=c.v;vmax=vmax||1;
+  for(let i=0;i<n;i++){const c=cd[i],x=mapX(i),hgt=c.v/vmax*vol.h,y=vol.y+vol.h-hgt;
+    g.fillStyle=(c.c>=c.o?COL.up:COL.dn);g.globalAlpha=.35;g.fillRect(x-cw/2,y,cw,hgt);g.globalAlpha=1;}
+
+  for(let i=0;i<n;i++){const c=cd[i],x=mapX(i),isUp=c.c>=c.o,col=isUp?COL.up:COL.dn;
+    g.strokeStyle=col;g.lineWidth=1;g.beginPath();g.moveTo(x,mapY(c.h));g.lineTo(x,mapY(c.l));g.stroke();
+    const yo=mapY(c.o),yc=mapY(c.c),top=Math.min(yo,yc),bh=Math.max(1,Math.abs(yc-yo));
+    g.fillStyle=col;g.fillRect(x-cw/2,top,cw,bh);}
+
+  const lastC=closes[n-1];dline(g,price.x,mapY(lastC),price.x+price.w,mapY(lastC),COL.last,[2,3],1);
+
+  if(pat){
+    const meta=PATLIB[pat.key],dirCol=pat.dir==="LONG"?COL.up:pat.dir==="SHORT"?COL.dn:COL.axis;
+    (pat.lines||[]).forEach(L=>dline(g,mapX(L.x1),mapY(L.y1),mapX(L.x2),mapY(L.y2),L.color,L.dash,1.4));
+    (pat.points||[]).forEach(P=>{const x=mapX(P.i),y=mapY(P.price);
+      g.fillStyle=dirCol;g.beginPath();g.arc(x,y,3.5,0,7);g.fill();
+      if(P.label){g.fillStyle=COL.txt;g.textAlign="center";g.textBaseline="bottom";g.fillText(P.label,x,y-5);}});
+    const bx=mapX(pat.breakoutIdx),rx=price.x+price.w;
+    const yEntry=mapY(pat.entry),yTgt=mapY(pat.target);
+    g.save();g.fillStyle=dirCol;g.globalAlpha=.08;g.fillRect(bx,Math.min(yEntry,yTgt),rx-bx,Math.abs(yTgt-yEntry));g.restore();
+    dline(g,bx,yTgt,rx,yTgt,dirCol,[6,4],1.6);
+    if(pat.stop!=null)dline(g,bx,mapY(pat.stop),rx,mapY(pat.stop),COL.dn,[2,3],1);
+    drawArrow(g,bx+6,yEntry,bx+6,yTgt,dirCol);
+    g.save();g.font="bold 10px ui-monospace,Menlo,monospace";
+    const tlab=(pat.dir==="LONG"?"▲ TP ":"▼ TP ")+fmt(pat.target);
+    const tw=g.measureText(tlab).width+12;
+    g.fillStyle=dirCol;rr_(g,rx-tw-2,yTgt-9,tw,18,4);g.fill();
+    g.fillStyle="#03150f";g.textAlign="center";g.textBaseline="middle";g.fillText(tlab,rx-tw/2-2,yTgt);g.restore();
+    g.save();g.font="bold 11px ui-monospace,Menlo,monospace";
+    const blab=meta.short+(pat.confirmed?" ✓":" ◻");
+    const bw=g.measureText(blab).width+16;
+    g.fillStyle="rgba(16,22,31,.92)";g.strokeStyle=dirCol;g.lineWidth=1.3;rr_(g,price.x+4,price.y+4,bw,22,6);g.fill();g.stroke();
+    g.fillStyle=dirCol;g.textAlign="center";g.textBaseline="middle";g.fillText(blab,price.x+4+bw/2,price.y+15);g.restore();
+  }
+}
+function drawArrow(g,x1,y1,x2,y2,col){g.save();g.strokeStyle=col;g.fillStyle=col;g.lineWidth=1.6;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();
+  const ang=Math.atan2(y2-y1,x2-x1),s=6;g.beginPath();g.moveTo(x2,y2);g.lineTo(x2-s*Math.cos(ang-0.5),y2-s*Math.sin(ang-0.5));g.lineTo(x2-s*Math.cos(ang+0.5),y2-s*Math.sin(ang+0.5));g.closePath();g.fill();g.restore();}
+
+function renderPatternChart(r){
+  const cv=document.getElementById("patChart"),info=document.getElementById("patInfo");
+  if(!cv||!info)return;
+  const cd=r.klines15_200;
+  if(!cd||cd.length<30){info.innerHTML='<div class="patnone">دادهٔ کافی برای ترسیم چارت/الگو نبود.</div>';return;}
+  let pats=[],cands=[],verdict=null;
+  try{const piv=getPivots(cd,PCFG.pivotK);pats=detectChartPatterns(cd,piv);cands=detectCandles(cd);}catch(e){pats=[];}
+  try{verdict=validateAgainstEngine(r.direction,pats);}catch(e){verdict=null;}
+  const drawPat=(verdict&&verdict.pattern)||pats[0]||null;
+  try{drawChart(cv,cd,drawPat);}catch(e){try{drawChart(cv,cd,null);}catch(_){}}
+  info.innerHTML=buildPatInfo(r,pats,cands,verdict);
+}
+function dirFa(d){return d==="LONG"?"صعودی":d==="SHORT"?"نزولی":"خنثی";}
+function buildPatInfo(r,pats,cands,verdict){
+  let html="";
+  if(verdict){
+    const sev=verdict.severity;
+    const cfg={
+      conflict:{cls:"v-conflict",ic:"⛔",tt:"تضاد — صحت‌سنجی نهایی"},
+      caution :{cls:"v-caution", ic:"⚠️",tt:"هشدار نرم — صحت‌سنجی نهایی"},
+      aligned :{cls:"v-aligned", ic:"✅",tt:"تأیید — صحت‌سنجی نهایی"},
+      neutral :{cls:"v-neutral", ic:"◽",tt:"خنثی — صحت‌سنجی نهایی"}
+    }[sev]||{cls:"v-neutral",ic:"◽",tt:"صحت‌سنجی نهایی"};
+    const engBadge=`<span class="vb b-${r.direction}">موتور: ${dirFa(r.direction)}</span>`;
+    const patBadge=verdict.pattern?`<span class="vb b-${verdict.pattern.dir}">الگو: ${dirFa(verdict.pattern.dir)}</span>`:`<span class="vb b-NEUTRAL">الگو: —</span>`;
+    html+=`<div class="verdict ${cfg.cls}">
+      <div class="vh"><span class="vic">${cfg.ic}</span><span class="vtt">${cfg.tt}</span>${engBadge}${patBadge}</div>
+      <div class="vmsg">${verdict.headline}</div>
+      <div class="vdet">${verdict.detail}</div>
+    </div>`;
+  }
+  const primary=(verdict&&verdict.pattern)||pats[0]||null;
+  if(primary){
+    const p=primary,meta=PATLIB[p.key];
+    const move=Math.abs(p.target-p.entry)/p.entry*100;
+    html+=`<div class="patmatch">
+      <div class="h">
+        <span class="nm">${meta.fa}</span>
+        <span class="kind">${meta.kind}${PATLIB[p.key].tier?` · رتبه ${PATLIB[p.key].tier}`:""}</span>
+        <span class="badge b-${p.dir}">${dirFa(p.dir)}</span>
+        <span class="conf">${p.confirmed?"شکست تأییدشده ✓":"در حال شکل‌گیری ◻"} · اطمینان ${Math.round(p.confidence)}%</span>
+      </div>
+      <p>${meta.note} <br><span class="dim mono" style="font-size:12px">قاعدهٔ هدف: ${meta.rule}</span></p>
+      <div class="lv">
+        <div><div class="k">ناحیه/گردن</div><div class="v">${fmt(p.entry)}</div></div>
+        <div><div class="k">هدف الگو</div><div class="v tp">${fmt(p.target)}</div></div>
+        <div><div class="k">حد ضرر</div><div class="v sl">${fmt(p.stop)}</div></div>
+        <div><div class="k">حرکت موردانتظار</div><div class="v">${move.toFixed(1)}%</div></div>
+      </div>`;
+    const others=pats.filter(o=>o!==p).slice(0,3);
+    if(others.length){
+      html+=`<div class="candsig" style="margin-top:11px">`+others.map(o=>{const m=PATLIB[o.key];
+        return `<span class="c ${o.dir==='LONG'?'L':o.dir==='SHORT'?'S':''}">${m.fa} · ${Math.round(o.confidence)}%${o.confirmed?" ✓":""}</span>`;}).join("")+`</div>`;
+    }
+    html+=`</div>`;
+  }else{
+    html+=`<div class="patmatch"><div class="patnone">در ۲۰۰ کندل ۱۵دقیقه‌ای اخیر، الگوی نموداری معتبری شناسایی نشد — این طبیعی است و لزوماً ایراد نیست. تصمیم بر پایهٔ موتور بماند؛ چارت و EMAها بالا و الگوهای شمعی زیر قابل بررسی‌اند.</div></div>`;
+  }
+  if(cands.length){
+    html+=`<div class="candsig">`+cands.map(c=>`<span class="c ${c.dir==='LONG'?'L':c.dir==='SHORT'?'S':''}">${c.fa} (${dirFa(c.dir)})</span>`).join("")+`</div>`;
+  }
+  /* --- ستاپ افزایشی: پولبک به OB/FVG بعد از BOS (۵م) — فقط هم‌گرایی، بدون تغییر امتیاز --- */
+  try{
+    if(r.klines5_200&&(r.direction==="LONG"||r.direction==="SHORT")){
+      const ob=detectOBFVGafterBOS(r.klines5_200,r.direction);
+      if(ob){
+        const dot=ob.ok?"#26d0a4":"#5b6a7e";
+        html+=`<div class="confluence"><span class="dot" style="background:${dot}"></span>
+          <div><b>ستاپ پولبک به OB/FVG بعد از BOS (۵م):</b> ${ob.ok?"فعال ✓":"غیرفعال"} — ${ob.reason}
+          ${ob.zone?`<br><span class="dim mono" style="font-size:11.5px">ناحیه (${ob.kind}): ${fmt(Math.min(ob.zone.lo,ob.zone.hi))} → ${fmt(Math.max(ob.zone.lo,ob.zone.hi))}</span>`:""}</div></div>`;
+      }
+    }
+  }catch(e){}
+  html+=`<div class="patlegend">
+    <span><i style="border-color:#3fb6f5"></i>خط گردن / S-R</span>
+    <span><i style="border-color:#ffb24c"></i>خطوط روند/کانال</span>
+    <span><i style="border-color:#26d0a4;border-style:dashed"></i>هدف صعودی</span>
+    <span><i style="border-color:#ff5d77;border-style:dashed"></i>هدف نزولی / حد ضرر</span>
+    <span><i style="border-color:#3fb6f5;border-top-style:solid"></i>EMA21</span>
+    <span><i style="border-color:#a479e2;border-top-style:solid"></i>EMA50</span>
+  </div>
+  <p class="dim" style="font-size:11.5px;margin-top:8px">صحت‌سنجی و الگوها فقط کمک‌تشخیص‌اند و امتیاز/جهت قفل‌شدهٔ موتور را تغییر نمی‌دهند. هدف الگو «حداقل» حرکت موردانتظار است؛ در روند قوی معمولاً بیشتر می‌رود. الگوهای «برگشت روند ماژور»، «برگشت باز» و «آهن‌ربا» مفهومی/وابسته به اوپن روزانه‌اند و روی کریپتوی ۲۴ساعتهٔ ۱۵م خودکار تشخیص داده نمی‌شوند (در تب پلی‌بوک توضیح داده شده‌اند).</p>`;
+  return html;
+}
+
+/* =========================================================================
+   BINANCE API CLIENT  (runs in the user's browser; data stays local)
+   ========================================================================= */
+async function jget(path){
+  const r=await fetch(CFG.apiBase+path,{cache:"no-store"});
+  if(!r.ok)throw new Error("HTTP "+r.status+" "+path);
+  return r.json();
+}
+function parseKlines(raw){return raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));}
+async function fetchKlines(sym,iv,limit=S.kline_limit){return parseKlines(await jget(`/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${limit}`));}
+async function fetchTickers(){return jget(`/fapi/v1/ticker/24hr`);}
+async function fetchFundingMap(){const a=await jget(`/fapi/v1/premiumIndex`);const m={};a.forEach(x=>m[x.symbol]=+x.lastFundingRate||0);return m;}
+
+async function fetchMarketContext(){
+  try{
+    const k1h=await fetchKlines("BTCUSDT","1h",S.kline_limit);
+    const m=timeframeMetrics(k1h,"1h");
+    const chg=(k1h[k1h.length-1].c/k1h[Math.max(0,k1h.length-24)].c-1)*100;
+    let risk_mode="NEUTRAL";
+    if(m.direction==="LONG"&&chg>0)risk_mode="RISK_ON";
+    else if(m.direction==="SHORT"&&chg<-1.5)risk_mode="RISK_OFF";
+    return{risk_mode,btc_dir:m.direction,btc_change_24h:chg};
+  }catch(e){return{risk_mode:"UNKNOWN"};}
+}
+const FX_FIAT=new Set(["EUR","GBP","JPY","AUD","NZD","CAD","CHF","CNH","CNY","HKD","SGD","MXN","ZAR","TRY","SEK","NOK","DKK","PLN","HUF","CZK","INR","RUB","BRL","KRW","THB","IDR","PHP","MYR","AED","SAR","QAR","ILS","CLP","COP","RON","ISK","USD","EURO"]);
+const COMMODITY_KEEP=new Set(["XAU","XAUT","PAXG","GOLD","XAG","SILVER","SLV","OIL","USOIL","UKOIL","WTI","WTIUSD","BRENT","CRUDE","NGAS"]);
+function isForexPair(asset){return FX_FIAT.has(asset)&&!COMMODITY_KEEP.has(asset);}
+async function buildUniverse(tickers){
+  const rows=tickers.filter(t=>t.symbol.endsWith("USDT")&&!/(_|UPUSDT|DOWNUSDT|BULL|BEAR)/.test(t.symbol))
+    .map(t=>({binance_symbol:t.symbol,asset_symbol:t.symbol.replace("USDT",""),quoteVolume:+t.quoteVolume,change_24h_pct:+t.priceChangePercent,lastPrice:+t.lastPrice}))
+    .filter(a=>!isForexPair(a.asset_symbol));
+  const commodities=rows.filter(a=>COMMODITY_KEEP.has(a.asset_symbol));
+  const crypto=rows.filter(a=>!COMMODITY_KEEP.has(a.asset_symbol)).sort((a,b)=>b.quoteVolume-a.quoteVolume);
+  return [...commodities,...crypto].slice(0,Math.max(CFG.universe,commodities.length))
+    .sort((a,b)=>b.quoteVolume-a.quoteVolume).map((a,i)=>(a.rank=i+1,a));
+}
+async function analyzeOne(asset,funding,ctx){
+  const[c5,c15,c1h]=await Promise.all([fetchKlines(asset.binance_symbol,"5m"),fetchKlines(asset.binance_symbol,"15m"),fetchKlines(asset.binance_symbol,"1h")]);
+  const m5=timeframeMetrics(c5,"5m"),m15=timeframeMetrics(c15,"15m"),m1h=timeframeMetrics(c1h,"1h");
+  const cur=asset.lastPrice||m5.close;
+  return analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+}
+async function pool(items,worker,limit,onEach){
+  const q=items.slice();let done=0;const out=[];
+  async function run(){while(q.length){const it=q.shift();try{const r=await worker(it);out.push(r);}catch(e){out.push({error:String(e),asset_symbol:it.asset_symbol,binance_symbol:it.binance_symbol,status:"ANALYSIS_ERROR"});}done++;onEach&&onEach(done);}}
+  await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
+  return out;
+}
+
+/* =========================================================================
+   STATE + SCAN
+   ========================================================================= */
+const STATE={signals:[],watchlist:[],universe:[],market_context:{},last_scan_at:null,scanning:false};
+const LIFE=["NO_SETUP","WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY","SIGNAL"];
+const LIFE_SHORT={NO_SETUP:"no setup",WATCHING:"watching",APPROACHING_ENTRY_ZONE:"approach",WAITING_CONFIRMATION:"confirm",VALID_ENTRY:"valid",SIGNAL:"signal"};
+
+async function runScan(){
+  if(STATE.scanning)return;STATE.scanning=true;setScanning(true);
+  try{
+    setStatus("در حال خواندن تیکرها و رژیم بازار…");
+    const[tickers,funding,ctx]=await Promise.all([fetchTickers(),fetchFundingMap(),fetchMarketContext()]);
+    STATE.market_context=ctx;renderRegime();
+    const uni=await buildUniverse(tickers);
+    setStatus(`در حال تحلیل ${uni.length} نماد پرحجم…`);showProg(0,uni.length);
+    const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>showProg(d,uni.length));
+    rows.sort((a,b)=>(a.rank||999)-(b.rank||999));
+    STATE.universe=rows;
+    STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
+    STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
+    STATE.last_scan_at=new Date();
+    hideProg();
+    setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
+    renderAll();
+    saveLocal(); if(SYNC.on())SYNC.push();
+  }catch(e){
+    hideProg();
+    setStatus(`اتصال به بایننس ناموفق بود (${e.message}). اتصالت را بررسی کن یا در «تنظیمات» آدرس پایهٔ API را به یک میرر معتبر تغییر بده. «تحلیل تک‌نماد» هم می‌تواند کمک کند چون درخواست کمتری دارد.`);
+  }finally{STATE.scanning=false;setScanning(false);}
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const fmt=(n,d)=>{if(n==null||isNaN(n))return"—";if(d!=null)return Number(n).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});const a=Math.abs(n);if(a===0)return"0";let dd;if(a>=1000)dd=2;else if(a>=1)dd=4;else{const lead=Math.floor(Math.log10(a));dd=Math.min(12,-lead+3);}return Number(n).toLocaleString("en-US",{minimumFractionDigits:dd,maximumFractionDigits:dd});};
+const fmtVol=v=>v>=1e9?(v/1e9).toFixed(2)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":(v/1e3).toFixed(0)+"K";
+const fmtTime=d=>d?new Date(d).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}):"—";
+function setStatus(t){$("#statusLine").textContent=t;}
+function setScanning(on){$("#scanBtn").disabled=on;$("#scanBtn").textContent=on?"در حال اسکن…":"اسکن بازار";}
+function showProg(d,t){const p=$("#prog");p.style.display="block";p.firstElementChild.style.width=(t?d/t*100:0)+"%";}
+function hideProg(){const p=$("#prog");p.firstElementChild.style.width="100%";setTimeout(()=>p.style.display="none",350);}
+function renderRegime(){
+  const c=STATE.market_context||{},col={RISK_ON:"var(--long)",RISK_OFF:"var(--short)",NEUTRAL:"var(--watch)",UNKNOWN:"var(--gray)"}[c.risk_mode]||"var(--gray)";
+  $("#regime").firstElementChild.style.background=col;
+  const fa={RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی",UNKNOWN:"نامشخص"}[c.risk_mode]||"نامشخص";
+  $("#regimeTxt").innerHTML=`رژیم بازار: ${fa} `+(c.btc_dir?`· BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}%`:"");
+}
+function railHTML(status,direction){
+  const idx=LIFE.indexOf(status);const rej=idx<0;
+  return `<div class="rail ${direction}">`+LIFE.map((s,i)=>{
+    const cls=rej?"":i<idx?"done":i===idx?"cur":"";
+    return `<div class="step ${cls}"><span class="o"></span><span class="lab">${LIFE_SHORT[s]}</span></div>`;
+  }).join("")+`</div>`;
+}
+function chkLabelFa(k){return{higher_tf_direction:"جهت ۱ساعته",setup_tf_direction:"جهت ۱۵م",entry_tf_confirmation:"تأیید ۵م",not_overextended:"اشباع نشده",trend_strength:"قدرت روند",volume_expansion:"انبساط حجم"}[k]||k;}
+
+function signalCard(r){
+  const z=r.entry_zone||{};
+  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(r.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`]
+    .concat((r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}✕</span>`)).join("");
+  return `<div class="card fade">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
+      <span class="side ${r.direction}">${r.direction}</span></div>
+    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · <span class="statuspill st-${r.status}">${r.status}</span></div>
+    <div class="levels">
+      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+    </div>
+    ${railHTML(r.status,r.direction)}
+    <div class="tags">${tags}</div>
+    <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو روی چارت</button></div>
+  </div>`;
+}
+function renderSignals(){
+  $("#cSig").textContent=STATE.signals.length;
+  const v=$("#view-signals");
+  v.innerHTML=`<div class="section-title"><span class="eyebrow">tradable</span><h2>سیگنال‌ها</h2></div>`+
+    (STATE.signals.length?`<div class="grid">${STATE.signals.map(signalCard).join("")}</div>`:
+    `<div class="empty">هنوز سیگنالی نیست. سیگنال فقط وقتی صادر می‌شود که همهٔ فیلترهای سخت پاس شوند — بقیه در واچ‌لیست می‌مانند. یک اسکن بزن.</div>`);
+}
+function watchRow(r){
+  return `<div class="card fade">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
+      <span class="side ${r.direction}">${r.direction}</span>
+      <span class="statuspill st-${r.status}" style="margin-inline-start:8px">${LIFE_SHORT[r.status]||r.status}</span></div>
+    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(r.rr,2)}</div>
+    ${railHTML(r.status,r.direction)}
+    <div class="tags">${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
+    <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو</button></div>
+  </div>`;
+}
+function renderWatch(){
+  $("#cWatch").textContent=STATE.watchlist.length;
+  const v=$("#view-watch");
+  v.innerHTML=`<div class="section-title"><span class="eyebrow">forming</span><h2>واچ‌لیست</h2></div>`+
+    (STATE.watchlist.length?`<div class="grid">${STATE.watchlist.map(watchRow).join("")}</div>`:
+    `<div class="empty">واچ‌لیست خالی است. بعد از اسکن، ستاپ‌های در حال شکل‌گیری اینجا می‌آیند.</div>`);
+}
+
+/* deep dive */
+let lastDeep=null;
+async function deepAnalyze(symInput){
+  let sym=(symInput||"").trim().toUpperCase();if(!sym)return;
+  if(!sym.endsWith("USDT"))sym+="USDT";
+  $("#ddOut").innerHTML=`<div class="empty">در حال تحلیل ${sym} و اسکن ۲۰۰ کندل ۱۵م برای الگو…</div>`;$("#ddMeta").textContent="";
+  try{
+    const[funding,ctx]=await Promise.all([fetchFundingMap().catch(()=>({})),fetchMarketContext()]);
+    STATE.market_context=ctx;renderRegime();
+    let asset={binance_symbol:sym,asset_symbol:sym.replace("USDT",""),quoteVolume:Infinity,change_24h_pct:0,lastPrice:0,rank:"-"};
+    try{const t=await jget(`/fapi/v1/ticker/24hr?symbol=${sym}`);asset.quoteVolume=+t.quoteVolume;asset.change_24h_pct=+t.priceChangePercent;asset.lastPrice=+t.lastPrice;}catch(e){}
+    const r=await analyzeOne(asset,funding,ctx);
+    try{r.klines15_200=await fetchKlines(sym,"15m",200);}catch(e){r.klines15_200=null;}
+    try{r.klines5_200=await fetchKlines(sym,"5m",200);}catch(e){r.klines5_200=null;}
+    lastDeep=r;renderDeep(r);
+    requestAnimationFrame(()=>renderPatternChart(r));
+    $("#ddMeta").textContent=`${fmtVol(r.quote_volume)} · ${fmtTime(new Date())}`;
+  }catch(e){$("#ddOut").innerHTML=`<div class="empty">تحلیل ${sym} ناموفق: ${e.message}. نماد یا اتصال را بررسی کن.</div>`;}
+}
+function renderDeep(r){
+  const M=r.metrics,tfRow=(tf,m)=>`<div class="tfrow">
+    <div class="tf">${tf}</div>
+    <div class="m">close<b>${fmt(m.close)}</b></div>
+    <div class="m">RSI<b>${m.rsi.toFixed(0)}</b></div>
+    <div class="m">ADX<b>${m.adx.toFixed(0)}</b></div>
+    <div class="m">BB%<b>${m.bb_position.toFixed(0)}</b></div>
+    <div class="tfdir side ${m.direction}">${m.direction}</div></div>`;
+  const sc=r.scorecard,bar=(fa,v,max)=>`<div class="scbar"><span class="n">${fa}</span><span class="track"><i style="width:${v/max*100}%"></i></span><span class="v">${v}</span></div>`;
+  const checks=Object.entries(r.mandatory_checks).map(([k,v])=>`<div class="chk ${v?"ok":"no"}"><span class="i">${v?"✓":"✕"}</span><span>${chkLabelFa(k)}</span><span class="k" style="margin-inline-start:auto">${k}</span></div>`).join("");
+  $("#ddOut").innerHTML=`
+  <div class="card" style="margin-bottom:12px">
+    <div class="top"><span class="sym">${r.asset_symbol}</span><span class="side ${r.direction}">${r.direction}</span>
+      <span class="statuspill st-${r.status}" style="margin-inline-start:auto">${r.status}</span></div>
+    <div class="scorebig">امتیاز موتور <b>${fmt(r.score,1)}</b> · ستاپ ${r.setup} · RR ${fmt(r.rr,2)} · TF ${r.tf_agreement}/3</div>
+    <div class="levels">
+      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+    </div>
+    ${railHTML(r.status,r.direction)}
+  </div>
+  <div class="dd">
+    <div class="box"><h3>تایم‌فریم‌ها</h3>${tfRow("5m",M["5m"])}${tfRow("15m",M["15m"])}${tfRow("1h",M["1h"])}
+      <h3 style="margin-top:14px">ناحیهٔ ورود</h3>
+      <div class="num muted" style="font-size:13px">${fmt(r.entry_zone.low)} → ${fmt(r.entry_zone.high)} <span class="dim">(${r.entry_zone.reference})</span></div>
+      <h3 style="margin-top:14px">رد پای تصمیم</h3>
+      <div class="trace">${r.decision_trace.map(t=>"› "+t).join("<br>")}</div>
+    </div>
+    <div class="box"><h3>تفکیک امتیاز</h3>
+      ${bar("روند",sc.trend_alignment,20)}${bar("کیفیت ناحیهٔ ورود",sc.entry_zone_quality,20)}
+      ${bar("مومنتوم",sc.momentum,15)}${bar("تأیید حجم",sc.volume_confirmation,15)}
+      ${bar("ریسک/ریوارد",sc.risk_reward,15)}${bar("رژیم بازار",sc.market_context,10)}${bar("تایمینگ",sc.timing,5)}
+      <div class="scorebig" style="padding:8px 0 0">جمع محاسبه‌شده <b>${sc.computed_total}</b></div>
+      <h3 style="margin-top:14px">چک‌لیست اجباری</h3><div class="checks">${checks}</div>
+    </div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>چارت ۱۵م — ۲۰۰ کندل اخیر + تطبیق الگو</h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">الگوهای کلاسیک روی همین چارت علامت‌گذاری می‌شوند: خط گردن/خطوط روند، نقاط کلیدی، و هدف الگو (TP) با ناحیهٔ حرکت موردانتظار.</p>
+    <div class="patwrap"><canvas id="patChart"></canvas></div>
+    <div id="patInfo"></div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>بازخورد — به موتور یاد بده مثل تو قضاوت کند</h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">نظرت دربارهٔ این ستاپ چیست؟ ثبت می‌شود و در «کالیبراسیون» جمع‌بندی می‌شود.</p>
+    <div class="fbrow">
+      <div class="fb" onclick="recordFb('valid_entry')">ورود معتبر</div>
+      <div class="fb early" onclick="recordFb('too_early')">زود است</div>
+      <div class="fb skip" onclick="recordFb('reject')">رد</div>
+      <div class="fb win" onclick="recordFb('win')">نتیجه: برد</div>
+      <div class="fb loss" onclick="recordFb('loss')">نتیجه: باخت</div>
+    </div>
+    <textarea id="fbNote" placeholder="یادداشت اختیاری (مثلاً: منتظر بستهٔ کندل ۵م بمان)"></textarea>
+  </div>`;
+}
+function openDeep(sym){selectTab("single");$("#ddSym").value=sym;deepAnalyze(sym);window.scrollTo({top:0,behavior:"smooth"});}
+
+/* feedback + calibration (additive — does not touch the engine) */
+function getFb(){return DB.get("feedback")||[];}
+function recordFb(verdict){
+  if(!lastDeep){return;}
+  const r=lastDeep,item={time:new Date().toISOString(),symbol:r.binance_symbol,asset:r.asset_symbol,verdict,
+    note:($("#fbNote")&&$("#fbNote").value||"").slice(0,1000),setup:r.setup,direction:r.direction,score:r.score,lifecycle:r.status,rr:r.rr};
+  const fb=getFb();fb.unshift(item);fb.splice(500);DB.set("feedback",fb);
+  $("#cFb").textContent=fb.length;if($("#fbNote"))$("#fbNote").value="";renderCalib();
+  const map={valid_entry:"ورود معتبر",too_early:"زود است",reject:"رد",win:"برد",loss:"باخت"};
+  setStatus(`بازخورد ثبت شد: ${r.asset_symbol} → ${map[verdict]}. این داده در «کالیبراسیون» جمع می‌شود.`);
+  saveLocal(); if(SYNC.on())SYNC.push();
+}
+function renderCalib(){
+  const fb=getFb();$("#cFb").textContent=fb.length;
+  const total=fb.length,wins=fb.filter(f=>f.verdict==="win").length,loss=fb.filter(f=>f.verdict==="loss").length,
+    decided=wins+loss,wr=decided?Math.round(wins/decided*100):null;
+  const bySetup={};fb.forEach(f=>{(bySetup[f.setup]=bySetup[f.setup]||{n:0,win:0,loss:0,valid:0,early:0,reject:0});const s=bySetup[f.setup];s.n++;if(f.verdict==="win")s.win++;if(f.verdict==="loss")s.loss++;if(f.verdict==="valid_entry")s.valid++;if(f.verdict==="too_early")s.early++;if(f.verdict==="reject")s.reject++;});
+  const band=f=>f.score>=82?"82+":f.score>=74?"74–82":f.score>=62?"62–74":"<62";
+  const byBand={};fb.forEach(f=>{const b=band(f);(byBand[b]=byBand[b]||{n:0,win:0,loss:0});byBand[b].n++;if(f.verdict==="win")byBand[b].win++;if(f.verdict==="loss")byBand[b].loss++;});
+  const stat=(n,v)=>`<div class="stat"><div class="n">${n}</div><div class="v">${v}</div></div>`;
+  let html=`<div class="statgrid">
+    ${stat("کل بازخورد",total)}
+    ${stat("نرخ برد",wr==null?"—":wr+"%")}
+    ${stat("برد / باخت",wins+" / "+loss)}
+    ${stat("ورود معتبر",fb.filter(f=>f.verdict==="valid_entry").length)}
+  </div>`;
+  const setupRows=Object.entries(bySetup).map(([k,s])=>{const d=s.win+s.loss,w=d?Math.round(s.win/d*100):null;
+    return `<div class="fbitem"><div class="s mono">${k}</div>
+      <div class="muted mono" style="font-size:11.5px">n=${s.n} · valid=${s.valid} · early=${s.early} · reject=${s.reject}</div>
+      <div class="num">${w==null?"—":w+"% WR"}</div></div>`;}).join("");
+  const bandRows=Object.entries(byBand).sort().reverse().map(([k,s])=>{const d=s.win+s.loss,w=d?Math.round(s.win/d*100):null;
+    return `<div class="fbitem"><div class="s mono">امتیاز ${k}</div><div class="muted mono" style="font-size:11.5px">n=${s.n}</div><div class="num">${w==null?"—":w+"% WR"}</div></div>`;}).join("");
+  html+=`<div class="box" style="margin-top:12px"><h3>عملکرد به تفکیک ستاپ</h3>${setupRows||'<div class="empty">هنوز داده‌ای نیست</div>'}</div>`;
+  html+=`<div class="box" style="margin-top:12px"><h3>عملکرد به تفکیک بازهٔ امتیاز</h3>${bandRows||'<div class="empty">هنوز داده‌ای نیست</div>'}</div>`;
+  $("#calibStats").innerHTML=html;
+  $("#fbLog").innerHTML=fb.slice(0,60).map(f=>`<div class="fbitem">
+    <div class="t">${fmtTime(f.time)}</div>
+    <div><span class="s">${f.asset}</span> <span class="dim mono" style="font-size:11px">${f.direction} · ${f.setup} · ${f.score}</span>${f.note?`<div class="muted" style="font-size:12px">${f.note.replace(/</g,"&lt;")}</div>`:""}</div>
+    <div class="fbverdict v-${f.verdict}">${f.verdict}</div></div>`).join("")||'<div class="empty">هنوز بازخوردی ثبت نشده</div>';
+}
+function renderPatRef(){
+  const el=$("#patRef");if(!el)return;
+  el.innerHTML=Object.keys(PATLIB).map(k=>{const m=PATLIB[k];const c=m.dir==="LONG"?"b-LONG":m.dir==="SHORT"?"b-SHORT":"b-NEUTRAL";
+    return `<div class="it"><div class="t">${m.fa} <span class="tinytag ${c}">${dirFa(m.dir)}</span> <span class="dim mono" style="font-size:9.5px;margin-inline-start:auto">${m.kind}${m.tier?(" · "+(m.tier==="doc"?"مرجع/مفهوم":"رتبه "+m.tier)):""}</span></div>
+      <div class="d">${m.note}<br><code>${m.rule}</code></div></div>`;}).join("");
+}
+function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();}
+
+/* =========================================================================
+   TABS / SETTINGS / AUTO
+   ========================================================================= */
+function selectTab(t){
+  $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
+  ["signals","watch","single","scalp","radar","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+}
+$("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
+$("#scanBtn").onclick=runScan;
+$("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
+$("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
+const _scBtn=$("#scBtn");if(_scBtn)_scBtn.onclick=()=>runScalp($("#scSym").value);
+const _scSym=$("#scSym");if(_scSym)_scSym.addEventListener("keydown",e=>{if(e.key==="Enter")runScalp($("#scSym").value);});
+const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
+
+const setModal=$("#setModal");
+$("#setBtn").onclick=()=>{$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;const sy=SYNC.get();if($("#sSyncBase"))$("#sSyncBase").value=sy.base;if($("#sSyncKey"))$("#sSyncKey").value=sy.key;setModal.classList.add("show");};
+$("#setClose").onclick=()=>setModal.classList.remove("show");
+$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||30,5,80);CFG.concurrency=clamp(+$("#sCon").value||4,1,8);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
+  if($("#sSyncBase")){SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();}
+  setModal.classList.remove("show");setStatus(SYNC.on()?"تنظیمات ذخیره شد · سینک ابری روشن ☁︎":"تنظیمات ذخیره شد.");
+  saveLocal();if(SYNC.on())SYNC.push();};
+const _syncNow=$("#syncNowBtn");if(_syncNow)_syncNow.onclick=async()=>{if($("#sSyncBase"))SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();if(!SYNC.on()){setStatus("اول آدرس Vercel و کلید شخصی را وارد کن.");return;}setStatus("در حال همگام‌سازی با فضای ابری…");const ok=await SYNC.push();const cloud=await SYNC.pull();setStatus(ok?`همگام‌سازی شد ☁︎ ${cloud?"(داده ابری موجود است)":""}`:"اتصال ابری ناموفق بود؛ آدرس/کلید را بررسی کن.");};
+setModal.addEventListener("click",e=>{if(e.target===setModal)setModal.classList.remove("show");});
+
+let autoTimer=null;const autoSw=$("#autoSw");
+autoSw.onclick=()=>{const on=!autoSw.classList.contains("on");autoSw.classList.toggle("on",on);DB.set("auto",on);
+  if(on){runScan();autoTimer=setInterval(runScan,CFG.interval*1000);}else{clearInterval(autoTimer);autoTimer=null;}};
+if(DB.get("auto")){autoSw.classList.add("on");autoTimer=setInterval(runScan,CFG.interval*1000);}
+
+/* redraw chart on resize (single view) */
+let rzT=null;
+window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{
+  if($("#view-single").style.display!=="none"&&lastDeep&&lastDeep.klines15_200){try{renderPatternChart(lastDeep);}catch(e){}}
+},200);});
+
+/* =========================================================================
+   ADDITIVE LAYER A — OB/FVG pullback after BOS (5m confluence, non-invasive)
+   فقط به‌عنوان «هم‌گرایی» در تحلیل تک‌نماد نشان داده می‌شود؛ امتیاز/جهت قفل‌شده
+   را تغییر نمی‌دهد. ستاپ: بعد از شکست ساختار (BOS) هم‌جهت موتور، قیمت به آخرین
+   اوردربلاک/گپ‌ارزشِ منشأ حرکت پولبک کرده باشد (= ورود کم‌ریسک، ضد نشتیِ ورود دیر).
+   ========================================================================= */
+function detectOBFVGafterBOS(cd5,dir){
+  // cd5: آرایهٔ کندل ۵م ({o,h,l,c}). dir: "LONG"/"SHORT".
+  try{
+    const n=cd5.length; if(!cd5||n<30||(dir!=="LONG"&&dir!=="SHORT"))return null;
+    const sw=swings(cd5,3);
+    if(sw.length<4)return null;
+    const last=cd5[n-1].c;
+    // آخرین BOS: برای LONG، شکستِ آخرین High نوسانی؛ برای SHORT، شکستِ آخرین Low.
+    const Hs=sw.filter(s=>s.t==="H"), Ls=sw.filter(s=>s.t==="L");
+    let bos=null;
+    if(dir==="LONG"&&Hs.length>=2){const ref=Hs[Hs.length-2]; if(last>ref.price)bos={level:ref.price,idx:ref.i};}
+    if(dir==="SHORT"&&Ls.length>=2){const ref=Ls[Ls.length-2]; if(last<ref.price)bos={level:ref.price,idx:ref.i};}
+    if(!bos)return{ok:false,reason:"هنوز BOS هم‌جهت تأییدنشده"};
+    // FVG: گپ سه‌کندلی در ناحیهٔ منشأ حرکت (بین idx شکست تا حالا)
+    let fvg=null;
+    for(let i=Math.max(2,bos.idx);i<n;i++){
+      const a=cd5[i-2],c=cd5[i];
+      if(dir==="LONG"&&c.l>a.h){fvg={lo:a.h,hi:c.l};}
+      if(dir==="SHORT"&&c.h<a.l){fvg={lo:c.h,hi:a.l};}
+    }
+    // OB: آخرین کندل مخالف‌جهت قبل از حرکتِ شکست
+    let ob=null;
+    for(let i=n-2;i>=Math.max(1,bos.idx-3);i--){
+      const up=cd5[i].c>=cd5[i].o;
+      if(dir==="LONG"&&!up){ob={lo:cd5[i].l,hi:cd5[i].o};break;}
+      if(dir==="SHORT"&&up){ob={lo:cd5[i].o,hi:cd5[i].h};break;}
+    }
+    const zone=fvg||ob; if(!zone)return{ok:false,reason:"OB/FVG مشخصی بعد از BOS نبود"};
+    const inZone=last>=Math.min(zone.lo,zone.hi)*0.999&&last<=Math.max(zone.lo,zone.hi)*1.001;
+    const near=Math.abs(last-(zone.lo+zone.hi)/2)/last<=0.004;
+    return{ok:inZone||near,zone,kind:fvg?"FVG":"OB",bosLevel:bos.level,
+      reason:(inZone||near)?"قیمت داخل/نزدیک OB/FVGِ پس از BOS است → پولبک کم‌ریسک":"قیمت هنوز به ناحیهٔ پولبک نرسیده"};
+  }catch(e){return null;}
+}
+
+/* =========================================================================
+   PANEL B — اسکلپ ۱ دقیقه‌ای (IBS برعکس برای رنج‌مارکت)
+   ستاپ: اینداسمنت معتبر (سوییپ نقدینگیِ لبهٔ رنج) → CHoCH → اولین BOS هم‌جهتِ
+   چرخش، در حالت رنج، روی تک‌ارز. ضد سوییپ وارد می‌شویم و به سمت لبهٔ مقابلِ رنج هدف می‌گیریم.
+   موتور و آستانه‌های قفل‌شدهٔ اصلی اصلاً دست‌نخورده‌اند — این یک ماژول مستقل است.
+   ========================================================================= */
+const SCALP={rangeWindow:90,pivotK:2,sweepLookback:12,minRangeAtr:6,maxOverlapForRange:0.42,sweepBufferAtr:0.05};
+function scalp1mAnalyze(cd){
+  const n=cd.length;
+  if(!cd||n<60)return{found:false,reason:"دادهٔ ۱م کافی نیست (حداقل ۶۰ کندل)."};
+  const highs=cd.map(c=>c.h),lows=cd.map(c=>c.l),closes=cd.map(c=>c.c);
+  const A=patATR(highs,lows,closes,14)||closes[n-1]*0.001;
+  const lb=Math.min(SCALP.sweepLookback,Math.max(3,n-12));
+  const baseEnd=n-1-lb;                       // رنجِ تثبیت‌شده تا قبل از حرکتِ اخیر (سوییپ بیرونِ این محدوده)
+  const w=Math.min(SCALP.rangeWindow,baseEnd), i0=Math.max(0,baseEnd-w);
+  const win=cd.slice(i0,baseEnd+1);
+  const RH=Math.max(...win.map(c=>c.h)), RL=Math.min(...win.map(c=>c.l));
+  const size=RH-RL, mid=(RH+RL)/2, last=closes[n-1];
+  // ۱) آیا رنج است؟ (net کوچک نسبت به travel = چاپی/رنج)
+  const overlap=overlapRatio(cd,i0,baseEnd);
+  const isRange=overlap<=SCALP.maxOverlapForRange && size>=A*SCALP.minRangeAtr;
+  if(!isRange)return{found:false,isRange:false,RH,RL,mid,size,overlap,
+    reason:"بازار رنج نیست (حرکت روند‌دار). این پنل فقط برای رنج‌مارکت است؛ در روند از تب سیگنال/تحلیل تک‌نماد استفاده کن."};
+  // ۲) اینداسمنت = سوییپ لبهٔ رنج در کندل‌های پس از رنجِ تثبیت‌شده
+  let sweep=null; // {side:"HIGH"/"LOW", idx, extreme}
+  for(let i=n-1;i>baseEnd;i--){
+    const c=cd[i];
+    if(c.h>RH+A*SCALP.sweepBufferAtr && c.c<RH){sweep={side:"HIGH",idx:i,extreme:c.h};break;}
+    if(c.l<RL-A*SCALP.sweepBufferAtr && c.c>RL){sweep={side:"LOW",idx:i,extreme:c.l};break;}
+  }
+  if(!sweep)return{found:false,isRange:true,RH,RL,mid,size,
+    reason:"هنوز سوییپِ معتبرِ لبهٔ رنج (اینداسمنت) رخ نداده. منتظر بمان تا یکی از سقف/کف رنج جارو شود."};
+  const sweptHigh=sweep.side==="HIGH";          // سوییپ سقف → سوگیری نزولی (ورود SHORT)
+  const dir=sweptHigh?"SHORT":"LONG";
+  // ۳) CHoCH = شکستِ آخرین سوینگِ محافظ پیش از سوییپ
+  const sw=swings(cd.slice(0,sweep.idx+1),SCALP.pivotK);
+  let protectedLevel=null,chochIdx=null;
+  if(sweptHigh){ // آخرین Low قبل از سوییپ
+    const Ls=sw.filter(s=>s.t==="L"); if(Ls.length)protectedLevel=Ls[Ls.length-1].price;
+  }else{
+    const Hs=sw.filter(s=>s.t==="H"); if(Hs.length)protectedLevel=Hs[Hs.length-1].price;
+  }
+  if(protectedLevel==null)return{found:false,isRange:true,RH,RL,mid,size,sweep,dir,
+    reason:"سوییپ دیده شد ولی سوینگِ محافظ برای CHoCH پیدا نشد."};
+  let choch=false;
+  for(let i=sweep.idx+1;i<n;i++){
+    if(sweptHigh&&cd[i].c<protectedLevel){choch=true;chochIdx=i;break;}
+    if(!sweptHigh&&cd[i].c>protectedLevel){choch=true;chochIdx=i;break;}
+  }
+  if(!choch)return{found:false,isRange:true,RH,RL,mid,size,sweep,dir,protectedLevel,
+    reason:`سوییپِ ${sweptHigh?"سقف":"کف"} شد؛ منتظر CHoCH (شکستِ ${sweptHigh?"آخرین کف":"آخرین سقف"} در ${fmt(protectedLevel)}).`};
+  // ۴) اولین BOS بعد از CHoCH = ماشهٔ ورود
+  const sw2=swings(cd.slice(0,chochIdx+1),SCALP.pivotK);
+  let bosLevel=null;
+  if(sweptHigh){const Ls=sw2.filter(s=>s.t==="L"); if(Ls.length)bosLevel=Ls[Ls.length-1].price;}
+  else{const Hs=sw2.filter(s=>s.t==="H"); if(Hs.length)bosLevel=Hs[Hs.length-1].price;}
+  let bos=false,bosIdx=null;
+  if(bosLevel!=null){
+    for(let i=chochIdx+1;i<n;i++){
+      if(sweptHigh&&cd[i].c<bosLevel){bos=true;bosIdx=i;break;}
+      if(!sweptHigh&&cd[i].c>bosLevel){bos=true;bosIdx=i;break;}
+    }
+  }
+  // سطوح معامله: SL پشت اکستریمِ سوییپ، TP به سمت لبهٔ مقابل رنج (اسکلپِ داخل رنج)
+  const entry=last;
+  const sl=sweptHigh?sweep.extreme+A*0.3:sweep.extreme-A*0.3;
+  const tp1=mid;                              // هدف اول: میانهٔ رنج (بستن ۵۰٪)
+  const tp2=sweptHigh?RL:RH;                  // هدف دوم: لبهٔ مقابل
+  const risk=Math.abs(entry-sl), rr=risk>0?Math.abs(tp2-entry)/risk:0;
+  const ready=bos;
+  return{
+    found:true,isRange:true,ready,dir,RH,RL,mid,size,
+    sweep,protectedLevel,chochIdx,bosLevel,bosIdx,bos,
+    entry,sl,tp1,tp2,rr,atr:A,
+    stages:[
+      {k:"اینداسمنت (سوییپ لبهٔ رنج)",ok:true,v:`${sweptHigh?"سقف":"کف"} رنج در ${fmt(sweep.extreme)} جارو شد`},
+      {k:"CHoCH (چرخش ساختار)",ok:true,v:`شکستِ ${sweptHigh?"کفِ محافظ":"سقفِ محافظ"} در ${fmt(protectedLevel)}`},
+      {k:"اولین BOS هم‌جهت",ok:bos,v:bos?`تأیید شد در ${fmt(bosLevel)}`:`منتظر شکستِ ${fmt(bosLevel)}`},
+    ],
+    note:ready
+      ?`ستاپ آماده است: ${dir==="SHORT"?"فروش":"خرید"} ضدِ سوییپ، هدف به سمت لبهٔ مقابلِ رنج.`
+      :"دو مرحلهٔ اول پاس شد؛ فقط منتظر اولین BOS برای ماشهٔ ورود بمان (دیر وارد نشو، روی پولبک به سطح BOS).",
+    // شیٔ سازگار با drawChart برای ترسیم روی چارت ۱م
+    chartPat:{key:null,dir,confirmed:bos,
+      entry,target:tp2,stop:sl,breakoutIdx:bosIdx||chochIdx||sweep.idx,
+      points:[{i:sweep.idx,price:sweep.extreme,label:"سوییپ"},
+              {i:chochIdx,price:protectedLevel,label:"CHoCH"}].concat(bosIdx!=null?[{i:bosIdx,price:bosLevel,label:"BOS"}]:[]),
+      lines:[{x1:i0,y1:RH,x2:n-1,y2:RH,color:"#3fb6f5",dash:[5,4]},
+             {x1:i0,y1:RL,x2:n-1,y2:RL,color:"#3fb6f5",dash:[5,4]},
+             {x1:i0,y1:mid,x2:n-1,y2:mid,color:"#5b6a7e",dash:[3,4]}]}
+  };
+}
+async function runScalp(symInput){
+  let sym=(symInput||"").trim().toUpperCase();if(!sym)return;
+  if(!sym.endsWith("USDT"))sym+="USDT";
+  const out=$("#scOut");if(out)out.innerHTML=`<div class="empty">در حال خواندن ۲۴۰ کندل ۱م ${sym} و بررسی ستاپِ رنج…</div>`;
+  $("#scMeta")&&($("#scMeta").textContent="");
+  try{
+    const cd=await fetchKlines(sym,"1m",240);
+    const r=scalp1mAnalyze(cd); r._sym=sym; r._cd=cd; lastScalp=r;
+    renderScalp(r);
+    requestAnimationFrame(()=>{const cv=document.getElementById("scChart");if(cv){try{drawChart(cv,cd,r.chartPat||null);}catch(e){}}});
+    $("#scMeta")&&($("#scMeta").textContent=fmtTime(new Date()));
+  }catch(e){if(out)out.innerHTML=`<div class="empty">خطا در ${sym}: ${e.message}. نماد/اتصال را بررسی کن.</div>`;}
+}
+let lastScalp=null;
+function renderScalp(r){
+  const out=$("#scOut");if(!out)return;
+  const head=`<div class="card" style="margin-bottom:12px"><div class="top">
+      <span class="sym">${r._sym.replace("USDT","")}</span>
+      <span class="side ${r.found?r.dir:"NEUTRAL"}">${r.found?r.dir:"—"}</span>
+      <span class="statuspill ${r.ready?"st-SIGNAL":r.found?"st-WAITING_CONFIRMATION":"st-NO_SETUP"}" style="margin-inline-start:auto">${r.ready?"آماده":r.found?"منتظر BOS":r.isRange?"بدون ستاپ":"غیرِرنج"}</span>
+    </div>
+    <div class="scorebig">${r.isRange?`رنج فعال · سقف ${fmt(r.RH)} · کف ${fmt(r.RL)} · میانه ${fmt(r.mid)}`:"بازار رنج نیست"}</div>`+
+    (r.found?`<div class="levels">
+      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.sl)}</div></div>
+      <div><div class="k">tp1 (میانه)</div><div class="val tp">${fmt(r.tp1)}</div></div>
+      <div><div class="k">tp2 (لبهٔ مقابل)</div><div class="val tp">${fmt(r.tp2)}</div></div>
+    </div>`:"")+`</div>`;
+  let steps="";
+  if(r.stages){steps=`<div class="box" style="margin-bottom:12px"><h3>مراحل ستاپ (IBS برعکس)</h3><div class="checks">`+
+    r.stages.map(s=>`<div class="chk ${s.ok?"ok":"no"}"><span class="i">${s.ok?"✓":"…"}</span><span>${s.k}</span><span class="k" style="margin-inline-start:auto">${s.v}</span></div>`).join("")+
+    `</div><p class="muted" style="font-size:13px;margin:10px 0 0">${r.note||r.reason||""}</p>`+
+    (r.found?`<p class="dim" style="font-size:12px;margin-top:6px">RR تا لبهٔ مقابل ≈ ${fmt(r.rr,2)} · سبکِ خروج: ۵۰٪ در میانهٔ رنج، باقی تا لبهٔ مقابل با تریل.</p>`:"")+`</div>`;
+  }else{steps=`<div class="hint" style="margin-bottom:12px">${r.reason||""}</div>`;}
+  const chart=`<div class="box"><h3>چارت ۱م + رنج/سوییپ/CHoCH/BOS</h3>
+    <div class="patwrap"><canvas id="scChart"></canvas></div>
+    <div class="patlegend">
+      <span><i style="border-color:#3fb6f5"></i>سقف/کف رنج</span>
+      <span><i style="border-color:#5b6a7e;border-top-style:dashed"></i>میانهٔ رنج (TP1)</span>
+      <span><i style="border-color:#26d0a4;border-style:dashed"></i>هدف صعودی</span>
+      <span><i style="border-color:#ff5d77;border-style:dashed"></i>هدف نزولی / حد ضرر</span>
+    </div>
+    <p class="dim" style="font-size:11.5px;margin-top:8px">این پنل مستقل از موتورِ قفل‌شده است و فقط برای اسکلپِ تک‌ارز در رنج‌مارکت روی تایم ۱م طراحی شده. ورود را روی پولبک به سطح BOS بگیر، نه با تعقیبِ کندل.</p></div>`;
+  out.innerHTML=head+steps+chart;
+}
+
+/* =========================================================================
+   PANEL C — رادار پامپ + همبستگی + شباهتِ پیش‌از‌پامپ
+   ارزی که در یک کندل ۱ساعته ≥۸٪ پرید را پیدا کن؛ سپس (الف) ارزهای هم‌بسته و
+   (ب) ارزهایی که چارتِ فعلی‌شان شبیه «قبل از پامپِ» همان ارز است را لیست کن.
+   ========================================================================= */
+const RADAR={pumpPct:8, scanTop:60, klimit:60, preWin:20, corrWin:40, corrMin:0.6, simMin:0.86, recentPumpBars:6};
+function pctReturns(closes){const o=[];for(let i=1;i<closes.length;i++)o.push(closes[i]/closes[i-1]-1);return o;}
+function pearson(a,b){const n=Math.min(a.length,b.length);if(n<5)return 0;let sa=0,sb=0;for(let i=0;i<n;i++){sa+=a[i];sb+=b[i];}const ma=sa/n,mb=sb/n;let num=0,da=0,db=0;for(let i=0;i<n;i++){const x=a[i]-ma,y=b[i]-mb;num+=x*y;da+=x*x;db+=y*y;}const d=Math.sqrt(da*db);return d?num/d:0;}
+function normShape(closes,win){const s=closes.slice(-win);if(s.length<win)return null;const mn=Math.min(...s),mx=Math.max(...s),rg=(mx-mn)||1;return s.map(x=>(x-mn)/rg);}
+function shapeSim(a,b){if(!a||!b||a.length!==b.length)return 0;return pearson(a,b);}
+async function runRadar(){
+  const out=$("#raOut");if(!out)return;
+  out.innerHTML=`<div class="empty">در حال خواندن یونیورس و ۶۰ کندل ۱ساعته برای رادار پامپ (آستانه ${RADAR.pumpPct}٪)…</div>`;
+  try{
+    const tickers=await fetchTickers();
+    const uni=(await buildUniverse(tickers)).slice(0,RADAR.scanTop);
+    showProg(0,uni.length);
+    const series={}; // sym -> closes[]
+    let done=0;
+    await pool(uni,async a=>{
+      try{const cd=await fetchKlines(a.binance_symbol,"1h",RADAR.klimit);series[a.binance_symbol]=cd;}catch(e){}
+      done++;showProg(done,uni.length);
+    },CFG.concurrency,()=>{});
+    hideProg();
+    const syms=Object.keys(series);
+    // returns برای همبستگی
+    const rets={}; syms.forEach(s=>rets[s]=pctReturns(series[s].map(c=>c.c)).slice(-RADAR.corrWin));
+    // تشخیص پامپ‌ها در آخرین کندل‌های بسته‌شده
+    const pumps=[];
+    syms.forEach(s=>{
+      const cd=series[s]; const n=cd.length; if(n<RADAR.preWin+RADAR.recentPumpBars+2)return;
+      for(let i=n-RADAR.recentPumpBars;i<n;i++){
+        const c=cd[i]; const chg=(c.c/c.o-1)*100, hi=(c.h/c.o-1)*100;
+        if(chg>=RADAR.pumpPct||hi>=RADAR.pumpPct){
+          // پیگیریِ پس‌از‌پامپ: بیشترین رشد از بستهٔ پامپ تا الان
+          let maxAfter=0;for(let j=i+1;j<n;j++)maxAfter=Math.max(maxAfter,(cd[j].h/c.c-1)*100);
+          pumps.push({sym:s,asset:s.replace("USDT",""),idx:i,barsAgo:n-1-i,pumpPct:chg,pumpHigh:hi,after:maxAfter,
+            preShape:normShape(cd.slice(0,i).map(x=>x.c),RADAR.preWin)});
+          break; // یک پامپ به‌ازای هر ارز کافی است
+        }
+      }
+    });
+    pumps.sort((a,b)=>a.barsAgo-b.barsAgo||b.pumpPct-a.pumpPct);
+    // برای هر پامپ: هم‌بسته‌ها + شبیه‌به‌پیش‌از‌پامپ
+    const cards=pumps.slice(0,8).map(p=>{
+      const corr=syms.filter(s=>s!==p.sym).map(s=>({s,asset:s.replace("USDT",""),c:pearson(rets[p.sym],rets[s])}))
+        .filter(x=>x.c>=RADAR.corrMin).sort((a,b)=>b.c-a.c).slice(0,6);
+      const sims=p.preShape?syms.filter(s=>s!==p.sym).map(s=>{
+        const cur=normShape(series[s].map(c=>c.c),RADAR.preWin);
+        return{s,asset:s.replace("USDT",""),sim:shapeSim(p.preShape,cur),now:series[s][series[s].length-1].c};
+      }).filter(x=>x.sim>=RADAR.simMin).sort((a,b)=>b.sim-a.sim).slice(0,6):[];
+      return{p,corr,sims};
+    });
+    renderRadar(cards,pumps.length);
+  }catch(e){hideProg();out.innerHTML=`<div class="empty">رادار ناموفق: ${e.message}. اتصال/آدرس API را بررسی کن.</div>`;}
+}
+function renderRadar(cards,nPumps){
+  const out=$("#raOut");if(!out)return;
+  if(!cards.length){out.innerHTML=`<div class="empty">در کندل‌های ۱ساعتهٔ اخیر، پرشِ ≥${RADAR.pumpPct}٪ پیدا نشد. بعداً دوباره اسکن کن.</div>`;return;}
+  out.innerHTML=cards.map(({p,corr,sims})=>`<div class="card fade" style="margin-bottom:12px">
+    <div class="top"><span class="sym">${p.asset}</span>
+      <span class="side LONG">PUMP +${p.pumpPct.toFixed(1)}%</span>
+      <span class="dim mono" style="margin-inline-start:auto">${p.barsAgo===0?"همین کندل":p.barsAgo+" کندل پیش"}</span></div>
+    <div class="scorebig">پرش کندل ۱ساعته <b>+${p.pumpPct.toFixed(1)}%</b> (سقف +${p.pumpHigh.toFixed(1)}%) · پس از آن تا الان حداکثر <b>+${p.after.toFixed(1)}%</b> رشد</div>
+    <div class="box" style="margin:11px 14px;border-radius:11px">
+      <h3>ارزهای هم‌بسته (همبستگیِ بازده ۱ساعته)</h3>
+      ${corr.length?`<div class="candsig">`+corr.map(x=>`<span class="c L">${x.asset} · ρ=${x.c.toFixed(2)}</span>`).join("")+`</div>`:`<div class="patnone">هم‌بستهٔ قوی‌ای (ρ≥${RADAR.corrMin}) پیدا نشد.</div>`}
+      <h3 style="margin-top:12px">چارتشان شبیهِ «قبل‌از‌پامپِ ${p.asset}» است (نامزدِ پامپ بعدی)</h3>
+      ${sims.length?`<div class="candsig">`+sims.map(x=>`<span class="c ${x.sim>=0.92?"L":""}">${x.asset} · شباهت ${(x.sim*100).toFixed(0)}%</span>`).join("")+`</div>
+        <p class="dim" style="font-size:11.5px;margin-top:8px">این‌ها الگوی ${RADAR.preWin} کندلِ اخیرشان به حالتِ پیش‌از‌پامپِ ${p.asset} نزدیک است؛ کاندیدِ پایش‌اند، نه سیگنالِ قطعی. با تب «تحلیل تک‌نماد» تأییدشان کن.</p>`:`<div class="patnone">ارزی با شباهتِ ≥${(RADAR.simMin*100).toFixed(0)}% پیدا نشد.</div>`}
+    </div>
+    <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${p.sym}")'>تحلیل کامل ${p.asset}</button></div>
+  </div>`).join("")+`<p class="dim" style="font-size:12px;text-align:center">${nPumps} پامپ شناسایی شد · آستانه ${RADAR.pumpPct}٪ · پنجرهٔ همبستگی ${RADAR.corrWin} کندل · شباهت روی ${RADAR.preWin} کندل</p>`;
+}
+
+/* boot — restore instantly from memory, then reconcile with cloud */
+async function boot(){
+  const local=DB.get(SNAP_KEY);
+  if(local){restoreSnapshot(local);}
+  renderCalib();renderPatRef();renderSyncStatus();
+  if(local){renderAll();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
+  // Path B: reconcile with cloud (last-write-wins by updatedAt)
+  if(SYNC.on()){
+    try{
+      const cloud=await SYNC.pull();
+      if(cloud&&(!local||(cloud.updatedAt||0)>(local.updatedAt||0))){
+        restoreSnapshot(cloud);DB.set(SNAP_KEY,cloud);renderAll();renderCalib();
+        setStatus(`از فضای ابری بازیابی شد ☁︎ · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);
+      }else if(local){SYNC.push(local);}
+    }catch(e){}
+  }
+  fetchMarketContext().then(c=>{STATE.market_context=c;renderRegime();}).catch(()=>{});
+}
+/* save on background/close so nothing is lost when Safari unloads the tab */
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){saveLocal();if(SYNC.on())SYNC.push();}});
+window.addEventListener("pagehide",()=>{saveLocal();});
+setInterval(()=>{if(SYNC.on())SYNC.push();},120000);
+/* PWA service worker (silently no-ops if sw.js is absent) */
+if("serviceWorker" in navigator){try{navigator.serviceWorker.register("./sw.js").catch(()=>{});}catch(e){}}
+boot();
+window.openDeep=openDeep;window.recordFb=recordFb;
+
+</script>
+</body>
+</html>
