@@ -258,6 +258,63 @@ const SCAN_MS = 5 * 60 * 1000;
 const TOP_N = 25;
 const L = {min_signal_score:74,watch_score:62,ready_score:70,strong_signal_score:82,min_quote_volume_usd:25e6,min_rr:1.8};
 
+/* ── Demo / offline fallback ─────────────────────────────
+   When Binance API is blocked (sandbox/CSP), mock data kicks in
+   automatically. On GitHub Pages real data is used instead.    */
+let DEMO_MODE = false;
+const MOCK_PRICES = {BTCUSDT:105240,ETHUSDT:3842,SOLUSDT:187.4,BNBUSDT:624,XRPUSDT:2.11,ADAUSDT:0.892,DOGEUSDT:0.198};
+const MOCK_VOLS   = {BTCUSDT:4.8e9,ETHUSDT:3.1e9,SOLUSDT:1.9e9,BNBUSDT:1.2e9,XRPUSDT:980e6,ADAUSDT:420e6,DOGEUSDT:310e6};
+function mockCandles(base, n=120){
+  const cd=[];let p=base*(0.985+Math.random()*.01);
+  // add a realistic bull-flag structure in the middle
+  for(let i=0;i<n;i++){
+    const trend = i<n*.4 ? 0.0006 : i<n*.6 ? -0.0002 : 0.0005; // impulse → pullback → continuation
+    const noise = (Math.random()-.47)*0.004;
+    const o=p, c=p*(1+trend+noise);
+    const h=Math.max(o,c)*(1+Math.random()*.0018);
+    const l=Math.min(o,c)*(1-Math.random()*.0018);
+    const v=300+Math.random()*1200+(i>n*.4&&i<n*.6?-100:200);
+    cd.push({t:Date.now()-(n-i)*15*60000,o,h,l,c,v});
+    p=c;
+  }
+  return cd;
+}
+const MOCK_TICKERS=[
+  {symbol:'BTCUSDT',quoteVolume:'4800000000',lastPrice:'105240',priceChangePercent:'1.83'},
+  {symbol:'ETHUSDT',quoteVolume:'3100000000',lastPrice:'3842',priceChangePercent:'-0.54'},
+  {symbol:'SOLUSDT',quoteVolume:'1900000000',lastPrice:'187.4',priceChangePercent:'2.31'},
+  {symbol:'BNBUSDT',quoteVolume:'1200000000',lastPrice:'624',priceChangePercent:'0.77'},
+  {symbol:'XRPUSDT',quoteVolume:'980000000',lastPrice:'2.11',priceChangePercent:'-1.22'},
+  {symbol:'ADAUSDT',quoteVolume:'420000000',lastPrice:'0.892',priceChangePercent:'3.14'},
+  {symbol:'DOGEUSDT',quoteVolume:'310000000',lastPrice:'0.198',priceChangePercent:'1.05'},
+  {symbol:'AVAXUSDT',quoteVolume:'290000000',lastPrice:'41.3',priceChangePercent:'2.88'},
+  {symbol:'LINKUSDT',quoteVolume:'260000000',lastPrice:'18.7',priceChangePercent:'1.44'},
+  {symbol:'DOTUSDT',quoteVolume:'210000000',lastPrice:'8.92',priceChangePercent:'-0.88'},
+  {symbol:'LTCUSDT',quoteVolume:'195000000',lastPrice:'92.4',priceChangePercent:'0.66'},
+  {symbol:'ATOMUSDT',quoteVolume:'180000000',lastPrice:'9.81',priceChangePercent:'1.92'},
+  {symbol:'NEARUSDT',quoteVolume:'160000000',lastPrice:'5.43',priceChangePercent:'4.21'},
+  {symbol:'APTUSDT',quoteVolume:'155000000',lastPrice:'11.2',priceChangePercent:'3.07'},
+  {symbol:'SUIUSDT',quoteVolume:'140000000',lastPrice:'3.84',priceChangePercent:'5.33'},
+  {symbol:'ARBUSDT',quoteVolume:'130000000',lastPrice:'0.721',priceChangePercent:'2.15'},
+  {symbol:'OPUSDT',quoteVolume:'115000000',lastPrice:'1.83',priceChangePercent:'-1.44'},
+  {symbol:'INJUSDT',quoteVolume:'105000000',lastPrice:'28.6',priceChangePercent:'1.77'},
+  {symbol:'FETUSDT',quoteVolume:'98000000',lastPrice:'1.92',priceChangePercent:'6.44'},
+  {symbol:'RENDERUSDT',quoteVolume:'88000000',lastPrice:'7.21',priceChangePercent:'4.88'},
+  {symbol:'TONUSDT',quoteVolume:'82000000',lastPrice:'5.91',priceChangePercent:'2.03'},
+  {symbol:'SEIUSDT',quoteVolume:'75000000',lastPrice:'0.432',priceChangePercent:'3.91'},
+  {symbol:'TIAUSDT',quoteVolume:'70000000',lastPrice:'6.84',priceChangePercent:'-2.11'},
+  {symbol:'WIFUSDT',quoteVolume:'65000000',lastPrice:'2.88',priceChangePercent:'7.22'},
+  {symbol:'JUPUSDT',quoteVolume:'60000000',lastPrice:'0.944',priceChangePercent:'2.55'},
+];
+function showDemoBanner(){
+  if(document.getElementById('demoBanner'))return;
+  const b=document.createElement('div');
+  b.id='demoBanner';
+  b.style.cssText='background:linear-gradient(90deg,rgba(255,178,76,.12),rgba(255,178,76,.06));border-bottom:1px solid rgba(255,178,76,.25);padding:6px 16px;font-family:ui-monospace,monospace;font-size:11px;color:#ffb24c;text-align:center;letter-spacing:.04em';
+  b.innerHTML='⚡ نسخه نمایشی (DEMO) — داده‌های نمونه · برای داده زنده GitHub Pages را فعال کن';
+  document.querySelector('header').after(b);
+}
+
 /* ── State ── */
 const S = {sym:"BTCUSDT",candles:[],signals:[],watching:[],analyzed:0,cycles:0,evCount:0,scanning:false,nextAt:0};
 
@@ -296,26 +353,36 @@ function tfM(cd,tf){
   return{tf,close:cl,ema9:e9,ema21:e21,ema50:e50,rsi,macd_hist:mh,adx,bb_position:bb,atr:a,recent_high:rh,recent_low:rl,volume_z:vz,long_score:ls,short_score:ss,direction:dir};
 }
 
-/* ── API ── */
+/* ── API (with offline/CSP fallback) ── */
 async function getKlines(sym,iv='15m',n=120){
-  const r=await fetch(`${FAPI}/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${n}`);
-  if(!r.ok)throw new Error(r.status);
-  return(await r.json()).map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+  try{
+    const r=await fetch(`${FAPI}/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${n}`,{signal:AbortSignal.timeout(7000)});
+    if(!r.ok)throw new Error(r.status);
+    return(await r.json()).map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+  }catch{
+    DEMO_MODE=true;showDemoBanner();
+    return mockCandles(MOCK_PRICES[sym]||100,n);
+  }
 }
 async function getTickers(){
-  const r=await fetch(`${FAPI}/fapi/v1/ticker/24hr`);
-  if(!r.ok)throw new Error(r.status);
-  return(await r.json()).filter(x=>x.symbol.endsWith('USDT')).sort((a,b)=>+b.quoteVolume-+a.quoteVolume).slice(0,TOP_N);
+  try{
+    const r=await fetch(`${FAPI}/fapi/v1/ticker/24hr`,{signal:AbortSignal.timeout(7000)});
+    if(!r.ok)throw new Error(r.status);
+    return(await r.json()).filter(x=>x.symbol.endsWith('USDT')).sort((a,b)=>+b.quoteVolume-+a.quoteVolume).slice(0,TOP_N);
+  }catch{
+    DEMO_MODE=true;showDemoBanner();
+    return MOCK_TICKERS;
+  }
 }
 async function getDom(){
   try{const r=await fetch('https://api.coingecko.com/api/v3/global',{signal:AbortSignal.timeout(6000)});
   if(!r.ok)return null;const d=(await r.json()).data?.market_cap_percentage;return{btc:d?.btc||0,eth:d?.eth||0};}
-  catch{return null;}
+  catch{return{btc:54.2,eth:17.1};}  // demo fallback
 }
 async function getFG(){
   try{const r=await fetch('https://api.alternative.me/fng/?limit=1',{signal:AbortSignal.timeout(6000)});
   if(!r.ok)return null;const d=(await r.json()).data?.[0];return{value:+d.value,label:d.value_classification};}
-  catch{return null;}
+  catch{return{value:38,label:'Fear'};}  // demo fallback
 }
 
 /* ── UI helpers ── */
