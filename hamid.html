@@ -385,6 +385,133 @@ async function getFG(){
   catch{return{value:38,label:'Fear'};}  // demo fallback
 }
 
+/* ══════════════════════════════════════════════════════════
+   IBS + PULLBACK  Strategy Engine
+   Based on: BOS → Choch → OB detection → Pullback entry
+   Exactly as seen in BTCUSDT/ENAUSDT/AAVEUSDT/VETUSD charts
+   ══════════════════════════════════════════════════════════ */
+
+// Step 1 — Swing highs/lows (k bars on each side, like chart pivots)
+function detectSwings(candles, k=4){
+  const H=candles.map(c=>c.h), L=candles.map(c=>c.l);
+  const sw=[];
+  for(let i=k;i<candles.length-k;i++){
+    let ph=true,pl=true;
+    for(let j=1;j<=k;j++){if(H[i]<=H[i-j]||H[i]<=H[i+j])ph=false;if(L[i]>=L[i-j]||L[i]>=L[i+j])pl=false;}
+    if(ph)sw.push({type:'high',i,price:H[i]});
+    if(pl)sw.push({type:'low', i,price:L[i]});
+  }
+  return sw;
+}
+
+// Step 2 — BOS: close beyond the last significant swing
+function detectBOS(candles, swings){
+  const C=candles.map(c=>c.c);
+  // Only look at recent swings (last 12)
+  const recent=swings.slice(-12);
+  const events=[];
+  for(const sw of recent){
+    const start=sw.i+1;
+    if(sw.type==='high'){
+      for(let i=start;i<C.length;i++){
+        if(C[i]>sw.price){events.push({type:'bullish_bos',level:sw.price,bar:i,swing:sw});break;}
+      }
+    } else {
+      for(let i=start;i<C.length;i++){
+        if(C[i]<sw.price){events.push({type:'bearish_bos',level:sw.price,bar:i,swing:sw});break;}
+      }
+    }
+  }
+  // Return the most recent BOS that happened within last 60 bars
+  const N=candles.length;
+  const valid=events.filter(e=>N-1-e.bar<=60);
+  return valid.length?valid[valid.length-1]:null;
+}
+
+// Step 3 — Order Block: last opposing candle before the impulse
+// Supply OB (SHORT): last bullish candle before bearish impulse
+// Demand OB (LONG):  last bearish candle before bullish impulse
+function detectOB(candles, bos){
+  if(!bos)return null;
+  const from=Math.max(0,bos.swing.i-25);
+  const to=bos.swing.i;
+  if(bos.type==='bearish_bos'){
+    // last bullish candle before the drop
+    for(let i=to;i>=from;i--){
+      if(candles[i].c>candles[i].o){
+        // OB zone = body of the candle (not full wick, cleaner zones like in charts)
+        return{type:'supply',high:candles[i].h,low:candles[i].o,
+               mid:(candles[i].h+candles[i].o)/2,bar:i};
+      }
+    }
+  } else {
+    // last bearish candle before the rise
+    for(let i=to;i>=from;i--){
+      if(candles[i].c<candles[i].o){
+        return{type:'demand',high:candles[i].o,low:candles[i].l,
+               mid:(candles[i].o+candles[i].l)/2,bar:i};
+      }
+    }
+  }
+  return null;
+}
+
+// Step 4 — Choch: first internal structure break after BOS
+// (the "X Choch" markings on the charts — first opposing swing after BOS)
+function detectChoch(candles, bos, swings){
+  if(!bos)return null;
+  const afterBar=bos.bar;
+  const post=swings.filter(s=>s.i>afterBar);
+  if(bos.type==='bearish_bos'){
+    // First lower high = Choch (pullback starting)
+    const pHigh=post.find(s=>s.type==='high');
+    if(pHigh)return{type:'bearish_choch',level:pHigh.price,bar:pHigh.i};
+  } else {
+    // First higher low = Choch
+    const pLow=post.find(s=>s.type==='low');
+    if(pLow)return{type:'bullish_choch',level:pLow.price,bar:pLow.i};
+  }
+  return null;
+}
+
+// Step 5 — Main IBS+Pullback setup evaluator
+function ibsPullback(candles15m){
+  if(candles15m.length<60)return null;
+  const swings=detectSwings(candles15m,4);
+  if(swings.length<4)return null;
+  const bos=detectBOS(candles15m,swings);
+  if(!bos)return null;
+  const ob=detectOB(candles15m,bos);
+  if(!ob)return null;
+  const choch=detectChoch(candles15m,bos,swings);
+  const cur=candles15m[candles15m.length-1].c;
+  // Price in OB? (like when BTC/ENA pulled back into the blue box)
+  const inOB=cur>=ob.low&&cur<=ob.high;
+  const nearOB=!inOB&&Math.abs(cur-ob.mid)/ob.mid<0.006;
+  const barsAgo=candles15m.length-1-bos.bar;
+  const dir=bos.type==='bearish_bos'?'SHORT':'LONG';
+  // Check confirmation candle inside OB (rejection pattern)
+  const lastC=candles15m[candles15m.length-1];
+  const rejCandle=inOB&&(
+    (dir==='SHORT'&&lastC.c<lastC.o)||  // bearish candle in supply OB
+    (dir==='LONG'&&lastC.c>lastC.o)     // bullish candle in demand OB
+  );
+  // Quality score (0-100)
+  let q=0;
+  q+=bos?28:0;
+  q+=choch?22:0;
+  q+=ob?20:0;
+  q+=inOB?20:nearOB?8:0;
+  q+=rejCandle?10:0;
+  q+=barsAgo<=20?8:barsAgo<=40?4:0;
+  // SL/TP based on OB
+  const slDist=dir==='SHORT'?(ob.high-cur)*1.05:(cur-ob.low)*1.05;
+  const tp1=dir==='SHORT'?cur-slDist*1.5:cur+slDist*1.5;
+  const tp2=dir==='SHORT'?cur-slDist*2.5:cur+slDist*2.5;
+  return{dir,bos,ob,choch,inOB,nearOB,rejCandle,barsAgo,quality:Math.min(100,q),
+         cur,entry:inOB?cur:ob.mid,sl:dir==='SHORT'?ob.high*1.003:ob.low*0.997,tp1,tp2};
+}
+
 /* ── UI helpers ── */
 const nowTs=()=>{const n=new Date();return n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0');};
 function log(msg,type='default',icon='·'){
@@ -410,8 +537,9 @@ function addSigChip(r){
   const isL=r.direction==='LONG';
   const el=document.createElement('div');
   el.className='sig-chip '+(isL?'glow-l':'glow-s');
-  el.innerHTML=`<div class="sym">${r.sym.replace('USDT','')}</div><span class="dir ${isL?'L':'S'}">${r.direction}</span><div style="margin-top:3px;color:var(--mut);font-size:10px">امتیاز <b class="sc">${r.score.toFixed(1)}</b></div>`;
-  el.title=`Entry: ${fmtP(r.entry)} | SL: ${fmtP(r.stop)} | RR: ${r.rr.toFixed(2)}`;
+  const ibsBadge=r.ibs&&r.ibs.inOB?`<div style="margin-top:2px;font-size:9px;color:#3fb6f5">🔵 OB ${r.ibs.quality}%${r.ibs.rejCandle?' ✅':''}</div>`:'';
+  el.innerHTML=`<div class="sym">${r.sym.replace('USDT','')}</div><span class="dir ${isL?'L':'S'}">${r.direction}</span><div style="margin-top:3px;color:var(--mut);font-size:10px">امتیاز <b class="sc">${r.score.toFixed(1)}</b></div>${ibsBadge}`;
+  el.title=`Entry: ${fmtP(r.entry)} | SL: ${fmtP(r.stop)} | RR: ${r.rr.toFixed(2)}${r.ibs&&r.ibs.inOB?' | IBS+PB OB Setup':''}`;
   el.addEventListener('click',()=>switchCoin(r.sym));
   sc.prepend(el);
 }
@@ -575,31 +703,53 @@ async function hamidCycle(){
       let dir='NEUTRAL';if(lt-st>=6)dir='LONG';else if(st-lt>=6)dir='SHORT';
       const tfa=[m5,m15,m1h].filter(m=>m.direction===dir).length;
       const score=clamp(dir==='LONG'?lt:dir==='SHORT'?st:Math.max(lt,st),0,100);
+      // IBS+Pullback detection
+      const ibs=ibsPullback(cd15);
+      let ibsBoost=0;
+      if(ibs&&ibs.quality>=55&&ibs.dir===dir){
+        ibsBoost=ibs.inOB?12:ibs.nearOB?7:4;
+        if(ibs.inOB){
+          const ibsLabel=dir==='LONG'?'تقاضا':'عرضه';
+          log(`🔵 <b>${sym}</b> IBS+PB: ${ibsLabel} OB [${fmtP(ibs.ob.low)}–${fmtP(ibs.ob.high)}]${ibs.rejCandle?' + تأیید✅':ibs.choch?' + Choch✓':''} | ${Math.round(ibs.quality)}%`,'signal','🔵');
+        } else if(ibs.quality>=65&&Math.random()<.5){
+          log(`${sym}: BOS ${ibs.bos.type==='bullish_bos'?'↑':'↓'} → نزدیک OB [${fmtP(ibs.ob.mid)}] | ${Math.round(ibs.quality)}%`,'learn','📐');
+        }
+      } else if(ibs&&ibs.quality>=65&&ibs.dir!==dir&&Math.random()<.15){
+        log(`${sym}: IBS ${ibs.dir} ↔ موتور ${dir} — تضاد تایم‌فریم`,'warn','⚡');
+      }
+      const effScore=Math.min(100,score+ibsBoost);
       const cur=m15.close,at=m15.atr;
       let stop=cur,rr=0,tp1=cur,tp2=cur;
       if(dir==='LONG'){const sl=clamp(Math.min(m15.recent_low,cur-at*1.15),cur*.972,cur*.997);const sd=cur-sl;tp1=cur+sd*1.15;tp2=cur+sd*2.1;stop=sl;rr=2.1;}
       else if(dir==='SHORT'){const sl=clamp(Math.max(m15.recent_high,cur+at*1.15),cur*1.003,cur*1.028);const sd=sl-cur;tp1=cur-sd*1.15;tp2=cur-sd*2.1;stop=sl;rr=2.1;}
       const vol_ok=+tk.quoteVolume>=L.min_quote_volume_usd;
       const trend_ok=(m15.adx>=16||m5.adx>=18)&&m15.adx>=12;
-      const enough=tfa>=3||(tfa>=2&&score>=L.strong_signal_score);
+      const enough=tfa>=3||(tfa>=2&&effScore>=L.strong_signal_score);
       let status='NO_SETUP';
       if(['LONG','SHORT'].includes(dir)){
-        if(score>=L.min_signal_score&&enough&&trend_ok&&rr>=L.min_rr&&vol_ok)status='SIGNAL';
-        else if(score>=L.ready_score&&rr>=L.min_rr)status='WAITING_CONFIRMATION';
-        else if(score>=L.watch_score)status='WATCHING';
+        if(effScore>=L.min_signal_score&&enough&&trend_ok&&rr>=L.min_rr&&vol_ok)status='SIGNAL';
+        else if(effScore>=L.ready_score&&rr>=L.min_rr)status='WAITING_CONFIRMATION';
+        else if(effScore>=L.watch_score)status='WATCHING';
         else status='APPROACHING_ENTRY_ZONE';
+        if(ibs&&ibs.quality>=70&&ibs.inOB&&ibs.dir===dir&&status==='APPROACHING_ENTRY_ZONE')status='WATCHING';
+        if(ibs&&ibs.quality>=80&&ibs.inOB&&ibs.rejCandle&&ibs.dir===dir&&status==='WATCHING')status='WAITING_CONFIRMATION';
       }
       if(!vol_ok)status='LOW_LIQUIDITY';
       if(m15.adx<14&&m5.adx<14)status='RANGE_FILTERED';
       S.analyzed++;updCtr();
-      const res={sym,direction:dir,score,status,entry:cur,stop,tp1,tp2,rr};
+      const useIBS=ibs&&ibs.quality>=70&&ibs.inOB&&ibs.dir===dir;
+      const res={sym,direction:dir,score:effScore,status,
+                 entry:useIBS?ibs.entry:cur,stop:useIBS?ibs.sl:stop,
+                 tp1:useIBS?ibs.tp1:tp1,tp2:useIBS?ibs.tp2:tp2,rr,
+                 ibs:ibs&&ibs.quality>=55?{quality:ibs.quality,inOB:ibs.inOB,rejCandle:ibs.rejCandle}:null};
       if(status==='SIGNAL'){
         if(!S.signals.find(x=>x.sym===sym)){addSigChip(res);S.signals.push(res);}
-        log(`⚡ <b>SIGNAL!</b> ${sym} ${dir} — امتیاز <b>${score.toFixed(1)}</b> | RR ${rr.toFixed(1)}`,'signal','🎯');
+        const ibsTag=res.ibs&&res.ibs.inOB?` | 🔵 OB ${res.ibs.quality}%`:'';
+        log(`⚡ <b>SIGNAL!</b> ${sym} ${dir} — امتیاز <b>${effScore.toFixed(1)}</b> | RR ${rr.toFixed(1)}${ibsTag}`,'signal','🎯');
         document.querySelectorAll('.ctab').forEach(t=>{if(t.dataset.sym===sym)t.classList.add('sig');});
-      } else if(status==='WAITING_CONFIRMATION'&&score>=68){
+      } else if(status==='WAITING_CONFIRMATION'&&effScore>=68){
         newWatch.push(res);
-        if(Math.random()<.25)log(`${sym}: ${dir} امتیاز ${score.toFixed(1)} — منتظر تأیید`,'default','👀');
+        if(Math.random()<.25)log(`${sym}: ${dir} امتیاز ${effScore.toFixed(1)} — منتظر تأیید`,'default','👀');
       }
     }catch{/* skip */}
     await sleep(70);
