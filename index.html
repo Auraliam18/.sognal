@@ -215,7 +215,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4 · اسکلپ+رادار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.1 · اسکلپ+رادار+IBS</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1094,6 +1094,102 @@ function buildPatInfo(r,pats,cands,verdict){
 }
 
 /* =========================================================================
+   IBS + PULLBACK ENGINE (additive layer — does NOT touch the locked engine)
+   BOS → Choch → Order Block detection → Pullback entry, on 15m candles.
+   Ported from hamid.html (gh-pages). Attaches info only; score/status stay.
+   ========================================================================= */
+function ibsDetectSwings(candles,k=4){
+  const H=candles.map(c=>c.h),L=candles.map(c=>c.l);
+  const sw=[];
+  for(let i=k;i<candles.length-k;i++){
+    let ph=true,pl=true;
+    for(let j=1;j<=k;j++){if(H[i]<=H[i-j]||H[i]<=H[i+j])ph=false;if(L[i]>=L[i-j]||L[i]>=L[i+j])pl=false;}
+    if(ph)sw.push({type:'high',i,price:H[i]});
+    if(pl)sw.push({type:'low', i,price:L[i]});
+  }
+  return sw;
+}
+function ibsDetectBOS(candles,swings){
+  const C=candles.map(c=>c.c);
+  const recent=swings.slice(-12);
+  const events=[];
+  for(const sw of recent){
+    const start=sw.i+1;
+    if(sw.type==='high'){
+      for(let i=start;i<C.length;i++){if(C[i]>sw.price){events.push({type:'bullish_bos',level:sw.price,bar:i,swing:sw});break;}}
+    } else {
+      for(let i=start;i<C.length;i++){if(C[i]<sw.price){events.push({type:'bearish_bos',level:sw.price,bar:i,swing:sw});break;}}
+    }
+  }
+  const N=candles.length;
+  const valid=events.filter(e=>N-1-e.bar<=60);
+  return valid.length?valid[valid.length-1]:null;
+}
+function ibsDetectOB(candles,bos){
+  if(!bos)return null;
+  const from=Math.max(0,bos.swing.i-25);
+  const to=bos.swing.i;
+  if(bos.type==='bearish_bos'){
+    for(let i=to;i>=from;i--){
+      if(candles[i].c>candles[i].o)return{type:'supply',high:candles[i].h,low:candles[i].o,mid:(candles[i].h+candles[i].o)/2,bar:i};
+    }
+  } else {
+    for(let i=to;i>=from;i--){
+      if(candles[i].c<candles[i].o)return{type:'demand',high:candles[i].o,low:candles[i].l,mid:(candles[i].o+candles[i].l)/2,bar:i};
+    }
+  }
+  return null;
+}
+function ibsDetectChoch(candles,bos,swings){
+  if(!bos)return null;
+  const post=swings.filter(s=>s.i>bos.bar);
+  if(bos.type==='bearish_bos'){
+    const pHigh=post.find(s=>s.type==='high');
+    if(pHigh)return{type:'bearish_choch',level:pHigh.price,bar:pHigh.i};
+  } else {
+    const pLow=post.find(s=>s.type==='low');
+    if(pLow)return{type:'bullish_choch',level:pLow.price,bar:pLow.i};
+  }
+  return null;
+}
+function ibsPullback(candles15m){
+  if(!candles15m||candles15m.length<60)return null;
+  const swings=ibsDetectSwings(candles15m,4);
+  if(swings.length<4)return null;
+  const bos=ibsDetectBOS(candles15m,swings);
+  if(!bos)return null;
+  const ob=ibsDetectOB(candles15m,bos);
+  if(!ob)return null;
+  const choch=ibsDetectChoch(candles15m,bos,swings);
+  const cur=candles15m[candles15m.length-1].c;
+  const inOB=cur>=ob.low&&cur<=ob.high;
+  const nearOB=!inOB&&Math.abs(cur-ob.mid)/ob.mid<0.006;
+  const barsAgo=candles15m.length-1-bos.bar;
+  const dir=bos.type==='bearish_bos'?'SHORT':'LONG';
+  const lastC=candles15m[candles15m.length-1];
+  const rejCandle=inOB&&((dir==='SHORT'&&lastC.c<lastC.o)||(dir==='LONG'&&lastC.c>lastC.o));
+  let q=0;
+  q+=bos?28:0;
+  q+=choch?22:0;
+  q+=ob?20:0;
+  q+=inOB?20:nearOB?8:0;
+  q+=rejCandle?10:0;
+  q+=barsAgo<=20?8:barsAgo<=40?4:0;
+  const slDist=dir==='SHORT'?(ob.high-cur)*1.05:(cur-ob.low)*1.05;
+  const tp1=dir==='SHORT'?cur-slDist*1.5:cur+slDist*1.5;
+  const tp2=dir==='SHORT'?cur-slDist*2.5:cur+slDist*2.5;
+  return{dir,bos,ob,choch,inOB,nearOB,rejCandle,barsAgo,quality:Math.min(100,q),
+         cur,entry:inOB?cur:ob.mid,sl:dir==='SHORT'?ob.high*1.003:ob.low*0.997,tp1,tp2};
+}
+function ibsBadgeHTML(ibs,direction){
+  if(!ibs||ibs.quality<55)return"";
+  if(!ibs.inOB&&!ibs.nearOB)return"";
+  const agree=ibs.dir===direction;
+  const zone=ibs.dir==='LONG'?'تقاضا':'عرضه';
+  return `<span class="tag" style="color:#3fb6f5;border-color:#1e5d80">🔵 ${zone} OB ${Math.round(ibs.quality)}%${ibs.rejCandle?' ✅':''}${agree?'':' ⚠️خلاف'}</span>`;
+}
+
+/* =========================================================================
    BINANCE API CLIENT  (runs in the user's browser; data stays local)
    ========================================================================= */
 async function jget(path){
@@ -1133,7 +1229,9 @@ async function analyzeOne(asset,funding,ctx){
   const[c5,c15,c1h]=await Promise.all([fetchKlines(asset.binance_symbol,"5m"),fetchKlines(asset.binance_symbol,"15m"),fetchKlines(asset.binance_symbol,"1h")]);
   const m5=timeframeMetrics(c5,"5m"),m15=timeframeMetrics(c15,"15m"),m1h=timeframeMetrics(c1h,"1h");
   const cur=asset.lastPrice||m5.close;
-  return analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+  const r=analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+  try{r.ibs=ibsPullback(c15);}catch(e){r.ibs=null;}
+  return r;
 }
 async function pool(items,worker,limit,onEach){
   const q=items.slice();let done=0;const out=[];
@@ -1201,7 +1299,7 @@ function chkLabelFa(k){return{higher_tf_direction:"جهت ۱ساعته",setup_tf
 
 function signalCard(r){
   const z=r.entry_zone||{};
-  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(r.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`]
+  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(r.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`,ibsBadgeHTML(r.ibs,r.direction)]
     .concat((r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}✕</span>`)).join("");
   return `<div class="card fade">
     <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
@@ -1231,6 +1329,7 @@ function watchRow(r){
       <span class="side ${r.direction}">${r.direction}</span>
       <span class="statuspill st-${r.status}" style="margin-inline-start:8px">${LIFE_SHORT[r.status]||r.status}</span></div>
     <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(r.rr,2)}</div>
+    ${ibsBadgeHTML(r.ibs,r.direction)?`<div class="tags" style="padding-top:0">${ibsBadgeHTML(r.ibs,r.direction)}</div>`:""}
     ${railHTML(r.status,r.direction)}
     <div class="tags">${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
     <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو</button></div>
@@ -1301,6 +1400,25 @@ function renderDeep(r){
       <h3 style="margin-top:14px">چک‌لیست اجباری</h3><div class="checks">${checks}</div>
     </div>
   </div>
+  ${r.ibs?`<div class="box" style="margin-top:12px">
+    <h3>استراتژی IBS + پولبک (۱۵م)</h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">BOS ← Choch ← اردر بلاک ← ورود روی پولبک. لایهٔ افزودنی — امتیاز موتور اصلی را تغییر نمی‌دهد.</p>
+    <div class="tags" style="padding:0 0 8px">
+      <span class="tag">جهت ${r.ibs.dir}</span>
+      <span class="tag">کیفیت ${Math.round(r.ibs.quality)}%</span>
+      <span class="tag">BOS ${r.ibs.barsAgo} کندل پیش</span>
+      ${r.ibs.choch?`<span class="tag">Choch ✓</span>`:`<span class="tag warn">بدون Choch</span>`}
+      ${r.ibs.inOB?`<span class="tag" style="color:#3fb6f5;border-color:#1e5d80">داخل ${r.ibs.ob.type==='demand'?'تقاضا':'عرضه'} OB 🔵</span>`:r.ibs.nearOB?`<span class="tag">نزدیک OB</span>`:`<span class="tag">خارج از OB</span>`}
+      ${r.ibs.rejCandle?`<span class="tag">کندل تأیید ✅</span>`:""}
+      ${r.ibs.dir!==r.direction&&r.direction!=="NEUTRAL"?`<span class="tag warn">⚠️ خلاف جهت موتور</span>`:""}
+    </div>
+    <div class="levels">
+      <div><div class="k">ناحیهٔ OB</div><div class="val">${fmt(r.ibs.ob.low)} – ${fmt(r.ibs.ob.high)}</div></div>
+      <div><div class="k">entry</div><div class="val">${fmt(r.ibs.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(r.ibs.sl)}</div></div>
+      <div><div class="k">tp1 / tp2</div><div class="val tp">${fmt(r.ibs.tp1)} / ${fmt(r.ibs.tp2)}</div></div>
+    </div>
+  </div>`:""}
   <div class="box" style="margin-top:12px">
     <h3>چارت ۱۵م — ۲۰۰ کندل اخیر + تطبیق الگو</h3>
     <p class="muted" style="margin-top:-4px;font-size:13px">الگوهای کلاسیک روی همین چارت علامت‌گذاری می‌شوند: خط گردن/خطوط روند، نقاط کلیدی، و هدف الگو (TP) با ناحیهٔ حرکت موردانتظار.</p>
