@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hamid Signal Agent — SMC Cycle + Patterns</title>
 <link rel="manifest" href="./manifest.webmanifest">
+<script src="./lightweight-charts.js"></script>
 <meta name="theme-color" content="#090d13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -215,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.1 · اسکلپ+رادار+IBS</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.2 · چارت زنده+IBS</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1343,6 +1344,78 @@ function renderWatch(){
     `<div class="empty">واچ‌لیست خالی است. بعد از اسکن، ستاپ‌های در حال شکل‌گیری اینجا می‌آیند.</div>`);
 }
 
+/* =========================================================================
+   LIVE CHART (Lightweight Charts + Binance Futures WebSocket) — additive
+   ========================================================================= */
+const LIVE={chart:null,cs:null,e21:null,e50:null,ws:null,sym:null,candles:[],retry:null};
+function liveSetStatus(t,on){const el=$("#liveStat");if(el){el.textContent=t;el.style.color=on?"#2ecc71":"#8b98ab";}}
+function liveStop(){
+  if(LIVE.retry){clearTimeout(LIVE.retry);LIVE.retry=null;}
+  if(LIVE.ws){LIVE.ws.onclose=null;try{LIVE.ws.close();}catch(e){}LIVE.ws=null;}
+  if(LIVE.chart){try{LIVE.chart.remove();}catch(e){}LIVE.chart=null;LIVE.cs=null;LIVE.e21=null;LIVE.e50=null;}
+  LIVE.sym=null;LIVE.candles=[];
+}
+function liveEmaPush(){
+  const closes=LIVE.candles.map(c=>c.close);
+  const a21=emaSeries(closes,21),a50=emaSeries(closes,50);
+  const t=i=>LIVE.candles[i].time;
+  LIVE.e21.setData(a21.map((v,i)=>v==null?null:{time:t(i),value:v}).filter(Boolean));
+  LIVE.e50.setData(a50.map((v,i)=>v==null?null:{time:t(i),value:v}).filter(Boolean));
+}
+function liveConnect(sym){
+  if(LIVE.sym!==sym)return;
+  liveSetStatus("در حال اتصال…",false);
+  let ws;
+  try{ws=new WebSocket(`wss://fstream.binance.com/ws/${sym.toLowerCase()}@kline_15m`);}catch(e){liveSetStatus("وب‌سوکت در دسترس نیست",false);return;}
+  LIVE.ws=ws;
+  ws.onopen=()=>liveSetStatus("● زنده",true);
+  ws.onmessage=ev=>{
+    try{
+      const k=JSON.parse(ev.data).k;if(!k||!LIVE.cs)return;
+      const bar={time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c};
+      const last=LIVE.candles[LIVE.candles.length-1];
+      if(last&&last.time===bar.time)LIVE.candles[LIVE.candles.length-1]=bar;else LIVE.candles.push(bar);
+      LIVE.cs.update(bar);
+      if(k.x)liveEmaPush(); // closed candle → refresh EMAs
+    }catch(e){}
+  };
+  ws.onclose=()=>{liveSetStatus("قطع شد — تلاش مجدد…",false);if(LIVE.sym===sym)LIVE.retry=setTimeout(()=>liveConnect(sym),5000);};
+  ws.onerror=()=>{try{ws.close();}catch(e){}};
+}
+async function initLiveChart(r){
+  if(typeof LightweightCharts==="undefined")return;
+  const host=$("#liveChart");if(!host)return;
+  liveStop();
+  const sym=r.binance_symbol;LIVE.sym=sym;
+  const LWC=LightweightCharts;
+  const chart=LWC.createChart(host,{
+    autoSize:true,
+    layout:{background:{type:"solid",color:"transparent"},textColor:"#8b98ab",fontSize:11},
+    grid:{vertLines:{color:"rgba(140,160,190,.06)"},horzLines:{color:"rgba(140,160,190,.06)"}},
+    timeScale:{timeVisible:true,secondsVisible:false,borderColor:"rgba(140,160,190,.15)"},
+    rightPriceScale:{borderColor:"rgba(140,160,190,.15)"},
+    crosshair:{mode:0}
+  });
+  LIVE.chart=chart;
+  const addS=(type,opt)=>chart.addSeries?chart.addSeries(type,opt):null;
+  LIVE.cs=chart.addCandlestickSeries?chart.addCandlestickSeries():addS(LWC.CandlestickSeries,{upColor:"#2ecc71",downColor:"#e74c3c",borderVisible:false,wickUpColor:"#2ecc71",wickDownColor:"#e74c3c"});
+  LIVE.e21=chart.addLineSeries?chart.addLineSeries({color:"#3fb6f5",lineWidth:1}):addS(LWC.LineSeries,{color:"#3fb6f5",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  LIVE.e50=chart.addLineSeries?chart.addLineSeries({color:"#b48cf2",lineWidth:1}):addS(LWC.LineSeries,{color:"#b48cf2",lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  let cd=r.klines15_200;
+  if(!cd){try{cd=await fetchKlines(sym,"15m",200);}catch(e){cd=null;}}
+  if(cd&&cd.length){
+    LIVE.candles=cd.map(c=>({time:Math.floor(c.t/1000),open:c.o,high:c.h,low:c.l,close:c.c}));
+    LIVE.cs.setData(LIVE.candles);liveEmaPush();
+    chart.timeScale().fitContent();
+  }
+  const pl=(price,color,title)=>{if(price&&LIVE.cs.createPriceLine)LIVE.cs.createPriceLine({price,color,lineWidth:1,lineStyle:2,title});};
+  if(["LONG","SHORT"].includes(r.direction)){
+    pl(r.entry,"#8b98ab","entry");pl(r.stop_loss,"#e74c3c","SL");pl(r.tp1,"#2ecc71","TP1");pl(r.tp2,"#2ecc71","TP2");
+    if(r.ibs&&r.ibs.ob){pl(r.ibs.ob.low,"#3fb6f5","OB↓");pl(r.ibs.ob.high,"#3fb6f5","OB↑");}
+  }
+  liveConnect(sym);
+}
+
 /* deep dive */
 let lastDeep=null;
 async function deepAnalyze(symInput){
@@ -1358,7 +1431,7 @@ async function deepAnalyze(symInput){
     try{r.klines15_200=await fetchKlines(sym,"15m",200);}catch(e){r.klines15_200=null;}
     try{r.klines5_200=await fetchKlines(sym,"5m",200);}catch(e){r.klines5_200=null;}
     lastDeep=r;renderDeep(r);
-    requestAnimationFrame(()=>renderPatternChart(r));
+    requestAnimationFrame(()=>{renderPatternChart(r);initLiveChart(r);});
     $("#ddMeta").textContent=`${fmtVol(r.quote_volume)} · ${fmtTime(new Date())}`;
   }catch(e){$("#ddOut").innerHTML=`<div class="empty">تحلیل ${sym} ناموفق: ${e.message}. نماد یا اتصال را بررسی کن.</div>`;}
 }
@@ -1399,6 +1472,11 @@ function renderDeep(r){
       <div class="scorebig" style="padding:8px 0 0">جمع محاسبه‌شده <b>${sc.computed_total}</b></div>
       <h3 style="margin-top:14px">چک‌لیست اجباری</h3><div class="checks">${checks}</div>
     </div>
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>چارت زندهٔ ۱۵م — تریدینگ‌ویو <span id="liveStat" style="font-size:11px;font-weight:400"></span></h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">کندل‌ها با وب‌سوکت بایننس لحظه‌ای آپدیت می‌شوند. خطوط: EMA21 آبی، EMA50 بنفش، سطوح ورود/استاپ/تارگت و ناحیهٔ OB.</p>
+    <div id="liveChart" style="height:340px"></div>
   </div>
   ${r.ibs?`<div class="box" style="margin-top:12px">
     <h3>استراتژی IBS + پولبک (۱۵م)</h3>
