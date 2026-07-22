@@ -1,10 +1,11 @@
 /* Hamid Signal Agent — service worker
    Caches the app shell so the panel opens instantly (even offline),
    while always going to the network for live market data and the cloud API. */
-const CACHE = "hsa-shell-v4.1";
+const CACHE = "hsa-shell-v4.2";
 const ASSETS = [
   "./",
   "./index.html",
+  "./lightweight-charts.js",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
