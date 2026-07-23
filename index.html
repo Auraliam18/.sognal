@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.2 · چارت زنده+IBS</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.3 · بک‌تست+چارت زنده</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -290,6 +290,18 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
       کدام ستاپ و کدام بازهٔ امتیاز با سبک تو و با نتیجهٔ واقعی بیشتر هم‌خوان است.
     </p>
     <div id="calibStats"></div>
+    <div class="box" style="margin-top:12px">
+      <h3>بک‌تست IBS + پولبک (دادهٔ واقعی بایننس)</h3>
+      <p class="muted" style="margin-top:-4px;font-size:13px">
+        روی ۱۵۰۰ کندل ۱۵م اخیر هر نماد (~۱۵ روز) شبیه‌سازی می‌کند: ورود فقط وقتی قیمت داخل OB و کندل تأیید بسته شده باشد؛
+        استاپ پشت OB، تارگت 1.5R و 2.5R، بعد از TP1 استاپ به نقطهٔ ورود می‌رود. نتیجه به تفکیک آستانهٔ کیفیت تا ببینی کدام حد، برد بیشتری می‌دهد.
+      </p>
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input class="f" id="btSyms" style="flex:1;min-width:220px" value="BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT">
+        <button class="btn" id="btRun">اجرای بک‌تست</button>
+      </div>
+      <div id="btOut" style="margin-top:10px"></div>
+    </div>
     <div class="box" style="margin-top:12px"><h3>تاریخچهٔ بازخورد</h3><div id="fbLog"></div></div>
   </section>
 
@@ -1191,6 +1203,74 @@ function ibsBadgeHTML(ibs,direction){
 }
 
 /* =========================================================================
+   IBS BACKTESTER (additive) — replays history through the same ibsPullback
+   evaluator; entry only on inOB+rejCandle at candle close, one open trade
+   per symbol, conservative same-bar SL priority, breakeven after TP1.
+   ========================================================================= */
+function backtestIBS(cd,qMin,win=120){
+  const trades=[];let open=null;
+  for(let i=win;i<cd.length;i++){
+    const bar=cd[i];
+    if(open){
+      const L=open.dir==='LONG';
+      const hitSL=L?bar.l<=open.sl:bar.h>=open.sl;
+      const hitT1=L?bar.h>=open.tp1:bar.l<=open.tp1;
+      const hitT2=L?bar.h>=open.tp2:bar.l<=open.tp2;
+      if(!open.t1&&hitSL){open.r=-1;trades.push(open);open=null;}         // SL first (conservative)
+      else{
+        if(hitT1&&!open.t1){open.t1=true;open.sl=open.entry;}             // TP1 → breakeven
+        if(open&&open.t1){
+          if(hitT2){open.r=2.5;open.t2=true;trades.push(open);open=null;}
+          else if(hitSL){open.r=open.rLock;trades.push(open);open=null;}  // back to entry
+        }
+      }
+      if(open&&i===cd.length-1){open.r=open.t1?open.rLock:0;open.openEnd=true;trades.push(open);open=null;}
+      if(open)continue;
+    }
+    const s=ibsPullback(cd.slice(i-win+1,i+1));
+    if(!s||!s.inOB||!s.rejCandle||s.quality<qMin)continue;
+    const entry=bar.c;
+    const risk=Math.abs(entry-s.sl);if(!risk||risk/entry<0.0005)continue;
+    open={i,dir:s.dir,q:s.quality,entry,sl:s.sl,tp1:s.dir==='LONG'?entry+risk*1.5:entry-risk*1.5,
+          tp2:s.dir==='LONG'?entry+risk*2.5:entry-risk*2.5,t1:false,t2:false,rLock:1.5};
+  }
+  return trades;
+}
+function btAgg(trades){
+  const n=trades.length;if(!n)return{n:0};
+  const w=trades.filter(t=>t.r>0).length,t2=trades.filter(t=>t.t2).length;
+  const net=trades.reduce((a,t)=>a+t.r,0);
+  return{n,winrate:Math.round(w/n*100),t2rate:Math.round(t2/n*100),net:Math.round(net*10)/10};
+}
+async function runBacktest(){
+  const out=$("#btOut"),syms=$("#btSyms").value.split(/[,\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean).slice(0,10);
+  if(!syms.length)return;
+  const BUCKETS=[[55,'کیفیت ≥۵۵'],[65,'کیفیت ≥۶۵'],[75,'کیفیت ≥۷۵']];
+  out.innerHTML=`<div class="empty">در حال دریافت ۱۵۰۰ کندل ۱۵م برای ${syms.length} نماد…</div>`;
+  const per={};const all={};BUCKETS.forEach(([q])=>all[q]=[]);
+  for(const sym of syms){
+    try{
+      const cd=await fetchKlines(sym,"15m",1500);
+      per[sym]={};
+      for(const[q]of BUCKETS){const tr=backtestIBS(cd,q);per[sym][q]=btAgg(tr);all[q].push(...tr);}
+      out.innerHTML=`<div class="empty">تحلیل شد: ${sym} …</div>`;
+      await new Promise(r=>setTimeout(r,150));
+    }catch(e){per[sym]={error:String(e.message||e)};}
+  }
+  const cell=a=>a&&a.n?`<b>${a.n}</b> معامله · برد <b>${a.winrate}%</b> · TP2 ${a.t2rate}% · خالص <b style="color:${a.net>=0?'#2ecc71':'#e74c3c'}">${a.net>0?'+':''}${a.net}R</b>`:'<span class="dim">بدون معامله</span>';
+  let html=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="text-align:right;color:#8b98ab"><th style="padding:6px">نماد</th>${BUCKETS.map(([,l])=>`<th style="padding:6px">${l}</th>`).join('')}</tr>`;
+  for(const sym of syms){
+    html+=`<tr style="border-top:1px solid rgba(140,160,190,.12)"><td style="padding:7px;font-weight:700">${sym.replace('USDT','')}</td>`;
+    html+=BUCKETS.map(([q])=>`<td style="padding:7px">${per[sym]&&per[sym][q]?cell(per[sym][q]):`<span class="dim">${per[sym]&&per[sym].error?'خطا':'—'}</span>`}</td>`).join('');
+    html+=`</tr>`;
+  }
+  html+=`<tr style="border-top:2px solid rgba(140,160,190,.3)"><td style="padding:7px;font-weight:700">جمع کل</td>${BUCKETS.map(([q])=>`<td style="padding:7px">${cell(btAgg(all[q]))}</td>`).join('')}</tr></table></div>
+  <p class="muted" style="font-size:12px;margin-top:8px">فرض‌ها: بدون کارمزد/اسلیپیج؛ اگر در یک کندل هم استاپ و هم تارگت لمس شود، باخت حساب می‌شود (محافظه‌کارانه). R یعنی واحد ریسک هر معامله.</p>`;
+  out.innerHTML=html;
+}
+
+/* =========================================================================
    BINANCE API CLIENT  (runs in the user's browser; data stays local)
    ========================================================================= */
 async function jget(path){
@@ -1578,6 +1658,7 @@ $("#scanBtn").onclick=runScan;
 $("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
 $("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
 const _scBtn=$("#scBtn");if(_scBtn)_scBtn.onclick=()=>runScalp($("#scSym").value);
+const _btBtn=$("#btRun");if(_btBtn)_btBtn.onclick=runBacktest;
 const _scSym=$("#scSym");if(_scSym)_scSym.addEventListener("keydown",e=>{if(e.key==="Enter")runScalp($("#scSym").value);});
 const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
 
