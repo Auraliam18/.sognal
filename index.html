@@ -216,10 +216,11 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.4 · کالیبراسیون خودکار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.5 · رادار ثانیه‌ای</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
+    <button class="btn" id="bellBtn" title="فعال‌سازی اعلان سیگنال و آلارم">🔔</button>
     <button class="btn" id="setBtn">تنظیمات</button>
     <button class="btn primary" id="scanBtn">اسکن بازار</button>
   </div>
@@ -242,6 +243,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
   </div>
 
+  <div id="alarmBox"></div>
   <section id="view-signals"></section>
   <section id="view-watch" style="display:none"></section>
 
@@ -439,7 +441,9 @@ const S={
   scan_interval_seconds:300,
 };
 // data-plumbing settings the user may tune (do NOT affect setup logic)
-const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:30,concurrency:4,interval:300},DB.get("cfg")||{});
+const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:100,concurrency:4,interval:1800},DB.get("cfg")||{});
+/* v4.5 one-time migration: top-100 universe, 30-min auto scan */
+if(!CFG.v45){CFG.universe=Math.max(CFG.universe,100);CFG.interval=1800;CFG.v45=1;DB.set("cfg",CFG);}
 
 /* =========================================================================
    INDICATORS  (standard textbook formulas feeding the engine's field names)
@@ -1362,6 +1366,7 @@ async function runScan(){
     STATE.universe=rows;
     STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
+    radarSetZones(rows);
     STATE.last_scan_at=new Date();
     hideProg();
     setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
@@ -1515,6 +1520,68 @@ async function initLiveChart(r){
     if(r.ibs&&r.ibs.ob){pl(r.ibs.ob.low,"#3fb6f5","OB↓");pl(r.ibs.ob.high,"#3fb6f5","OB↑");}
   }
   liveConnect(sym);
+}
+
+/* =========================================================================
+   LIVE RADAR — one !miniTicker WebSocket streams every symbol's price each
+   second; entry zones from the last scan are watched, a touch fires an
+   alarm (sound + notification) and an automatic full re-analysis that can
+   promote the symbol straight to SIGNAL if all locked-engine gates pass.
+   ========================================================================= */
+const RADAR_LIVE={ws:null,zones:{},cool:{},alarms:[],retry:null,busy:0};
+function beep(n=1){try{const ctx=beep.ctx||(beep.ctx=new(window.AudioContext||window.webkitAudioContext)());let t=ctx.currentTime;for(let i=0;i<n;i++){const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.25);o.start(t);o.stop(t+.28);t+=.35;}}catch(e){}}
+function notify(title,body){try{if(window.Notification&&Notification.permission==="granted")new Notification(title,{body});}catch(e){}}
+function radarSetZones(rows){
+  const Z={};
+  rows.forEach(r=>{
+    if(!["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status))return;
+    if(!["LONG","SHORT"].includes(r.direction)||!r.entry_zone)return;
+    const lo=Math.min(r.entry_zone.low,r.entry_zone.high),hi=Math.max(r.entry_zone.low,r.entry_zone.high);
+    if(!(lo>0)||hi<=lo)return;
+    Z[r.binance_symbol]={sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,low:lo,high:hi,qv:r.quote_volume,chg:r.change_24h_pct};
+  });
+  RADAR_LIVE.zones=Z;renderAlarms();radarStart();
+}
+function radarStart(){
+  if(RADAR_LIVE.ws||!Object.keys(RADAR_LIVE.zones).length)return;
+  let ws;try{ws=new WebSocket("wss://fstream.binance.com/ws/!miniTicker@arr");}catch(e){return;}
+  RADAR_LIVE.ws=ws;
+  ws.onmessage=ev=>{try{const arr=JSON.parse(ev.data);if(!Array.isArray(arr))return;for(const t of arr){const z=RADAR_LIVE.zones[t.s];if(z)radarCheck(z,+t.c);}}catch(e){}};
+  ws.onclose=()=>{RADAR_LIVE.ws=null;clearTimeout(RADAR_LIVE.retry);RADAR_LIVE.retry=setTimeout(radarStart,7000);};
+  ws.onerror=()=>{try{ws.close();}catch(e){}};
+}
+function radarCheck(z,price){
+  if(!(price>=z.low&&price<=z.high))return;
+  const now=Date.now();
+  if(RADAR_LIVE.cool[z.sym]&&now-RADAR_LIVE.cool[z.sym]<180000)return; // 3-min per-symbol cooldown
+  RADAR_LIVE.cool[z.sym]=now;
+  radarAlarm(z,price);
+}
+async function radarAlarm(z,price){
+  beep(1);notify(`⚡ ${z.asset} وارد ناحیهٔ ورود شد`,`${z.dir} @ ${fmt(price)} — بررسی مجدد خودکار…`);
+  const a={t:new Date(),asset:z.asset,dir:z.dir,price,st:"بررسی…"};
+  RADAR_LIVE.alarms.unshift(a);RADAR_LIVE.alarms=RADAR_LIVE.alarms.slice(0,10);renderAlarms();
+  if(RADAR_LIVE.busy>=2){a.st="در صف — اسکن بعدی";renderAlarms();return;}
+  RADAR_LIVE.busy++;
+  try{
+    const[funding,ctx]=await Promise.all([fetchFundingMap().catch(()=>({})),fetchMarketContext()]);
+    STATE.market_context=ctx;renderRegime();
+    const r=await analyzeOne({binance_symbol:z.sym,asset_symbol:z.asset,quoteVolume:z.qv||Infinity,change_24h_pct:z.chg||0,lastPrice:price,rank:"-"},funding,ctx);
+    if(r.status==="SIGNAL"){
+      a.st="🚨 سیگنال شد";
+      STATE.signals=[r,...STATE.signals.filter(x=>x.binance_symbol!==r.binance_symbol)];
+      beep(3);notify(`🚨 سیگنال ${r.direction} — ${z.asset}`,`امتیاز ${fmt(r.score,1)} · ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`);
+      renderSignals();saveLocal();if(SYNC.on())SYNC.push();
+    }else a.st=`هنوز نه (${LIFE_SHORT[r.status]||r.status})`;
+  }catch(e){a.st="خطا در بررسی";}
+  finally{RADAR_LIVE.busy--;renderAlarms();}
+}
+function renderAlarms(){
+  const el=$("#alarmBox");if(!el)return;
+  const nz=Object.keys(RADAR_LIVE.zones).length;
+  if(!RADAR_LIVE.alarms.length&&!nz){el.innerHTML="";return;}
+  el.innerHTML=`<div class="box" style="margin-bottom:12px"><h3>⚡ رادار نواحی ورود <span class="dim" style="font-size:11px;font-weight:400">${nz?`پایش ثانیه‌ای ${nz} ناحیه${RADAR_LIVE.ws?" · متصل":" · قطع"}`:"بعد از اسکن فعال می‌شود"}</span></h3>`+
+    (RADAR_LIVE.alarms.length?RADAR_LIVE.alarms.map(x=>`<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid rgba(140,160,190,.08)"><span class="dim">${fmtTime(x.t)}</span><b>${x.asset}</b><span class="side ${x.dir}" style="font-size:10px">${x.dir}</span><span class="num">@ ${fmt(x.price)}</span><span style="margin-inline-start:auto">${x.st}</span></div>`).join(""):`<div class="dim" style="font-size:12px;padding-top:4px">وقتی قیمتی به ناحیهٔ ورودش برسد اینجا آلارم می‌آید.</div>`)+`</div>`;
 }
 
 /* deep dive */
@@ -1680,13 +1747,14 @@ $("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
 $("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
 const _scBtn=$("#scBtn");if(_scBtn)_scBtn.onclick=()=>runScalp($("#scSym").value);
 const _btBtn=$("#btRun");if(_btBtn)_btBtn.onclick=runBacktest;
+const _bell=$("#bellBtn");if(_bell)_bell.onclick=async()=>{beep(1);if(!window.Notification){setStatus("مرورگرت اعلان را پشتیبانی نمی‌کند");return;}const p=await Notification.requestPermission();setStatus(p==="granted"?"اعلان فعال شد ✓ — با هر آلارم و سیگنال، نوتیفیکیشن می‌آید":"اجازهٔ اعلان داده نشد");};
 const _scSym=$("#scSym");if(_scSym)_scSym.addEventListener("keydown",e=>{if(e.key==="Enter")runScalp($("#scSym").value);});
 const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
 
 const setModal=$("#setModal");
 $("#setBtn").onclick=()=>{$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;const sy=SYNC.get();if($("#sSyncBase"))$("#sSyncBase").value=sy.base;if($("#sSyncKey"))$("#sSyncKey").value=sy.key;setModal.classList.add("show");};
 $("#setClose").onclick=()=>setModal.classList.remove("show");
-$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||30,5,80);CFG.concurrency=clamp(+$("#sCon").value||4,1,8);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
+$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||100,5,120);CFG.concurrency=clamp(+$("#sCon").value||4,1,8);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
   if($("#sSyncBase")){SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();}
   setModal.classList.remove("show");setStatus(SYNC.on()?"تنظیمات ذخیره شد · سینک ابری روشن ☁︎":"تنظیمات ذخیره شد.");
   saveLocal();if(SYNC.on())SYNC.push();};
@@ -1696,7 +1764,7 @@ setModal.addEventListener("click",e=>{if(e.target===setModal)setModal.classList.
 let autoTimer=null;const autoSw=$("#autoSw");
 autoSw.onclick=()=>{const on=!autoSw.classList.contains("on");autoSw.classList.toggle("on",on);DB.set("auto",on);
   if(on){runScan();autoTimer=setInterval(runScan,CFG.interval*1000);}else{clearInterval(autoTimer);autoTimer=null;}};
-if(DB.get("auto")){autoSw.classList.add("on");autoTimer=setInterval(runScan,CFG.interval*1000);}
+if(DB.get("auto")!==false){autoSw.classList.add("on");DB.set("auto",true);autoTimer=setInterval(runScan,CFG.interval*1000);setTimeout(runScan,1200);}
 
 /* redraw chart on resize (single view) */
 let rzT=null;
