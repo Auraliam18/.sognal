@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.6 · حافظهٔ پایدار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.7 · پیگیری خودکار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -303,6 +303,10 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
         <button class="btn" id="btRun">اجرای بک‌تست</button>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">آستانهٔ فعال نشان 🔵 OB روی کارت‌ها: کیفیت ≥ <b id="btCurQ"></b></p>
+    </div>
+    <div class="box" style="margin-top:12px">
+      <h3>پیگیری خودکار سیگنال‌ها <span class="dim" style="font-size:11px;font-weight:400">با قیمت ثانیه‌ای — نتیجه خودش در بازخوردها ثبت می‌شود</span></h3>
+      <div id="tradeBox"></div>
       <div id="btOut" style="margin-top:10px"></div>
     </div>
     <div class="box" style="margin-top:12px"><h3>تاریخچهٔ بازخورد</h3><div id="fbLog"></div></div>
@@ -397,6 +401,7 @@ function buildSnapshot(){
     last_scan_at:STATE.last_scan_at?new Date(STATE.last_scan_at).toISOString():null,
     feedback:(DB.get("feedback")||[]),
     alarms:(typeof RADAR_LIVE!=="undefined"?RADAR_LIVE.alarms:[]).map(a=>({t:new Date(a.t).toISOString(),asset:a.asset,dir:a.dir,price:a.price,st:a.st})),
+    trades:STATE.trades||[],
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
 }
@@ -414,6 +419,7 @@ function restoreSnapshot(snap){
     if(typeof snap.auto==="boolean")DB.set("auto",snap.auto);
     if(snap.cfg&&typeof snap.cfg==="object"){Object.assign(CFG,snap.cfg);DB.set("cfg",CFG);}
     if(snap.bt_html){STATE.bt_html=snap.bt_html;STATE.bt_at=snap.bt_at||null;}
+    if(Array.isArray(snap.trades))STATE.trades=snap.trades;
     return true;
   }catch(e){return false;}
 }
@@ -1376,6 +1382,7 @@ async function runScan(){
     STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
     radarSetZones(rows);
+    trackSignals(STATE.signals);
     STATE.last_scan_at=new Date();
     hideProg();
     setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
@@ -1552,10 +1559,16 @@ function radarSetZones(rows){
   RADAR_LIVE.zones=Z;renderAlarms();radarStart();
 }
 function radarStart(){
-  if(RADAR_LIVE.ws||!Object.keys(RADAR_LIVE.zones).length)return;
+  if(RADAR_LIVE.ws)return;
+  if(!Object.keys(RADAR_LIVE.zones).length&&!(STATE.trades||[]).some(t=>t.open))return;
   let ws;try{ws=new WebSocket("wss://fstream.binance.com/ws/!miniTicker@arr");}catch(e){return;}
   RADAR_LIVE.ws=ws;
-  ws.onmessage=ev=>{try{const arr=JSON.parse(ev.data);if(!Array.isArray(arr))return;for(const t of arr){const z=RADAR_LIVE.zones[t.s];if(z)radarCheck(z,+t.c);}}catch(e){}};
+  ws.onmessage=ev=>{try{const arr=JSON.parse(ev.data);if(!Array.isArray(arr))return;
+    const open=(STATE.trades||[]).filter(t=>t.open);
+    for(const t of arr){
+      const z=RADAR_LIVE.zones[t.s];if(z)radarCheck(z,+t.c);
+      for(const tr of open)if(tr.sym===t.s)tradeCheck(tr,+t.c);
+    }}catch(e){}};
   ws.onclose=()=>{RADAR_LIVE.ws=null;clearTimeout(RADAR_LIVE.retry);RADAR_LIVE.retry=setTimeout(radarStart,7000);};
   ws.onerror=()=>{try{ws.close();}catch(e){}};
 }
@@ -1579,11 +1592,57 @@ async function radarAlarm(z,price){
     if(r.status==="SIGNAL"){
       a.st="🚨 سیگنال شد";
       STATE.signals=[r,...STATE.signals.filter(x=>x.binance_symbol!==r.binance_symbol)];
+      trackSignals([r]);
       beep(3);notify(`🚨 سیگنال ${r.direction} — ${z.asset}`,`امتیاز ${fmt(r.score,1)} · ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`);
       renderSignals();saveLocal();if(SYNC.on())SYNC.push();
     }else a.st=`هنوز نه (${LIFE_SHORT[r.status]||r.status})`;
   }catch(e){a.st="خطا در بررسی";}
   finally{RADAR_LIVE.busy--;renderAlarms();saveLocal();if(SYNC.on())SYNC.push();}
+}
+/* ---- automatic signal outcome tracking (paper trades via the same WS) ---- */
+function trackSignals(sigs){
+  if(!Array.isArray(STATE.trades))STATE.trades=[];
+  for(const r of sigs){
+    if(!["LONG","SHORT"].includes(r.direction)||!(r.stop_loss>0))continue;
+    if(STATE.trades.some(t=>t.open&&t.sym===r.binance_symbol))continue;
+    STATE.trades.unshift({sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
+  }
+  STATE.trades=STATE.trades.slice(0,100);
+  renderTrades();radarStart();
+}
+function tradeCheck(tr,price){
+  const L=tr.dir==="LONG";
+  const hitSL=L?price<=tr.sl:price>=tr.sl;
+  const hitT1=L?price>=tr.tp1:price<=tr.tp1;
+  const hitT2=L?price>=tr.tp2:price<=tr.tp2;
+  if(!tr.t1&&hitSL)return tradeClose(tr,-1,"استاپ خورد");
+  if(hitT1&&!tr.t1){tr.t1=true;tr.sl=tr.entry;renderTrades();}
+  if(tr.t1){
+    if(hitT2)return tradeClose(tr,2.5,"تارگت ۲ کامل ✅");
+    if(hitSL)return tradeClose(tr,1.5,"برگشت به ورود بعد از TP1");
+  }
+}
+function tradeClose(tr,r,why){
+  tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
+  const win=r>0;
+  const fb=getFb();
+  fb.unshift({time:new Date().toISOString(),symbol:tr.sym,asset:tr.asset,verdict:win?"win":"loss",
+    note:`خودکار: ${why} (${r>0?"+":""}${r}R)`,setup:"AUTO_TRACK",direction:tr.dir,score:tr.score,lifecycle:"SIGNAL",rr:Math.abs(r)});
+  fb.splice(500);DB.set("feedback",fb);
+  const el=$("#cFb");if(el)el.textContent=fb.length;
+  beep(win?2:1);notify(win?`✅ ${tr.asset} — ${why}`:`❌ ${tr.asset} — ${why}`,`نتیجه ${r>0?"+":""}${r}R ثبت شد`);
+  renderTrades();renderCalib();saveLocal();if(SYNC.on())SYNC.push();
+}
+function renderTrades(){
+  const el=$("#tradeBox");if(el===null||typeof el==="undefined")return;
+  const T=STATE.trades||[];
+  if(!T.length){el.innerHTML=`<div class="dim" style="font-size:12px">هنوز سیگنالی برای پیگیری صادر نشده. با اولین سیگنال، پیگیری خودکار شروع می‌شود.</div>`;return;}
+  const closed=T.filter(t=>!t.open),w=closed.filter(t=>t.r>0).length,net=closed.reduce((a,t)=>a+t.r,0);
+  el.innerHTML=`<div style="font-size:13px;margin-bottom:6px">${T.filter(t=>t.open).length} باز · ${closed.length} بسته${closed.length?` · برد ${Math.round(w/closed.length*100)}% · خالص <b style="color:${net>=0?'#2ecc71':'#e74c3c'}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}</div>`+
+    T.slice(0,15).map(t=>`<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid rgba(140,160,190,.08)">
+      <b>${t.asset}</b><span class="side ${t.dir}" style="font-size:10px">${t.dir}</span>
+      <span class="num dim">@ ${fmt(t.entry)}</span>
+      <span style="margin-inline-start:auto">${t.open?(t.t1?"🟡 TP1 خورد · استاپ=ورود":"⏳ باز"):(t.r>0?`✅ +${t.r}R`:`❌ ${t.r}R`)}</span></div>`).join("");
 }
 function renderAlarms(){
   const el=$("#alarmBox");if(!el)return;
@@ -2038,7 +2097,7 @@ function renderRadar(cards,nPumps){
 /* boot — restore instantly from memory, then reconcile with cloud */
 /* resume UI + live radar from a restored snapshot (nothing waits for the next scan) */
 function bootResume(){
-  renderAlarms();
+  renderAlarms();renderTrades();
   const rows=(STATE.universe&&STATE.universe.length)?STATE.universe:STATE.watchlist;
   if(rows&&rows.length)radarSetZones(rows);
   if(STATE.bt_html){const o=$("#btOut");if(o){o.innerHTML=STATE.bt_html;const ap=$("#btApply");if(ap)ap.replaceWith(Object.assign(document.createElement("div"),{className:"muted",style:"font-size:12px;margin-top:6px",textContent:"نتیجهٔ بازیابی‌شده — برای اعمال آستانه، بک‌تست را دوباره اجرا کن."}));}}
@@ -2046,7 +2105,7 @@ function bootResume(){
 async function boot(){
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
-  renderCalib();renderPatRef();renderSyncStatus();
+  renderCalib();renderPatRef();renderSyncStatus();renderTrades();
   const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();bootResume();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)
