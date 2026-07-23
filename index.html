@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.3 · بک‌تست+چارت زنده</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.4 · کالیبراسیون خودکار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -300,6 +300,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
         <input class="f" id="btSyms" style="flex:1;min-width:220px" value="BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT">
         <button class="btn" id="btRun">اجرای بک‌تست</button>
       </div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">آستانهٔ فعال نشان 🔵 OB روی کارت‌ها: کیفیت ≥ <b id="btCurQ"></b></p>
       <div id="btOut" style="margin-top:10px"></div>
     </div>
     <div class="box" style="margin-top:12px"><h3>تاریخچهٔ بازخورد</h3><div id="fbLog"></div></div>
@@ -1194,8 +1195,9 @@ function ibsPullback(candles15m){
   return{dir,bos,ob,choch,inOB,nearOB,rejCandle,barsAgo,quality:Math.min(100,q),
          cur,entry:inOB?cur:ob.mid,sl:dir==='SHORT'?ob.high*1.003:ob.low*0.997,tp1,tp2};
 }
+function ibsQmin(){return +(DB.get("ibs_qmin")||55);}
 function ibsBadgeHTML(ibs,direction){
-  if(!ibs||ibs.quality<55)return"";
+  if(!ibs||ibs.quality<ibsQmin())return"";
   if(!ibs.inOB&&!ibs.nearOB)return"";
   const agree=ibs.dir===direction;
   const zone=ibs.dir==='LONG'?'تقاضا':'عرضه';
@@ -1267,7 +1269,26 @@ async function runBacktest(){
   }
   html+=`<tr style="border-top:2px solid rgba(140,160,190,.3)"><td style="padding:7px;font-weight:700">جمع کل</td>${BUCKETS.map(([q])=>`<td style="padding:7px">${cell(btAgg(all[q]))}</td>`).join('')}</tr></table></div>
   <p class="muted" style="font-size:12px;margin-top:8px">فرض‌ها: بدون کارمزد/اسلیپیج؛ اگر در یک کندل هم استاپ و هم تارگت لمس شود، باخت حساب می‌شود (محافظه‌کارانه). R یعنی واحد ریسک هر معامله.</p>`;
+  /* recommendation → calibration */
+  const MINN=10;let best=null;
+  for(const[q]of BUCKETS){const a=btAgg(all[q]);if(a.n>=MINN&&(!best||a.net>best.net))best={q,...a};}
+  if(best){
+    const dirLine=['LONG','SHORT'].map(d=>{const a=btAgg(all[best.q].filter(t=>t.dir===d));return `${d==='LONG'?'لانگ':'شورت'}: ${a.n?`${a.n} معامله · برد ${a.winrate}% · ${a.net>0?'+':''}${a.net}R`:'—'}`;}).join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+    const better=best.q!==ibsQmin();
+    html+=`<div class="box" style="margin-top:10px;border-color:${best.net>=0?'#1e7d5a':'#7d1e1e'}">
+      <h3 style="margin:0 0 6px">پیشنهاد کالیبراسیون</h3>
+      <div style="font-size:13px">بهترین آستانه در این بک‌تست: <b>کیفیت ≥ ${best.q}</b> — ${best.n} معامله · برد ${best.winrate}% · خالص <b style="color:${best.net>=0?'#2ecc71':'#e74c3c'}">${best.net>0?'+':''}${best.net}R</b></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${dirLine}</div>
+      ${best.net<0?`<div class="muted" style="font-size:12px;margin-top:4px">⚠️ در این بازه هیچ آستانه‌ای سودده نبوده — نشان OB را فقط به‌عنوان هشدار زمینه ببین، نه سیگنال ورود.</div>`:""}
+      ${better?`<button class="btn ghost" id="btApply" style="margin-top:8px">اعمال آستانهٔ ${best.q} روی نشان‌های OB پنل</button>`:`<div class="muted" style="font-size:12px;margin-top:6px">همین آستانه الان فعال است ✓</div>`}
+    </div>`;
+  } else {
+    html+=`<div class="muted" style="font-size:12px;margin-top:8px">برای پیشنهاد آستانه، حداقل ${MINN} معامله لازم است — نماد یا بازهٔ بیشتری اضافه کن.</div>`;
+  }
   out.innerHTML=html;
+  const curEl=$("#btCurQ");if(curEl)curEl.textContent=ibsQmin()+"%";
+  const ap=$("#btApply");
+  if(ap&&best)ap.onclick=()=>{DB.set("ibs_qmin",best.q);if(curEl)curEl.textContent=best.q+"%";ap.replaceWith(Object.assign(document.createElement("div"),{className:"muted",style:"font-size:12px;margin-top:6px",textContent:"اعمال شد ✓ — نشان‌های OB از این به بعد با این آستانه نمایش داده می‌شوند."}));renderSignals();renderWatch();};
 }
 
 /* =========================================================================
@@ -1942,6 +1963,7 @@ async function boot(){
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
   renderCalib();renderPatRef();renderSyncStatus();
+  const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)
   if(SYNC.on()){
