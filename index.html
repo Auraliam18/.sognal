@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.7 · پیگیری خودکار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.8 · دامیننس+پهنای بازار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1331,7 +1331,17 @@ async function fetchMarketContext(){
     let risk_mode="NEUTRAL";
     if(m.direction==="LONG"&&chg>0)risk_mode="RISK_ON";
     else if(m.direction==="SHORT"&&chg<-1.5)risk_mode="RISK_OFF";
-    return{risk_mode,btc_dir:m.direction,btc_change_24h:chg};
+    const ctx={risk_mode,btc_dir:m.direction,btc_change_24h:chg};
+    /* BTC dominance (coingecko, cached 10 min, fails silently) */
+    try{
+      const now=Date.now(),c=fetchMarketContext._dom;
+      if(c&&now-c.at<600000)ctx.btc_dominance=c.v;
+      else{const g=await(await fetch("https://api.coingecko.com/api/v3/global",{cache:"no-store"})).json();
+        const v=g&&g.data&&g.data.market_cap_percentage&&g.data.market_cap_percentage.btc;
+        if(v){ctx.btc_dominance=Math.round(v*10)/10;fetchMarketContext._dom={v:ctx.btc_dominance,at:now};}}
+    }catch(e){}
+    if(STATE.market_context&&STATE.market_context.breadth!=null)ctx.breadth=STATE.market_context.breadth;
+    return ctx;
   }catch(e){return{risk_mode:"UNKNOWN"};}
 }
 const FX_FIAT=new Set(["EUR","GBP","JPY","AUD","NZD","CAD","CHF","CNH","CNY","HKD","SGD","MXN","ZAR","TRY","SEK","NOK","DKK","PLN","HUF","CZK","INR","RUB","BRL","KRW","THB","IDR","PHP","MYR","AED","SAR","QAR","ILS","CLP","COP","RON","ISK","USD","EURO"]);
@@ -1375,6 +1385,8 @@ async function runScan(){
     const[tickers,funding,ctx]=await Promise.all([fetchTickers(),fetchFundingMap(),fetchMarketContext()]);
     STATE.market_context=ctx;renderRegime();
     const uni=await buildUniverse(tickers);
+    ctx.breadth=Math.round(uni.filter(a=>a.change_24h_pct>0).length/uni.length*100);
+    STATE.market_context=ctx;renderRegime();
     setStatus(`در حال تحلیل ${uni.length} نماد پرحجم…`);showProg(0,uni.length);
     const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>showProg(d,uni.length));
     rows.sort((a,b)=>(a.rank||999)-(b.rank||999));
@@ -1409,7 +1421,9 @@ function renderRegime(){
   const c=STATE.market_context||{},col={RISK_ON:"var(--long)",RISK_OFF:"var(--short)",NEUTRAL:"var(--watch)",UNKNOWN:"var(--gray)"}[c.risk_mode]||"var(--gray)";
   $("#regime").firstElementChild.style.background=col;
   const fa={RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی",UNKNOWN:"نامشخص"}[c.risk_mode]||"نامشخص";
-  $("#regimeTxt").innerHTML=`رژیم بازار: ${fa} `+(c.btc_dir?`· BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}%`:"");
+  $("#regimeTxt").innerHTML=`رژیم بازار: ${fa} `+(c.btc_dir?`· BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}%`:"")
+    +(c.btc_dominance?` · دامیننس ${c.btc_dominance}%`:"")
+    +(c.breadth!=null?` · ${c.breadth}% بازار صعودی`:"");
 }
 function railHTML(status,direction){
   const idx=LIFE.indexOf(status);const rej=idx<0;
