@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v5.0 · تمام‌خودکار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v5.1 · اتاق کنترل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -225,6 +225,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="btn primary" id="scanBtn">اسکن بازار</button>
   </div>
   <div class="tabs" id="tabs">
+    <button class="tab" data-t="ops">اتاق کنترل<span class="b" id="cOps">•</span></button>
     <button class="tab active" data-t="signals">سیگنال‌ها<span class="b" id="cSig">0</span></button>
     <button class="tab" data-t="watch">واچ‌لیست<span class="b" id="cWatch">0</span></button>
     <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
@@ -244,6 +245,12 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
   </div>
 
   <div id="alarmBox"></div>
+  <section id="view-ops" style="display:none">
+    <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px">هر اتاق یک بخش از موتور است که مستقل کار می‌کند. اینجا لحظه‌به‌لحظه می‌بینی هرکدام الان مشغول چه کاری‌ست و چند ارز را پایش می‌کند.</p>
+    <div id="opsRooms" class="grid" style="margin-top:12px"></div>
+    <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
+  </section>
   <section id="view-signals"></section>
   <section id="view-watch" style="display:none"></section>
 
@@ -403,6 +410,7 @@ function buildSnapshot(){
     feedback:(DB.get("feedback")||[]),
     alarms:(typeof RADAR_LIVE!=="undefined"?RADAR_LIVE.alarms:[]).map(a=>({t:new Date(a.t).toISOString(),asset:a.asset,dir:a.dir,price:a.price,st:a.st})),
     trades:STATE.trades||[],
+    ops_feed:(typeof OPS!=="undefined"?OPS.feed.slice(0,120):[]),
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
 }
@@ -421,6 +429,7 @@ function restoreSnapshot(snap){
     if(snap.cfg&&typeof snap.cfg==="object"){Object.assign(CFG,snap.cfg);DB.set("cfg",CFG);}
     if(snap.bt_html){STATE.bt_html=snap.bt_html;STATE.bt_at=snap.bt_at||null;}
     if(Array.isArray(snap.trades))STATE.trades=snap.trades;
+    if(Array.isArray(snap.ops_feed)&&typeof OPS!=="undefined"&&!OPS.feed.length)OPS.feed=snap.ops_feed;
     return true;
   }catch(e){return false;}
 }
@@ -1290,10 +1299,13 @@ async function runBacktest(auto){
   }
   if(!syms.length)return;
   const BUCKETS=[[55,'کیفیت ≥۵۵'],[65,'کیفیت ≥۶۵'],[75,'کیفیت ≥۷۵']];
+  OPS.bt.state="running";OPS.bt.done=0;OPS.bt.total=syms.length;
+  opslog("calib",`بک‌تست خودکار شروع شد روی ${syms.length} نماد`);
   out.innerHTML=`<div class="empty">در حال دریافت ۱۵۰۰ کندل ۱۵م برای ${syms.length} نماد…</div>`;
   const per={};const all={};BUCKETS.forEach(([q])=>all[q]=[]);
   for(const sym of syms){
     try{
+      OPS.bt.sym=sym;OPS.bt.done++;opslog("calib",`بک‌تست ${sym.replace("USDT","")} — ۱۵۰۰ کندل ۱۵م`);
       const cd=await fetchKlines(sym,"15m",1500);
       per[sym]={};
       for(const[q]of BUCKETS){const tr=backtestIBS(cd,q);per[sym][q]=btAgg(tr);all[q].push(...tr);}
@@ -1330,7 +1342,11 @@ async function runBacktest(auto){
   out.innerHTML=html;
   STATE.bt_html=html;STATE.bt_at=Date.now();saveLocal();if(SYNC.on())SYNC.push();
   const curEl=$("#btCurQ");if(curEl)curEl.textContent=ibsQmin()+"%";
+  OPS.bt.state="idle";
+  if(best)opslog("calib",`نتیجه: بهترین آستانه کیفیت ≥${best.q} — ${best.n} معامله، برد ${best.winrate}%، خالص ${best.net>0?"+":""}${best.net}R`,best.net>=0?"sig":"warn");
+  else opslog("calib","معاملهٔ کافی برای پیشنهاد آستانه پیدا نشد","warn");
   if(best&&best.q!==ibsQmin()){ // self-calibrating: no click needed
+    opslog("calib",`آستانهٔ نشان OB خودکار از ${ibsQmin()} به ${best.q} تغییر کرد`,"sig");
     DB.set("ibs_qmin",best.q);if(curEl)curEl.textContent=best.q+"%";
     renderSignals();renderWatch();saveLocal();if(SYNC.on())SYNC.push();
   }
@@ -1407,6 +1423,7 @@ const LIFE_SHORT={NO_SETUP:"no setup",WATCHING:"watching",APPROACHING_ENTRY_ZONE
 async function runScan(){
   if(STATE.scanning)return;STATE.scanning=true;setScanning(true);
   try{
+    OPS.scan.state="running";OPS.scan.done=0;OPS.scan.total=0;opslog("scan","اسکن شروع شد — خواندن تیکرها و رژیم بازار");
     setStatus("در حال خواندن تیکرها و رژیم بازار…");
     const[tickers,funding,ctx]=await Promise.all([fetchTickers(),fetchFundingMap(),fetchMarketContext()]);
     STATE.market_context=ctx;renderRegime();
@@ -1414,14 +1431,17 @@ async function runScan(){
     ctx.breadth=Math.round(uni.filter(a=>a.change_24h_pct>0).length/uni.length*100);
     STATE.market_context=ctx;renderRegime();
     setStatus(`در حال تحلیل ${uni.length} نماد پرحجم…`);showProg(0,uni.length);
-    const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>showProg(d,uni.length));
+    OPS.scan.total=uni.length;opslog("scan",`${uni.length} ارز پرحجم انتخاب شد — تحلیل ۳ تایم‌فریمه شروع شد`);
+    opslog("market",`رژیم ${ctx.risk_mode}${ctx.btc_dominance?` · دامیننس ${ctx.btc_dominance}%`:""}${ctx.breadth!=null?` · ${ctx.breadth}% بازار صعودی`:""}`);
+    const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>{OPS.scan.done=d;showProg(d,uni.length);});
     rows.sort((a,b)=>(a.rank||999)-(b.rank||999));
     STATE.universe=rows;
     STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
     radarSetZones(rows);
     trackSignals(STATE.signals);
-    STATE.last_scan_at=new Date();
+    STATE.last_scan_at=new Date();OPS.scan.state="idle";OPS.nextScan=Date.now()+CFG.interval*1000;
+    opslog("scan",`اسکن کامل شد — ${STATE.signals.length} سیگنال، ${STATE.watchlist.length} در واچ‌لیست از ${rows.length} ارز`,STATE.signals.length?"sig":"info");
     hideProg();
     setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
     renderAll();
@@ -1429,7 +1449,7 @@ async function runScan(){
   }catch(e){
     hideProg();
     setStatus(`اتصال به بایننس ناموفق بود (${e.message}). اتصالت را بررسی کن یا در «تنظیمات» آدرس پایهٔ API را به یک میرر معتبر تغییر بده. «تحلیل تک‌نماد» هم می‌تواند کمک کند چون درخواست کمتری دارد.`);
-  }finally{STATE.scanning=false;setScanning(false);}
+  }finally{STATE.scanning=false;OPS.scan.state="idle";setScanning(false);}
 }
 
 /* =========================================================================
@@ -1530,7 +1550,7 @@ function liveConnect(sym){
   let ws;
   try{ws=new WebSocket(`wss://fstream.binance.com/ws/${sym.toLowerCase()}@kline_15m`);}catch(e){liveSetStatus("وب‌سوکت در دسترس نیست",false);return;}
   LIVE.ws=ws;
-  ws.onopen=()=>liveSetStatus("● زنده",true);
+  ws.onopen=()=>{liveSetStatus("● زنده",true);opslog("chart",`چارت زندهٔ ${sym.replace("USDT","")} متصل شد`);};
   ws.onmessage=ev=>{
     try{
       const k=JSON.parse(ev.data).k;if(!k||!LIVE.cs)return;
@@ -1579,6 +1599,77 @@ async function initLiveChart(r){
 }
 
 /* =========================================================================
+   OPS ROOM — live telemetry: what every module is doing, right now.
+   ========================================================================= */
+const OPS={feed:[],ticks:0,tickWin:[],lastTick:0,scan:{state:"idle",done:0,total:0,sym:""},
+  bt:{state:"idle",sym:"",done:0,total:0},deep:{sym:"",state:"idle"},nextScan:0};
+function opslog(room,msg,kind){
+  OPS.feed.unshift({t:Date.now(),room,msg,kind:kind||"info"});
+  if(OPS.feed.length>240)OPS.feed.length=240;
+  if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOpsFeed();
+}
+const ROOMS={scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
+function opsTick(n){
+  OPS.ticks+=n;OPS.lastTick=Date.now();
+  OPS.tickWin.push({t:Date.now(),n});
+  const cut=Date.now()-5000;while(OPS.tickWin.length&&OPS.tickWin[0].t<cut)OPS.tickWin.shift();
+}
+function opsRate(){const s=OPS.tickWin.reduce((a,x)=>a+x.n,0);return Math.round(s/5);}
+function roomCard(key,alive,head,lines){
+  return `<div class="card fade" style="padding:13px 14px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="width:8px;height:8px;border-radius:50%;background:${alive?"#2ecc71":"#5b6675"};box-shadow:${alive?"0 0 8px #2ecc71":"none"}"></span>
+      <b style="font-size:13px">${ROOMS[key]}</b>
+      <span class="dim mono" style="margin-inline-start:auto;font-size:11px">${alive?"فعال":"در انتظار"}</span>
+    </div>
+    <div style="font-size:12px;margin-top:7px;line-height:1.9">${head}</div>
+    ${lines?`<div class="dim" style="font-size:11px;margin-top:5px;line-height:1.8">${lines}</div>`:""}
+  </div>`;
+}
+function renderOps(){
+  const el=$("#opsRooms");if(!el)return;
+  const c=STATE.market_context||{},nz=Object.keys(RADAR_LIVE.zones).length;
+  const open=(STATE.trades||[]).filter(t=>t.open),closed=(STATE.trades||[]).filter(t=>!t.open);
+  const net=closed.reduce((a,t)=>a+t.r,0);
+  const secs=OPS.nextScan?Math.max(0,Math.round((OPS.nextScan-Date.now())/1000)):0;
+  const mmss=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const rate=opsRate(),wsOk=!!RADAR_LIVE.ws;
+  el.innerHTML=[
+    roomCard("scan",OPS.scan.state==="running",
+      OPS.scan.state==="running"?`در حال تحلیل <b>${OPS.scan.done}</b> از ${OPS.scan.total} نماد…`
+        :`${(STATE.universe||[]).length} ارز زیر نظر · اسکن بعدی تا <b class="num">${mmss(secs)}</b>`,
+      `آخرین اسکن: ${STATE.last_scan_at?fmtTime(STATE.last_scan_at):"—"} · هر ${Math.round(CFG.interval/60)} دقیقه · ۳ تایم‌فریم (۵م/۱۵م/۱ساعته) برای هر ارز`),
+    roomCard("radar",wsOk,
+      `<b>${nz}</b> ناحیهٔ ورود زیر نظر · <b class="num">${rate}</b> قیمت در ثانیه`,
+      wsOk?`وب‌سوکت متصل — هر ارز هر ثانیه چک می‌شود که وارد ناحیه‌اش شده یا نه`:"در انتظار اسکن یا اتصال مجدد…"),
+    roomCard("trade",open.length>0,
+      `<b>${open.length}</b> معاملهٔ باز · ${closed.length} بسته${closed.length?` · خالص <b style="color:${net>=0?"#2ecc71":"#e74c3c"}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}`,
+      open.length?open.slice(0,4).map(t=>`${t.asset} ${t.dir} @ ${fmt(t.entry)} ${t.t1?"· TP1 خورد":""}`).join(" · "):"با اولین سیگنال، پیگیری خودکار شروع می‌شود"),
+    roomCard("calib",OPS.bt.state==="running",
+      OPS.bt.state==="running"?`بک‌تست ${OPS.bt.sym} (<b>${OPS.bt.done}</b>/${OPS.bt.total})…`
+        :`آستانهٔ فعال: کیفیت ≥ <b>${ibsQmin()}</b> · ${getFb().length} بازخورد ثبت‌شده`,
+      STATE.bt_at?`آخرین بک‌تست: ${fmtTime(new Date(STATE.bt_at))} · بعدی حدود ۶ ساعت بعد`:"اولین بک‌تست خودکار کمی بعد از اسکن اجرا می‌شود"),
+    roomCard("market",!!c.risk_mode&&c.risk_mode!=="UNKNOWN",
+      `رژیم: <b>${({RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی"})[c.risk_mode]||"نامشخص"}</b>${c.btc_dominance?` · دامیننس <b>${c.btc_dominance}%</b>`:""}${c.breadth!=null?` · <b>${c.breadth}%</b> بازار صعودی`:""}`,
+      c.btc_dir?`BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}% در ۲۴ ساعت`:""),
+    roomCard("deep",OPS.deep.state==="running"||!!LIVE.ws,
+      OPS.deep.state==="running"?`در حال تحلیل عمیق ${OPS.deep.sym}…`:(lastDeep?`آخرین تحلیل: <b>${lastDeep.asset_symbol}</b> · ${lastDeep.direction} · امتیاز ${fmt(lastDeep.score,1)}`:"منتظر انتخاب نماد"),
+      LIVE.ws?`چارت زندهٔ ${LIVE.sym} متصل — کندل ۱۵م لحظه‌ای`:"چارت زنده وقتی نمادی را باز کنی متصل می‌شود")
+  ].join("");
+  renderOpsFeed();
+}
+function renderOpsFeed(){
+  const f=$("#opsFeed");if(!f)return;
+  const r=$("#opsRate");if(r)r.textContent=`${opsRate()} قیمت/ثانیه · ${OPS.ticks.toLocaleString("en")} بررسی از ابتدا`;
+  const col={sig:"#2ecc71",warn:"#f0a92e",err:"#e74c3c",info:"var(--dim)"};
+  f.innerHTML=OPS.feed.slice(0,120).map(e=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
+    <span class="dim mono" style="flex:none">${fmtTime(new Date(e.t))}</span>
+    <span class="mono" style="flex:none;color:#7f8ea3;min-width:92px">${ROOMS[e.room]||e.room}</span>
+    <span style="color:${col[e.kind]||col.info}">${e.msg}</span></div>`).join("")||`<div class="dim" style="font-size:12px">هنوز رویدادی ثبت نشده.</div>`;
+}
+let opsTimer=setInterval(()=>{if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOps();},1000);
+
+/* =========================================================================
    LIVE RADAR — one !miniTicker WebSocket streams every symbol's price each
    second; entry zones from the last scan are watched, a touch fires an
    alarm (sound + notification) and an automatic full re-analysis that can
@@ -1596,7 +1687,7 @@ function radarSetZones(rows){
     if(!(lo>0)||hi<=lo)return;
     Z[r.binance_symbol]={sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,low:lo,high:hi,qv:r.quote_volume,chg:r.change_24h_pct};
   });
-  RADAR_LIVE.zones=Z;renderAlarms();radarStart();
+  RADAR_LIVE.zones=Z;opslog("radar",`${Object.keys(Z).length} ناحیهٔ ورود علامت‌گذاری شد`);renderAlarms();radarStart();
 }
 function radarStart(){
   if(RADAR_LIVE.ws)return;
@@ -1604,12 +1695,14 @@ function radarStart(){
   let ws;try{ws=new WebSocket("wss://fstream.binance.com/ws/!miniTicker@arr");}catch(e){return;}
   RADAR_LIVE.ws=ws;
   ws.onmessage=ev=>{try{const arr=JSON.parse(ev.data);if(!Array.isArray(arr))return;
+    opsTick(arr.length);
     const open=(STATE.trades||[]).filter(t=>t.open);
     for(const t of arr){
       const z=RADAR_LIVE.zones[t.s];if(z)radarCheck(z,+t.c);
       for(const tr of open)if(tr.sym===t.s)tradeCheck(tr,+t.c);
     }}catch(e){}};
-  ws.onclose=()=>{RADAR_LIVE.ws=null;clearTimeout(RADAR_LIVE.retry);RADAR_LIVE.retry=setTimeout(radarStart,7000);};
+  ws.onopen=()=>opslog("radar",`وب‌سوکت متصل شد — پایش ثانیه‌ای ${Object.keys(RADAR_LIVE.zones).length} ناحیهٔ ورود`,"sig");
+  ws.onclose=()=>{RADAR_LIVE.ws=null;opslog("radar","اتصال قطع شد — تلاش مجدد تا ۷ ثانیه","warn");clearTimeout(RADAR_LIVE.retry);RADAR_LIVE.retry=setTimeout(radarStart,7000);};
   ws.onerror=()=>{try{ws.close();}catch(e){}};
 }
 function radarCheck(z,price){
@@ -1620,6 +1713,7 @@ function radarCheck(z,price){
   radarAlarm(z,price);
 }
 async function radarAlarm(z,price){
+  opslog("radar",`⚡ ${z.asset} وارد ناحیهٔ ورود شد @ ${fmt(price)} — بررسی مجدد کامل شروع شد`,"warn");
   beep(1);notify(`⚡ ${z.asset} وارد ناحیهٔ ورود شد`,`${z.dir} @ ${fmt(price)} — بررسی مجدد خودکار…`);
   const a={t:new Date(),asset:z.asset,dir:z.dir,price,st:"بررسی…"};
   RADAR_LIVE.alarms.unshift(a);RADAR_LIVE.alarms=RADAR_LIVE.alarms.slice(0,10);renderAlarms();
@@ -1635,7 +1729,8 @@ async function radarAlarm(z,price){
       trackSignals([r]);
       beep(3);notify(`🚨 سیگنال ${r.direction} — ${z.asset}`,`امتیاز ${fmt(r.score,1)} · ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`);
       renderSignals();saveLocal();if(SYNC.on())SYNC.push();
-    }else a.st=`هنوز نه (${LIFE_SHORT[r.status]||r.status})`;
+      opslog("radar",`🚨 ${z.asset} همهٔ قوانین را پاس کرد — سیگنال ${r.direction} با امتیاز ${fmt(r.score,1)}`,"sig");
+    }else{a.st=`هنوز نه (${LIFE_SHORT[r.status]||r.status})`;opslog("radar",`${z.asset} هنوز شرایط ندارد — ${LIFE_SHORT[r.status]||r.status}${(r.blockers||[]).length?" · مانع: "+r.blockers.map(chkLabelFa).join("، "):""}`);}
   }catch(e){a.st="خطا در بررسی";}
   finally{RADAR_LIVE.busy--;renderAlarms();saveLocal();if(SYNC.on())SYNC.push();}
 }
@@ -1645,6 +1740,7 @@ function trackSignals(sigs){
   for(const r of sigs){
     if(!["LONG","SHORT"].includes(r.direction)||!(r.stop_loss>0))continue;
     if(STATE.trades.some(t=>t.open&&t.sym===r.binance_symbol))continue;
+    opslog("trade",`پیگیری ${r.asset_symbol} ${r.direction} شروع شد — ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`,"sig");
     STATE.trades.unshift({sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
   }
   STATE.trades=STATE.trades.slice(0,100);
@@ -1656,7 +1752,7 @@ function tradeCheck(tr,price){
   const hitT1=L?price>=tr.tp1:price<=tr.tp1;
   const hitT2=L?price>=tr.tp2:price<=tr.tp2;
   if(!tr.t1&&hitSL)return tradeClose(tr,-1,"استاپ خورد");
-  if(hitT1&&!tr.t1){tr.t1=true;tr.sl=tr.entry;renderTrades();}
+  if(hitT1&&!tr.t1){tr.t1=true;tr.sl=tr.entry;opslog("trade",`🟡 ${tr.asset} به TP1 رسید — استاپ به نقطهٔ ورود منتقل شد`,"sig");renderTrades();}
   if(tr.t1){
     if(hitT2)return tradeClose(tr,2.5,"تارگت ۲ کامل ✅");
     if(hitSL)return tradeClose(tr,1.5,"برگشت به ورود بعد از TP1");
@@ -1665,6 +1761,7 @@ function tradeCheck(tr,price){
 function tradeClose(tr,r,why){
   tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
   const win=r>0;
+  opslog("trade",`${win?"✅":"❌"} ${tr.asset} ${tr.dir} — ${why} (${r>0?"+":""}${r}R)`,win?"sig":"err");
   const fb=getFb();
   fb.unshift({time:new Date().toISOString(),symbol:tr.sym,asset:tr.asset,verdict:win?"win":"loss",
     note:`خودکار: ${why} (${r>0?"+":""}${r}R)`,setup:"AUTO_TRACK",direction:tr.dir,score:tr.score,lifecycle:"SIGNAL",rr:Math.abs(r)});
@@ -1697,6 +1794,7 @@ let lastDeep=null;
 async function deepAnalyze(symInput){
   let sym=(symInput||"").trim().toUpperCase();if(!sym)return;
   if(!sym.endsWith("USDT"))sym+="USDT";
+  OPS.deep.sym=sym;OPS.deep.state="running";opslog("deep",`تحلیل عمیق ${sym.replace("USDT","")} شروع شد — ۲۰۰ کندل + اسکن الگو`);
   $("#ddOut").innerHTML=`<div class="empty">در حال تحلیل ${sym} و اسکن ۲۰۰ کندل ۱۵م برای الگو…</div>`;$("#ddMeta").textContent="";
   try{
     const[funding,ctx]=await Promise.all([fetchFundingMap().catch(()=>({})),fetchMarketContext()]);
@@ -1706,6 +1804,7 @@ async function deepAnalyze(symInput){
     const r=await analyzeOne(asset,funding,ctx);
     try{r.klines15_200=await fetchKlines(sym,"15m",200);}catch(e){r.klines15_200=null;}
     try{r.klines5_200=await fetchKlines(sym,"5m",200);}catch(e){r.klines5_200=null;}
+    OPS.deep.state="idle";opslog("deep",`${r.asset_symbol}: ${r.direction} · امتیاز ${fmt(r.score,1)} · ${LIFE_SHORT[r.status]||r.status}`);
     lastDeep=r;renderDeep(r);
     requestAnimationFrame(()=>{renderPatternChart(r);initLiveChart(r);});
     $("#ddMeta").textContent=`${fmtVol(r.quote_volume)} · ${fmtTime(new Date())}`;
@@ -1847,7 +1946,8 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["signals","watch","single","scalp","radar","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","watch","single","scalp","radar","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  if(t==="ops")renderOps();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
@@ -2154,7 +2254,7 @@ function renderRadar(cards,nPumps){
 /* boot — restore instantly from memory, then reconcile with cloud */
 /* resume UI + live radar from a restored snapshot (nothing waits for the next scan) */
 function bootResume(){
-  renderAlarms();renderTrades();
+  renderAlarms();renderTrades();renderOps();
   const rows=(STATE.universe&&STATE.universe.length)?STATE.universe:STATE.watchlist;
   if(rows&&rows.length)radarSetZones(rows);
   if(STATE.bt_html){const o=$("#btOut");if(o){o.innerHTML=STATE.bt_html;const ap=$("#btApply");if(ap)ap.replaceWith(Object.assign(document.createElement("div"),{className:"muted",style:"font-size:12px;margin-top:6px",textContent:"نتیجهٔ بازیابی‌شده — برای اعمال آستانه، بک‌تست را دوباره اجرا کن."}));}}

@@ -52,6 +52,19 @@ await p.evaluate(()=>saveLocal());
 await p.reload({waitUntil:'load'});await p.waitForTimeout(2500);
 T.persist=await p.evaluate(()=>STATE.watchlist.length>0&&RADAR_LIVE.alarms.length>0&&(STATE.trades||[]).length>0&&Object.keys(RADAR_LIVE.zones).length>0&&!!document.querySelector('#btOut table'));
 T.feedback=await p.evaluate(()=>getFb().length>0);
+// OPS control room
+await p.evaluate(()=>selectTab('ops'));
+await p.waitForTimeout(2500);
+const ops=await p.evaluate(()=>({
+  rooms:document.querySelectorAll('#opsRooms .card').length,
+  alive:[...document.querySelectorAll('#opsRooms .card')].filter(c=>c.innerText.includes('فعال')).length,
+  feed:document.querySelectorAll('#opsFeed div').length,
+  rate:(document.getElementById('opsRate')||{}).textContent,
+  sample:[...document.querySelectorAll('#opsFeed div')].slice(0,3).map(d=>d.innerText.replace(/\n/g,' | ')),
+  roomHeads:[...document.querySelectorAll('#opsRooms .card b')].map(b=>b.textContent)
+}));
+console.log('OPS:',JSON.stringify(ops,null,1));
+await p.screenshot({path:'shot9_ops.png',fullPage:true});
 console.log('SYNC-AUTO:',await p.evaluate(()=>SYNC.get().on));
 console.log('MATRIX:',JSON.stringify(T));
 console.log('ERRS:',errs.length?errs.slice(0,6):'none');
