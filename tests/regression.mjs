@@ -36,11 +36,14 @@ T.track=await p.evaluate(async()=>{trackSignals([{binance_symbol:"XRPUSDT",asset
   const tr=STATE.trades.find(t=>t.sym==="XRPUSDT");tradeCheck(tr,92);tradeCheck(tr,87);await new Promise(r=>setTimeout(r,300));
   return !tr.open&&tr.r===2.5&&getFb()[0].verdict==="win";});
 // backtest + calibration
+// AUTO backtest: no click at all — just wait for the scheduled run (45s)
 await p.evaluate(()=>selectTab('calib'));
-await p.fill('#btSyms','BTCUSDT, ETHUSDT');
-await p.click('#btRun');await p.waitForTimeout(10000);
-T.backtest=await p.evaluate(()=>!!document.querySelector('#btOut table'));
-T.calibRec=await p.evaluate(()=>document.body.innerHTML.includes('پیشنهاد کالیبراسیون')||document.body.innerHTML.includes('حداقل'));
+const q0=await p.evaluate(()=>ibsQmin());
+await p.waitForTimeout(48000);
+T.autoBacktest=await p.evaluate(()=>!!document.querySelector('#btOut table'));
+T.autoCalib=await p.evaluate(()=>document.body.innerHTML.includes('خودکار اعمال شد')||document.body.innerHTML.includes('همین آستانه'));
+T.noApplyBtn=await p.evaluate(()=>!document.getElementById('btApply'));
+T.btSymsAuto=await p.evaluate(()=>($('#btSyms').value||'').includes('USDT'));
 // scalp + pump radar tabs render
 T.scalp=await p.evaluate(async()=>{selectTab('scalp');await runScalp('BTCUSDT');await new Promise(r=>setTimeout(r,1500));return !document.getElementById('view-scalp').innerText.includes('خطا');});
 T.pumpRadar=await p.evaluate(async()=>{selectTab('radar');try{await runRadar();return true;}catch(e){return 'ERR:'+e.message;}});
@@ -49,6 +52,7 @@ await p.evaluate(()=>saveLocal());
 await p.reload({waitUntil:'load'});await p.waitForTimeout(2500);
 T.persist=await p.evaluate(()=>STATE.watchlist.length>0&&RADAR_LIVE.alarms.length>0&&(STATE.trades||[]).length>0&&Object.keys(RADAR_LIVE.zones).length>0&&!!document.querySelector('#btOut table'));
 T.feedback=await p.evaluate(()=>getFb().length>0);
+console.log('SYNC-AUTO:',await p.evaluate(()=>SYNC.get().on));
 console.log('MATRIX:',JSON.stringify(T));
 console.log('ERRS:',errs.length?errs.slice(0,6):'none');
 await b.close();

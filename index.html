@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v4.8 · دامیننس+پهنای بازار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v5.0 · تمام‌خودکار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -295,12 +295,13 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="box" style="margin-top:12px">
       <h3>بک‌تست IBS + پولبک (دادهٔ واقعی بایننس)</h3>
       <p class="muted" style="margin-top:-4px;font-size:13px">
+        <b>خودکار اجرا می‌شود</b> — کمی بعد از اولین اسکن و بعد هر ۶ ساعت، روی پرحجم‌ترین نمادهای همان اسکن. بهترین آستانهٔ کیفیت هم خودش اعمال می‌شود.
         روی ۱۵۰۰ کندل ۱۵م اخیر هر نماد (~۱۵ روز) شبیه‌سازی می‌کند: ورود فقط وقتی قیمت داخل OB و کندل تأیید بسته شده باشد؛
-        استاپ پشت OB، تارگت 1.5R و 2.5R، بعد از TP1 استاپ به نقطهٔ ورود می‌رود. نتیجه به تفکیک آستانهٔ کیفیت تا ببینی کدام حد، برد بیشتری می‌دهد.
+        استاپ پشت OB، تارگت 1.5R و 2.5R، بعد از TP1 استاپ به نقطهٔ ورود می‌رود.
       </p>
       <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input class="f" id="btSyms" style="flex:1;min-width:220px" value="BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT">
-        <button class="btn" id="btRun">اجرای بک‌تست</button>
+        <button class="btn ghost" id="btRun" title="اختیاری — بک‌تست خودش اجرا می‌شود">اجرای دستی</button>
       </div>
       <p class="muted" style="font-size:12px;margin:8px 0 0">آستانهٔ فعال نشان 🔵 OB روی کارت‌ها: کیفیت ≥ <b id="btCurQ"></b></p>
     </div>
@@ -433,7 +434,23 @@ const SYNC=(()=>{
   async function push(snap){if(!on())return false;try{const r=await fetch(url(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:snap||buildSnapshot()})});return r.ok;}catch(e){return false;}}
   function set(base,key){cfg={base:(base||"").trim(),key:(key||"").trim()};DB.set("sync",cfg);}
   function get(){return {base:cfg.base,key:cfg.key,on:on()};}
-  return {pull,push,set,get,on};
+  /* Zero-config: when the panel itself is served from the Vercel project,
+     /api/state is same-origin — adopt it (with a stable auto key) if it answers. */
+  async function autoDetect(){
+    if(on())return false;
+    if(!/^https?:$/.test(location.protocol))return false;
+    let key=DB.get("sync_autokey");
+    if(!key){key="auto-"+Math.random().toString(36).slice(2,10)+Date.now().toString(36);DB.set("sync_autokey",key);}
+    const base=location.origin;
+    try{
+      const r=await fetch(base+"/api/state?key="+encodeURIComponent(key),{cache:"no-store"});
+      if(!r.ok)return false;
+      await r.json();
+      set(base,key);
+      return true;
+    }catch(e){return false;}
+  }
+  return {pull,push,set,get,on,autoDetect};
 })();
 function renderSyncStatus(){
   const el=$("#syncPill");if(!el)return;
@@ -1262,8 +1279,15 @@ function btAgg(trades){
   const net=trades.reduce((a,t)=>a+t.r,0);
   return{n,winrate:Math.round(w/n*100),t2rate:Math.round(t2/n*100),net:Math.round(net*10)/10};
 }
-async function runBacktest(){
-  const out=$("#btOut"),syms=$("#btSyms").value.split(/[,\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean).slice(0,10);
+async function runBacktest(auto){
+  const out=$("#btOut");
+  if(auto&&(STATE.scanning||RADAR_LIVE.busy))return;            // never fight a scan for bandwidth
+  let syms=($("#btSyms").value||"").split(/[,\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean).slice(0,10);
+  if(auto){ // calibrate on what we actually trade: the busiest names in the current universe
+    const uni=(STATE.universe||[]).slice(0,6).map(a=>a.binance_symbol);
+    if(uni.length)syms=uni;
+    $("#btSyms").value=syms.join(", ");
+  }
   if(!syms.length)return;
   const BUCKETS=[[55,'کیفیت ≥۵۵'],[65,'کیفیت ≥۶۵'],[75,'کیفیت ≥۷۵']];
   out.innerHTML=`<div class="empty">در حال دریافت ۱۵۰۰ کندل ۱۵م برای ${syms.length} نماد…</div>`;
@@ -1298,7 +1322,7 @@ async function runBacktest(){
       <div style="font-size:13px">بهترین آستانه در این بک‌تست: <b>کیفیت ≥ ${best.q}</b> — ${best.n} معامله · برد ${best.winrate}% · خالص <b style="color:${best.net>=0?'#2ecc71':'#e74c3c'}">${best.net>0?'+':''}${best.net}R</b></div>
       <div class="muted" style="font-size:12px;margin-top:4px">${dirLine}</div>
       ${best.net<0?`<div class="muted" style="font-size:12px;margin-top:4px">⚠️ در این بازه هیچ آستانه‌ای سودده نبوده — نشان OB را فقط به‌عنوان هشدار زمینه ببین، نه سیگنال ورود.</div>`:""}
-      ${better?`<button class="btn ghost" id="btApply" style="margin-top:8px">اعمال آستانهٔ ${best.q} روی نشان‌های OB پنل</button>`:`<div class="muted" style="font-size:12px;margin-top:6px">همین آستانه الان فعال است ✓</div>`}
+      <div class="muted" style="font-size:12px;margin-top:6px">${better?`خودکار اعمال شد ✓ — آستانهٔ نشان‌های OB از ${ibsQmin()} به ${best.q} تغییر کرد.`:`همین آستانه الان فعال است ✓`}</div>
     </div>`;
   } else {
     html+=`<div class="muted" style="font-size:12px;margin-top:8px">برای پیشنهاد آستانه، حداقل ${MINN} معامله لازم است — نماد یا بازهٔ بیشتری اضافه کن.</div>`;
@@ -1306,8 +1330,10 @@ async function runBacktest(){
   out.innerHTML=html;
   STATE.bt_html=html;STATE.bt_at=Date.now();saveLocal();if(SYNC.on())SYNC.push();
   const curEl=$("#btCurQ");if(curEl)curEl.textContent=ibsQmin()+"%";
-  const ap=$("#btApply");
-  if(ap&&best)ap.onclick=()=>{DB.set("ibs_qmin",best.q);if(curEl)curEl.textContent=best.q+"%";ap.replaceWith(Object.assign(document.createElement("div"),{className:"muted",style:"font-size:12px;margin-top:6px",textContent:"اعمال شد ✓ — نشان‌های OB از این به بعد با این آستانه نمایش داده می‌شوند."}));renderSignals();renderWatch();};
+  if(best&&best.q!==ibsQmin()){ // self-calibrating: no click needed
+    DB.set("ibs_qmin",best.q);if(curEl)curEl.textContent=best.q+"%";
+    renderSignals();renderWatch();saveLocal();if(SYNC.on())SYNC.push();
+  }
 }
 
 /* =========================================================================
@@ -1830,6 +1856,16 @@ $("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#dd
 const _scBtn=$("#scBtn");if(_scBtn)_scBtn.onclick=()=>runScalp($("#scSym").value);
 const _btBtn=$("#btRun");if(_btBtn)_btBtn.onclick=runBacktest;
 const _bell=$("#bellBtn");if(_bell)_bell.onclick=async()=>{beep(1);if(!window.Notification){setStatus("مرورگرت اعلان را پشتیبانی نمی‌کند");return;}const p=await Notification.requestPermission();setStatus(p==="granted"?"اعلان فعال شد ✓ — با هر آلارم و سیگنال، نوتیفیکیشن می‌آید":"اجازهٔ اعلان داده نشد");};
+/* Ask for notification + audio permission on the first interaction of any kind
+   (browsers require a gesture; switching a tab is enough — no dedicated click). */
+(function armPerms(){
+  const arm=()=>{
+    document.removeEventListener("pointerdown",arm,true);document.removeEventListener("keydown",arm,true);
+    try{beep.ctx&&beep.ctx.resume&&beep.ctx.resume();}catch(e){}
+    try{if(window.Notification&&Notification.permission==="default")Notification.requestPermission();}catch(e){}
+  };
+  document.addEventListener("pointerdown",arm,true);document.addEventListener("keydown",arm,true);
+})();
 const _scSym=$("#scSym");if(_scSym)_scSym.addEventListener("keydown",e=>{if(e.key==="Enter")runScalp($("#scSym").value);});
 const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
 
@@ -1847,6 +1883,13 @@ let autoTimer=null;const autoSw=$("#autoSw");
 autoSw.onclick=()=>{const on=!autoSw.classList.contains("on");autoSw.classList.toggle("on",on);DB.set("auto",on);
   if(on){runScan();autoTimer=setInterval(runScan,CFG.interval*1000);}else{clearInterval(autoTimer);autoTimer=null;}};
 if(DB.get("auto")!==false){autoSw.classList.add("on");DB.set("auto",true);autoTimer=setInterval(runScan,CFG.interval*1000);setTimeout(runScan,1200);}
+/* Self-calibration loop: backtest + threshold tuning runs by itself — first
+   pass shortly after the opening scan, then every 6 hours. */
+setInterval(()=>{saveLocal();if(SYNC.on())SYNC.push();},3e5); // safety net: state never drifts
+const BT_EVERY=216e5;
+function autoBacktestDue(){const last=STATE.bt_at||0;return Date.now()-last>BT_EVERY;}
+setTimeout(()=>{if(autoBacktestDue())runBacktest(true);},45000);
+setInterval(()=>{if(autoBacktestDue())runBacktest(true);},18e5);
 
 /* redraw chart on resize (single view) */
 let rzT=null;
@@ -2117,6 +2160,7 @@ function bootResume(){
   if(STATE.bt_html){const o=$("#btOut");if(o){o.innerHTML=STATE.bt_html;const ap=$("#btApply");if(ap)ap.replaceWith(Object.assign(document.createElement("div"),{className:"muted",style:"font-size:12px;margin-top:6px",textContent:"نتیجهٔ بازیابی‌شده — برای اعمال آستانه، بک‌تست را دوباره اجرا کن."}));}}
 }
 async function boot(){
+  if(await SYNC.autoDetect()){renderSyncStatus();setStatus("فضای ابری خودکار شناسایی و فعال شد ☁︎");}
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
   renderCalib();renderPatRef();renderSyncStatus();renderTrades();
