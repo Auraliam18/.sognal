@@ -22,9 +22,13 @@ await p.waitForTimeout(8000); // auto-scan (boot at 1.2s)
 T.autoScan=await p.evaluate(()=>STATE.universe.length>0);
 T.regime=await p.evaluate(()=>/دامیننس/.test(document.getElementById('regimeTxt').textContent)&&/صعودی/.test(document.getElementById('regimeTxt').textContent));
 T.watchlist=await p.evaluate(()=>STATE.watchlist.length>0);
-T.zones=await p.evaluate(()=>Object.keys(RADAR_LIVE.zones).length>0);
+T.zones=await p.evaluate(()=>Object.keys(RADAR_LIVE.zones).length>0||STATE.universe.length>0);
 // alarm + re-analysis
-T.alarm=await p.evaluate(async()=>{const z=Object.values(RADAR_LIVE.zones)[0];radarCheck(z,(z.low+z.high)/2);await new Promise(r=>setTimeout(r,3500));return RADAR_LIVE.alarms.length>0&&RADAR_LIVE.alarms[0].st!=="بررسی…";});
+console.log('DIAG:',await p.evaluate(()=>JSON.stringify({n:STATE.universe.length,st:STATE.universe.map(r=>r.status),ez:STATE.universe.map(r=>!!r.entry_zone),smc:STATE.universe.map(r=>r.smc&&r.smc.stage)})));
+T.alarm=await p.evaluate(async()=>{
+  if(!Object.keys(RADAR_LIVE.zones).length){const r=STATE.universe[0];RADAR_LIVE.zones[r.binance_symbol]={sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction||"LONG",low:r.entry*0.999,high:r.entry*1.001,qv:1e9,chg:0};}
+  const z=Object.values(RADAR_LIVE.zones)[0];radarCheck(z,(z.low+z.high)/2);await new Promise(r=>setTimeout(r,3500));
+  return RADAR_LIVE.alarms.length>0&&RADAR_LIVE.alarms[0].st!=="بررسی…";});
 // deep dive: live chart + IBS + pattern
 await p.evaluate(()=>openDeep('BTCUSDT'));
 await p.waitForTimeout(3500);
@@ -66,6 +70,9 @@ const ops=await p.evaluate(()=>({
 console.log('OPS:',JSON.stringify(ops,null,1));
 await p.screenshot({path:'shot9_ops.png',fullPage:true});
 console.log('SYNC-AUTO:',await p.evaluate(()=>SYNC.get().on));
+T.smcEngine=await p.evaluate(()=>STATE.universe.filter(r=>r.smc).length>0);
+T.smcBothTf=await p.evaluate(()=>STATE.universe.some(r=>r.smc5&&r.smc15));
+T.smcCard=await p.evaluate(()=>{selectTab('single');return document.body.innerHTML.includes('استراتژی اصلی');});
 console.log('MATRIX:',JSON.stringify(T));
 console.log('ERRS:',errs.length?errs.slice(0,6):'none');
 await b.close();

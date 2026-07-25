@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v5.1 · اتاق کنترل</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v6.2 · استراتژی سنجیده‌شده</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -481,9 +481,10 @@ const S={
   scan_interval_seconds:300,
 };
 // data-plumbing settings the user may tune (do NOT affect setup logic)
-const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:100,concurrency:4,interval:1800},DB.get("cfg")||{});
+const CFG=Object.assign({apiBase:"https://fapi.binance.com",universe:100,concurrency:8,interval:1800},DB.get("cfg")||{});
 /* v4.5 one-time migration: top-100 universe, 30-min auto scan */
 if(!CFG.v45){CFG.universe=Math.max(CFG.universe,100);CFG.interval=1800;CFG.v45=1;DB.set("cfg",CFG);}
+if(!CFG.v6){CFG.concurrency=Math.max(CFG.concurrency,8);CFG.v6=1;DB.set("cfg",CFG);}
 
 /* =========================================================================
    INDICATORS  (standard textbook formulas feeding the engine's field names)
@@ -1156,6 +1157,233 @@ function buildPatInfo(r,pats,cands,verdict){
    BOS → Choch → Order Block detection → Pullback entry, on 15m candles.
    Ported from hamid.html (gh-pages). Attaches info only; score/status stay.
    ========================================================================= */
+/* =========================================================================
+   SMC-2 ENGINE — the exact playbook:
+   channel → OB / FVG / S-R → correction → SECOND pullback into the OB
+   ("the trap") → signal the moment price closes back out of the box.
+   Entry = box edge · Stop = far side of the box · Targets = prior swings.
+   Confluence: BTC 4h RSI divergence (regular + hidden).
+   ========================================================================= */
+function rsiSeries(c,p=14){
+  if(c.length<p+1)return[];
+  const out=new Array(c.length).fill(null);let g=0,l=0;
+  for(let i=1;i<=p;i++){const d=c[i]-c[i-1];if(d>=0)g+=d;else l-=d;}
+  g/=p;l/=p;out[p]=l===0?100:100-100/(1+g/l);
+  for(let i=p+1;i<c.length;i++){const d=c[i]-c[i-1];
+    g=(g*(p-1)+(d>0?d:0))/p;l=(l*(p-1)+(d<0?-d:0))/p;
+    out[i]=l===0?100:100-100/(1+g/l);}
+  return out;
+}
+function smcATR(cd,p=14){
+  if(cd.length<p+1)return 0;let a=0;
+  for(let i=cd.length-p;i<cd.length;i++)a+=Math.max(cd[i].h-cd[i].l,Math.abs(cd[i].h-cd[i-1].c),Math.abs(cd[i].l-cd[i-1].c));
+  return a/p;
+}
+/* linear-regression channel: slope, rails, and where price sits inside it */
+function smcChannel(cd,look=120){
+  const n=Math.min(look,cd.length);if(n<40)return null;
+  const s=cd.slice(-n),xs=s.map((_,i)=>i),ys=s.map(k=>k.c);
+  const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2;}
+  const slope=den?num/den:0,inter=my-slope*mx;
+  const line=i=>inter+slope*i;
+  let up=-Infinity,dn=Infinity;
+  for(let i=0;i<n;i++){up=Math.max(up,s[i].h-line(i));dn=Math.min(dn,s[i].l-line(i));}
+  const last=n-1,mid=line(last),width=up-dn;
+  const pct=width?((s[last].c-(line(last)+dn))/width)*100:50;
+  const drift=mid?slope*n/mid*100:0;     // % move across the window
+  const dir=drift<-1.5?"نزولی":drift>1.5?"صعودی":"خنثی";
+  return{slope,dir,drift:Math.round(drift*10)/10,upper:mid+up,lower:mid+dn,mid,
+         posPct:Math.max(0,Math.min(100,Math.round(pct))),bars:n};
+}
+/* fair value gaps (3-candle imbalance), newest first, unfilled only */
+function smcFVGs(cd,max=6){
+  const out=[];
+  for(let i=cd.length-2;i>=2&&out.length<max;i--){
+    const a=cd[i-2],c=cd[i];
+    if(c.l>a.h){ // bullish gap
+      let filled=false;for(let j=i+1;j<cd.length;j++)if(cd[j].l<=a.h){filled=true;break;}
+      if(!filled)out.push({dir:"LONG",low:a.h,high:c.l,i,mid:(a.h+c.l)/2});
+    }else if(c.h<a.l){ // bearish gap
+      let filled=false;for(let j=i+1;j<cd.length;j++)if(cd[j].h>=a.l){filled=true;break;}
+      if(!filled)out.push({dir:"SHORT",low:c.h,high:a.l,i,mid:(c.h+a.l)/2});
+    }
+  }
+  return out;
+}
+/* support / resistance: swing pivots clustered by proximity, ranked by touches */
+function smcLevels(cd,k=4,tolPct=0.004){
+  const piv=[];
+  for(let i=k;i<cd.length-k;i++){
+    let hi=true,lo=true;
+    for(let j=i-k;j<=i+k;j++){if(j===i)continue;if(cd[j].h>cd[i].h)hi=false;if(cd[j].l<cd[i].l)lo=false;}
+    if(hi)piv.push({p:cd[i].h,t:"R",i});
+    if(lo)piv.push({p:cd[i].l,t:"S",i});
+  }
+  const cl=[];
+  for(const v of piv){
+    const f=cl.find(c=>Math.abs(c.price-v.p)/v.p<tolPct);
+    if(f){f.touches++;f.price=(f.price*(f.touches-1)+v.p)/f.touches;f.last=Math.max(f.last,v.i);}
+    else cl.push({price:v.p,type:v.t,touches:1,last:v.i});
+  }
+  return cl.sort((a,b)=>b.touches-a.touches||b.last-a.last).slice(0,8);
+}
+/* order blocks: last opposite candle before the impulse that broke structure */
+function smcOrderBlocks(cd,k=4,max=4){
+  const atr=smcATR(cd)||1e-9;const sw=[];
+  for(let i=k;i<cd.length-k;i++){
+    let hi=true,lo=true;
+    for(let j=i-k;j<=i+k;j++){if(j===i)continue;if(cd[j].h>cd[i].h)hi=false;if(cd[j].l<cd[i].l)lo=false;}
+    const near=sw[sw.length-1];
+    if(hi&&!(near&&near.t==="H"&&i-near.i<=k))sw.push({i,p:cd[i].h,t:"H"});
+    if(lo&&!(near&&near.t==="L"&&i-near.i<=k))sw.push({i,p:cd[i].l,t:"L"});
+  }
+  const obs=[];
+  for(let s=sw.length-1;s>=0&&obs.length<max;s--){
+    const piv=sw[s];
+    // structure break after this pivot?
+    let brk=-1;
+    for(let i=piv.i+1;i<cd.length;i++){
+      if(piv.t==="L"&&cd[i].c<piv.p){brk=i;break;}
+      if(piv.t==="H"&&cd[i].c>piv.p){brk=i;break;}
+    }
+    if(brk<0)continue;
+    const dir=piv.t==="L"?"SHORT":"LONG";
+    // the break must be decisive, and the leg after it must actually displace price
+    if(Math.abs(cd[brk].c-piv.p)<atr*0.5)continue;
+    let ext=cd[brk].c;
+    for(let i=brk;i<Math.min(cd.length,brk+6);i++)ext=dir==="SHORT"?Math.min(ext,cd[i].l):Math.max(ext,cd[i].h);
+    if(Math.abs(ext-piv.p)<atr*1.5)continue;
+    // last candle against the impulse, just before the break
+    let ob=-1;
+    for(let i=brk-1;i>=Math.max(0,brk-12);i--){
+      if(dir==="SHORT"&&cd[i].c>cd[i].o){ob=i;break;}
+      if(dir==="LONG"&&cd[i].c<cd[i].o){ob=i;break;}
+    }
+    if(ob<0)continue;
+    const b=cd[ob],low=Math.min(b.o,b.c,b.l),high=Math.max(b.o,b.c,b.h);
+    if(high-low<atr*0.12||high-low>atr*3.5)continue;
+    if(obs.some(o=>Math.abs(o.mid-(low+high)/2)/((low+high)/2)<0.002))continue;
+    obs.push({dir,i:ob,brk,low,high,mid:(low+high)/2,pivot:piv.p});
+  }
+  return obs;
+}
+/* how many separate visits back into the box, and is price outside it now */
+function obVisits(cd,ob){
+  const box=ob.high-ob.low||1e-9,away=box*1.2;
+  let visits=0,inside=false,lastExit=-1,deepest=0,left=false;
+  for(let i=ob.brk;i<cd.length;i++){
+    const touch=cd[i].h>=ob.low&&cd[i].l<=ob.high;
+    const far=ob.dir==="SHORT"?(ob.low-cd[i].l>away):(cd[i].h-ob.high>away);
+    if(far)left=true;                                  // price must actually leave before a return counts
+    if(touch&&!inside){if(left){visits++;left=false;}inside=true;}
+    else if(!touch&&inside){inside=false;lastExit=i;}
+    if(touch)deepest=Math.max(deepest,ob.dir==="SHORT"?(cd[i].h-ob.low)/(ob.high-ob.low):(ob.high-cd[i].l)/(ob.high-ob.low));
+  }
+  return{visits,inside,lastExit,depth:Math.round(Math.min(1,deepest)*100)};
+}
+/* targets: prior swing low/high beyond entry */
+function smcTargets(cd,dir,entry,k=4){
+  const lows=[],highs=[];
+  for(let i=k;i<cd.length-k;i++){
+    let hi=true,lo=true;
+    for(let j=i-k;j<=i+k;j++){if(j===i)continue;if(cd[j].h>cd[i].h)hi=false;if(cd[j].l<cd[i].l)lo=false;}
+    if(hi)highs.push(cd[i].h);
+    if(lo)lows.push(cd[i].l);
+  }
+  let pool=(dir==="SHORT"?lows.filter(p=>p<entry).sort((a,b)=>b-a):highs.filter(p=>p>entry).sort((a,b)=>a-b));
+  const out=[];for(const p of pool){if(!out.length||Math.abs(p-out[out.length-1])/entry>0.004)out.push(p);}
+  return{tp1:out[0]||null,tp2:out[1]||null,pool:out.slice(0,3)};
+}
+/* BTC 4h RSI divergence — regular and hidden */
+function rsiDivergence(cd,k=3){
+  const closes=cd.map(c=>c.c),R=rsiSeries(closes,14);
+  if(!R.length)return null;
+  const piv={H:[],L:[]};
+  for(let i=k;i<cd.length-k;i++){
+    if(R[i]==null)continue;
+    let hi=true,lo=true;
+    for(let j=i-k;j<=i+k;j++){if(j===i)continue;if(cd[j].h>cd[i].h)hi=false;if(cd[j].l<cd[i].l)lo=false;}
+    if(hi)piv.H.push({i,p:cd[i].h,r:R[i]});
+    if(lo)piv.L.push({i,p:cd[i].l,r:R[i]});
+  }
+  const H=piv.H.slice(-2),L=piv.L.slice(-2);
+  const out={rsi:Math.round((R[R.length-1]||50)*10)/10,type:null,label:"بدون واگرایی",bias:"NEUTRAL"};
+  if(H.length===2){
+    const[a,b]=H;
+    if(b.p>a.p&&b.r<a.r){out.type="regular_bear";out.label="واگرایی منفی معمولی (سقف بالاتر، RSI پایین‌تر)";out.bias="SHORT";}
+    else if(b.p<a.p&&b.r>a.r){out.type="hidden_bear";out.label="واگرایی منفی مخفی (ادامهٔ نزول)";out.bias="SHORT";}
+  }
+  if(!out.type&&L.length===2){
+    const[a,b]=L;
+    if(b.p<a.p&&b.r>a.r){out.type="regular_bull";out.label="واگرایی مثبت معمولی (کف پایین‌تر، RSI بالاتر)";out.bias="LONG";}
+    else if(b.p>a.p&&b.r<a.r){out.type="hidden_bull";out.label="واگرایی مثبت مخفی (ادامهٔ صعود)";out.bias="LONG";}
+  }
+  return out;
+}
+/* ---- the setup ---- */
+function smcSetup(cd,opts){
+  opts=opts||{};
+  if(!cd||cd.length<80)return null;
+  const atr=smcATR(cd)||1e-9;
+  const ch=smcChannel(cd),obs=smcOrderBlocks(cd),fvgs=smcFVGs(cd),levels=smcLevels(cd);
+  if(!obs.length)return null;
+  const last=cd[cd.length-1],price=last.c;
+  let best=null;
+  for(const ob of obs){
+    const v=obVisits(cd,ob);
+    const box=ob.high-ob.low;if(!box)continue;
+    // signal: at least the second visit, and price has now closed back out of the box
+    const margin=Math.max((ob.high-ob.low)*0.15,atr*0.15);
+    const exited=ob.dir==="SHORT"?last.c<ob.low-margin:last.c>ob.high+margin;
+    const fresh=cd.length-1-ob.brk<=70;
+    const stillIn=price>=ob.low&&price<=ob.high;
+    const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
+    const entry=ob.dir==="SHORT"?ob.low:ob.high;
+    const buf=Math.max(box*0.08,atr*0.12);
+    const sl=ob.dir==="SHORT"?ob.high+buf:ob.low-buf;
+    const risk=Math.abs(entry-sl);
+    const tp1=tgt.tp1,tp2=tgt.tp2;
+    const rr=tp1&&risk?Math.abs(tp1-entry)/risk:0;
+    const fvg=fvgs.find(f=>f.dir===ob.dir&&Math.abs(f.mid-ob.mid)/ob.mid<0.03)||null;
+    const lvl=levels.find(l=>Math.abs(l.price-ob.mid)/ob.mid<0.006)||null;
+    const chOk=ch&&((ob.dir==="SHORT"&&ch.dir==="نزولی")||(ob.dir==="LONG"&&ch.dir==="صعودی"));
+    let stage="WATCH",q=0;
+    q+=Math.min(30,v.visits*15);              // the second pullback is the heart of it
+    q+=chOk?20:ch&&ch.dir==="خنثی"?6:0;
+    q+=fvg?12:0;
+    q+=lvl?10:0;
+    q+=rr>=2?16:rr>=1.5?10:rr>=1?4:0;
+    q+=v.depth>=40?8:v.depth>=20?4:0;
+    /* A second pullback is the textbook trap, but it often never comes — the move
+       just continues off the first touch. Judge the context instead of always waiting. */
+    const strong=(chOk?1:0)+(fvg?1:0)+(lvl?1:0)+(rr>=1.5?1:0)+
+                 (opts.btcDiv&&opts.btcDiv.bias===ob.dir?1:0)+(v.depth>=30?1:0);
+    const goOnFirst=strong>=3;
+    let waitReason="";
+    if(!fresh)stage="WATCH";
+    else if(v.visits>=2&&exited)stage="SIGNAL";
+    else if(v.visits===1&&exited&&goOnFirst)stage="SIGNAL";        // continuation off pullback #1
+    else if(v.visits>=2&&stillIn)stage="ARMED";
+    else if(v.visits===1&&stillIn)stage=goOnFirst?"ARMED":"PULLBACK_1";
+    else if(v.visits>=1){stage="PULLBACK_1";if(!goOnFirst)waitReason="هم‌سویی کافی نیست — منتظر پولبک دوم";}
+    if(v.visits===1&&exited&&!goOnFirst)waitReason="پولبک اول تمام شد ولی هم‌سویی کم بود — منتظر پولبک دوم";
+    if(opts.btcDiv&&opts.btcDiv.bias&&opts.btcDiv.bias!=="NEUTRAL"){
+      if(opts.btcDiv.bias===ob.dir)q+=14;else q-=10;
+    }
+    q+=goOnFirst?6:0;
+    const cand={dir:ob.dir,stage,strong,goOnFirst,waitReason,tf:opts.tf||"15m",
+      quality:Math.max(0,Math.min(100,Math.round(q))),
+      ob,visits:v.visits,depth:v.depth,inside:stillIn,exited,
+      channel:ch,fvg,level:lvl,levels,fvgs,
+      entry,sl,tp1,tp2,rr:Math.round(rr*100)/100,price,
+      btcDiv:opts.btcDiv||null};
+    const rank=s=>({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[s];
+    if(!best||rank(stage)>rank(best.stage)||(rank(stage)===rank(best.stage)&&cand.quality>best.quality))best=cand;
+  }
+  return best;
+}
+
 function ibsDetectSwings(candles,k=4){
   const H=candles.map(c=>c.h),L=candles.map(c=>c.l);
   const sw=[];
@@ -1239,7 +1467,46 @@ function ibsPullback(candles15m){
   return{dir,bos,ob,choch,inOB,nearOB,rejCandle,barsAgo,quality:Math.min(100,q),
          cur,entry:inOB?cur:ob.mid,sl:dir==='SHORT'?ob.high*1.003:ob.low*0.997,tp1,tp2};
 }
+function smcQmin(){return +(DB.get("smc_qmin")||48);}
 function ibsQmin(){return +(DB.get("ibs_qmin")||55);}
+
+function smcCardHTML(r){
+  const s=r.smc;if(!s)return"";
+  const ST={SIGNAL:["🚨 سیگنال — قیمت از باکس خارج شد","#2ecc71"],ARMED:["⏳ پولبک دوم داخل اردر بلاک — آمادهٔ سیگنال","#f0a92e"],
+            PULLBACK_1:["پولبک اول ثبت شد — منتظر پولبک دوم","#8b98ab"],WATCH:["ساختار شناسایی شد — هنوز پولبکی نزده","#8b98ab"]}[s.stage];
+  const px=v=>v==null?"—":fmt(v);
+  const chip=(t,on)=>`<span class="chip" style="${on?"border-color:#2f7d5b;color:#8fe3bd":""}">${t}</span>`;
+  return `<div class="box" style="margin-top:12px;border-color:${s.stage==="SIGNAL"?"#1e7d5a":"rgba(140,160,190,.14)"}">
+    <h3>استراتژی اصلی — کانال + اردر بلاک + پولبک دوم <span style="font-size:11px;font-weight:400;color:${ST[1]}">${ST[0]}</span></h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
+      ${chip(`کانال ${s.channel?s.channel.dir:"—"} ${s.channel?s.channel.drift+"%":""}`,s.channel&&s.channel.dir!=="خنثی")}
+      ${chip(`جایگاه در کانال ${s.channel?s.channel.posPct:"—"}%`,true)}
+      ${chip(`پولبک: ${s.visits} بار`,s.visits>=2)}
+      ${chip(`نفوذ در باکس ${s.depth}%`,s.depth>=40)}
+      ${chip(s.fvg?"FVG هم‌جهت ✓":"بدون FVG",!!s.fvg)}
+      ${chip(s.level?`روی ${s.level.type==="R"?"مقاومت":"حمایت"} (${s.level.touches} برخورد)`:"بدون سطح کلیدی",!!s.level)}
+      ${chip(`تایم‌فریم ${s.tf}`,true)}
+      ${chip(`کیفیت ${s.quality}`,s.quality>=smcQmin())}
+      ${s.goOnFirst?chip("هم‌سویی قوی — نیازی به پولبک دوم نیست",true):""}
+    </div>
+    <div class="lvls">
+      <div><span>لبهٔ باکس (ورود)</span><b class="num">${px(s.entry)}</b></div>
+      <div><span>اردر بلاک</span><b class="num">${px(s.ob.low)} — ${px(s.ob.high)}</b></div>
+      <div><span>استاپ (آن‌سوی باکس)</span><b class="num sl">${px(s.sl)}</b></div>
+      <div><span>تارگت‌ها (سقف/کف قبلی)</span><b class="num tp">${px(s.tp1)} / ${px(s.tp2)}</b></div>
+      <div><span>ریسک به ریوارد</span><b class="num">${s.rr||"—"}</b></div>
+    </div>
+    ${s.btcDiv?`<div class="muted" style="font-size:12px;margin-top:8px">RSI بیت‌کوین ۴ساعته: <b>${s.btcDiv.rsi}</b> — ${s.btcDiv.label}${s.btcDiv.bias!=="NEUTRAL"?` · جهت ${s.btcDiv.bias==="SHORT"?"نزولی":"صعودی"} ${s.btcDiv.bias===s.dir?"<b style=\"color:#2ecc71\">هم‌سو با ستاپ ✓</b>":"<b style=\"color:#e74c3c\">مخالف ستاپ ✗</b>"}`:""}</div>`:""}
+    ${s.waitReason?`<div class="muted" style="font-size:12px;margin-top:6px">⏳ ${s.waitReason}</div>`:""}
+    <div class="muted" style="font-size:12px;margin-top:6px">قانون: بعد از اصلاح، پولبک دوم به اردر بلاک تله است؛ سیگنال دقیقاً وقتی صادر می‌شود که کندل خارج از باکس بسته شود. ورود لبهٔ باکس، استاپ آن‌سوی باکس، تارگت سقف/کف قبلی.</div>
+  </div>`;
+}
+function smcBadgeHTML(smc){
+  if(!smc)return"";
+  const m={SIGNAL:[smc.visits>=2?"🚨 پولبک دوم — خروج از باکس":"🚨 ادامهٔ روند — خروج از باکس","#2ecc71"],ARMED:["⏳ داخل باکس (پولبک دوم)","#f0a92e"],PULLBACK_1:["پولبک اول","#8b98ab"]}[smc.stage];
+  if(!m)return"";
+  return `<span class="chip" style="border-color:${m[1]}55;color:${m[1]}">${m[0]} · ${smc.tf} · کیفیت ${smc.quality}</span>`;
+}
 function ibsBadgeHTML(ibs,direction){
   if(!ibs||ibs.quality<ibsQmin())return"";
   if(!ibs.inOB&&!ibs.nearOB)return"";
@@ -1282,6 +1549,39 @@ function backtestIBS(cd,qMin,win=120){
   }
   return trades;
 }
+function backtestSMC(cd,qMin,win=200){
+  const trades=[];let open=null,lastSig=-99;
+  for(let i=win;i<cd.length;i++){
+    const bar=cd[i];
+    if(open){
+      const L=open.dir==="LONG";
+      const hitSL=L?bar.l<=open.sl:bar.h>=open.sl;
+      const hitT1=L?bar.h>=open.tp1:bar.l<=open.tp1;
+      const hitT2=open.tp2!=null&&(L?bar.h>=open.tp2:bar.l<=open.tp2);
+      if(!open.t1&&hitSL){open.r=-1;trades.push(open);open=null;}
+      else{
+        if(hitT1&&!open.t1){open.t1=true;open.sl=open.entry;open.rLock=open.r1;}
+        if(open&&open.t1){
+          if(hitT2){open.r=open.r2;trades.push(open);open=null;}
+          else if(hitSL){open.r=open.rLock;trades.push(open);open=null;}
+        }
+      }
+      if(open&&i-open.i>96){open.r=open.t1?open.rLock:0;open.timeout=true;trades.push(open);open=null;}
+      if(open)continue;
+    }
+    if(i-lastSig<6)continue;
+    const s=smcSetup(cd.slice(0,i+1),{tf:"bt"});
+    if(!s||s.stage!=="SIGNAL"||s.quality<qMin||!s.tp1)continue;
+    const risk=Math.abs(s.entry-s.sl);
+    if(!risk||risk/s.entry<0.0008)continue;
+    const r1=Math.abs(s.tp1-s.entry)/risk,r2=s.tp2!=null?Math.abs(s.tp2-s.entry)/risk:r1;
+    if(r1<0.8)continue;
+    lastSig=i;
+    open={i,dir:s.dir,q:s.quality,visits:s.visits,entry:s.entry,sl:s.sl,tp1:s.tp1,tp2:s.tp2,
+          r1:Math.min(r1,6),r2:Math.min(r2,10),rLock:Math.min(r1,6),t1:false,r:0};
+  }
+  return trades;
+}
 function btAgg(trades){
   const n=trades.length;if(!n)return{n:0};
   const w=trades.filter(t=>t.r>0).length,t2=trades.filter(t=>t.t2).length;
@@ -1303,12 +1603,15 @@ async function runBacktest(auto){
   opslog("calib",`بک‌تست خودکار شروع شد روی ${syms.length} نماد`);
   out.innerHTML=`<div class="empty">در حال دریافت ۱۵۰۰ کندل ۱۵م برای ${syms.length} نماد…</div>`;
   const per={};const all={};BUCKETS.forEach(([q])=>all[q]=[]);
+  const SMCB=[[40,"کیفیت ≥۴۰"],[55,"کیفیت ≥۵۵"],[70,"کیفیت ≥۷۰"]];
+  const smcPer={};const smcAll={};SMCB.forEach(([q])=>smcAll[q]=[]);
   for(const sym of syms){
     try{
       OPS.bt.sym=sym;OPS.bt.done++;opslog("calib",`بک‌تست ${sym.replace("USDT","")} — ۱۵۰۰ کندل ۱۵م`);
       const cd=await fetchKlines(sym,"15m",1500);
       per[sym]={};
       for(const[q]of BUCKETS){const tr=backtestIBS(cd,q);per[sym][q]=btAgg(tr);all[q].push(...tr);}
+      for(const[q]of SMCB){const tr=backtestSMC(cd,q);smcPer[sym]=smcPer[sym]||{};smcPer[sym][q]=btAgg(tr);smcAll[q].push(...tr);}
       out.innerHTML=`<div class="empty">تحلیل شد: ${sym} …</div>`;
       await new Promise(r=>setTimeout(r,150));
     }catch(e){per[sym]={error:String(e.message||e)};}
@@ -1323,6 +1626,24 @@ async function runBacktest(auto){
   }
   html+=`<tr style="border-top:2px solid rgba(140,160,190,.3)"><td style="padding:7px;font-weight:700">جمع کل</td>${BUCKETS.map(([q])=>`<td style="padding:7px">${cell(btAgg(all[q]))}</td>`).join('')}</tr></table></div>
   <p class="muted" style="font-size:12px;margin-top:8px">فرض‌ها: بدون کارمزد/اسلیپیج؛ اگر در یک کندل هم استاپ و هم تارگت لمس شود، باخت حساب می‌شود (محافظه‌کارانه). R یعنی واحد ریسک هر معامله.</p>`;
+  /* the real strategy, measured on real candles */
+  html+=`<h3 style="margin-top:16px">استراتژی اصلی — کانال + اردر بلاک + پولبک</h3>
+  <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="text-align:right;color:#8b98ab"><th style="padding:6px">نماد</th>${SMCB.map(([,l])=>`<th style="padding:6px">${l}</th>`).join("")}</tr>
+    ${syms.map(sym=>`<tr style="border-top:1px solid rgba(140,160,190,.12)"><td style="padding:7px;font-weight:700">${sym.replace("USDT","")}</td>${SMCB.map(([q])=>`<td style="padding:7px">${smcPer[sym]&&smcPer[sym][q]?cell(smcPer[sym][q]):'<span class="dim">—</span>'}</td>`).join("")}</tr>`).join("")}
+    <tr style="border-top:2px solid rgba(140,160,190,.3)"><td style="padding:7px;font-weight:700">جمع کل</td>${SMCB.map(([q])=>`<td style="padding:7px">${cell(btAgg(smcAll[q]))}</td>`).join("")}</tr>
+  </table></div>`;
+  {const MIN=8;let bs=null;
+   for(const[q]of SMCB){const a=btAgg(smcAll[q]);if(a.n>=MIN&&(!bs||a.net>bs.net))bs={q,...a};}
+   if(bs){
+     const cur=smcQmin();
+     html+=`<div class="muted" style="font-size:12px;margin-top:6px">بهترین آستانهٔ استراتژی: <b>≥${bs.q}</b> — ${bs.n} معامله، برد ${bs.winrate}%، خالص ${bs.net>0?"+":""}${bs.net}R${bs.q!==cur?` · خودکار از ${cur} به ${bs.q} تغییر کرد`:" · همین الان فعال است"}</div>`;
+     if(bs.q!==cur)DB.set("smc_qmin",bs.q);
+     opslog("calib",`استراتژی اصلی: آستانه ≥${bs.q} · ${bs.n} معامله · برد ${bs.winrate}% · ${bs.net>0?"+":""}${bs.net}R`,bs.net>=0?"sig":"warn");
+   }else{
+     html+=`<div class="muted" style="font-size:12px;margin-top:6px">در این بازه، استراتژی اصلی به حد نصاب معامله برای قضاوت نرسید — نماد یا زمان بیشتری لازم است.</div>`;
+     opslog("calib","استراتژی اصلی: معاملهٔ کافی در این بازه نبود","warn");
+   }}
   /* recommendation → calibration */
   const MINN=10;let best=null;
   for(const[q]of BUCKETS){const a=btAgg(all[q]);if(a.n>=MINN&&(!best||a.net>best.net))best={q,...a};}
@@ -1382,6 +1703,12 @@ async function fetchMarketContext(){
         const v=g&&g.data&&g.data.market_cap_percentage&&g.data.market_cap_percentage.btc;
         if(v){ctx.btc_dominance=Math.round(v*10)/10;fetchMarketContext._dom={v:ctx.btc_dominance,at:now};}}
     }catch(e){}
+    try{
+      const now=Date.now(),c4=fetchMarketContext._btc4h;
+      if(c4&&now-c4.at<6e5)ctx.btcDiv=c4.v;
+      else{const k4=await fetchKlines("BTCUSDT","4h",200);const d=rsiDivergence(k4);
+        if(d){ctx.btcDiv=d;fetchMarketContext._btc4h={v:d,at:now};}}
+    }catch(e){}
     if(STATE.market_context&&STATE.market_context.breadth!=null)ctx.breadth=STATE.market_context.breadth;
     return ctx;
   }catch(e){return{risk_mode:"UNKNOWN"};}
@@ -1404,6 +1731,25 @@ async function analyzeOne(asset,funding,ctx){
   const cur=asset.lastPrice||m5.close;
   const r=analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
   try{r.ibs=ibsPullback(c15);}catch(e){r.ibs=null;}
+  try{
+    const a=smcSetup(c15,{btcDiv:ctx&&ctx.btcDiv,tf:"15m"});
+    const b=smcSetup(c5,{btcDiv:ctx&&ctx.btcDiv,tf:"5m"});
+    const rank=x=>x?({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[x.stage]*1000+x.quality:-1;
+    r.smc=rank(b)>rank(a)?b:a;r.smc5=b;r.smc15=a;
+  }catch(e){r.smc=null;}
+  if(r.smc){
+    r.smc.entry_zone={low:Math.min(r.smc.ob.low,r.smc.ob.high),high:Math.max(r.smc.ob.low,r.smc.ob.high),reference:"اردر بلاک ۱۵م — پولبک دوم"};
+    if(r.smc.stage==="SIGNAL"&&r.smc.quality>=smcQmin()&&r.smc.tp1){
+      r.status="SIGNAL";r.direction=r.smc.dir;r.setup="SMC_OB_2ND_PULLBACK";
+      r.entry=r.smc.entry;r.stop_loss=r.smc.sl;r.tp1=r.smc.tp1;r.tp2=r.smc.tp2||r.smc.tp1;
+      r.rr=r.smc.rr;r.score=Math.max(r.score||0,r.smc.quality);
+      r.entry_zone=r.smc.entry_zone;
+    }else if(["ARMED","PULLBACK_1"].includes(r.smc.stage)&&!["SIGNAL"].includes(r.status)){
+      r.status=r.smc.stage==="ARMED"?"WAITING_CONFIRMATION":"APPROACHING_ENTRY_ZONE";
+      r.direction=r.smc.dir;r.entry_zone=r.smc.entry_zone;
+      r.entry=r.smc.entry;r.stop_loss=r.smc.sl;r.tp1=r.smc.tp1||r.tp1;r.tp2=r.smc.tp2||r.tp2;
+    }
+  }
   return r;
 }
 async function pool(items,worker,limit,onEach){
@@ -1432,6 +1778,7 @@ async function runScan(){
     STATE.market_context=ctx;renderRegime();
     setStatus(`در حال تحلیل ${uni.length} نماد پرحجم…`);showProg(0,uni.length);
     OPS.scan.total=uni.length;opslog("scan",`${uni.length} ارز پرحجم انتخاب شد — تحلیل ۳ تایم‌فریمه شروع شد`);
+    if(ctx.btcDiv)opslog("market",`RSI بیت‌کوین ۴ساعته ${ctx.btcDiv.rsi} — ${ctx.btcDiv.label}`,ctx.btcDiv.bias!=="NEUTRAL"?"warn":"info");
     opslog("market",`رژیم ${ctx.risk_mode}${ctx.btc_dominance?` · دامیننس ${ctx.btc_dominance}%`:""}${ctx.breadth!=null?` · ${ctx.breadth}% بازار صعودی`:""}`);
     const rows=await pool(uni,a=>analyzeOne(a,funding,ctx),CFG.concurrency,d=>{OPS.scan.done=d;showProg(d,uni.length);});
     rows.sort((a,b)=>(a.rank||999)-(b.rank||999));
@@ -1441,6 +1788,8 @@ async function runScan(){
     radarSetZones(rows);
     trackSignals(STATE.signals);
     STATE.last_scan_at=new Date();OPS.scan.state="idle";OPS.nextScan=Date.now()+CFG.interval*1000;
+    {const st=rows.filter(x=>x.smc).reduce((a,x)=>{a[x.smc.stage]=(a[x.smc.stage]||0)+1;return a;},{});
+     opslog("scan",`استراتژی کانال+OB: ${st.SIGNAL||0} سیگنال · ${st.ARMED||0} پولبک دوم داخل باکس · ${st.PULLBACK_1||0} پولبک اول`,st.SIGNAL?"sig":"info");}
     opslog("scan",`اسکن کامل شد — ${STATE.signals.length} سیگنال، ${STATE.watchlist.length} در واچ‌لیست از ${rows.length} ارز`,STATE.signals.length?"sig":"info");
     hideProg();
     setStatus(`اسکن کامل شد · ${rows.length} نماد · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} در واچ‌لیست · ${fmtTime(STATE.last_scan_at)}`);
@@ -1512,7 +1861,7 @@ function watchRow(r){
       <span class="side ${r.direction}">${r.direction}</span>
       <span class="statuspill st-${r.status}" style="margin-inline-start:8px">${LIFE_SHORT[r.status]||r.status}</span></div>
     <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(r.rr,2)}</div>
-    ${ibsBadgeHTML(r.ibs,r.direction)?`<div class="tags" style="padding-top:0">${ibsBadgeHTML(r.ibs,r.direction)}</div>`:""}
+    ${smcBadgeHTML(r.smc)}${ibsBadgeHTML(r.ibs,r.direction)?`<div class="tags" style="padding-top:0">${smcBadgeHTML(r.smc)}${ibsBadgeHTML(r.ibs,r.direction)}</div>`:""}
     ${railHTML(r.status,r.direction)}
     <div class="tags">${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
     <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو</button></div>
@@ -1590,7 +1939,24 @@ async function initLiveChart(r){
     LIVE.cs.setData(LIVE.candles);liveEmaPush();
     chart.timeScale().fitContent();
   }
-  const pl=(price,color,title)=>{if(price&&LIVE.cs.createPriceLine)LIVE.cs.createPriceLine({price,color,lineWidth:1,lineStyle:2,title});};
+  const pl=(price,color,title,w,st)=>{if(price&&LIVE.cs.createPriceLine)LIVE.cs.createPriceLine({price,color,lineWidth:w||1,lineStyle:st==null?2:st,title});};
+  if(r.smc){
+    const s=r.smc;
+    pl(s.ob.high,"#e0a53a","OB ↑",1,0);pl(s.ob.low,"#e0a53a","OB ↓",1,0);
+    pl(s.entry,"#ffffff","ورود (لبهٔ باکس)",2,0);
+    pl(s.sl,"#e74c3c","استاپ",1,2);
+    pl(s.tp1,"#2ecc71","TP1 (کف/سقف قبلی)",1,2);pl(s.tp2,"#2ecc71","TP2",1,2);
+    if(s.fvg){pl(s.fvg.high,"#7a6bd8","FVG ↑",1,3);pl(s.fvg.low,"#7a6bd8","FVG ↓",1,3);}
+    (s.levels||[]).slice(0,3).forEach(l=>pl(l.price,"#5b6675",(l.type==="R"?"مقاومت":"حمایت")+` ×${l.touches}`,1,3));
+    if(s.channel&&LIVE.candles.length){
+      const t0=LIVE.candles[0].time,t1=LIVE.candles[LIVE.candles.length-1].time;
+      const mk=(v0,v1,color)=>{const ser=chart.addLineSeries?chart.addLineSeries({color,lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false}):(chart.addSeries?chart.addSeries(LWC.LineSeries,{color,lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false}):null);
+        if(ser)ser.setData([{time:t0,value:v0},{time:t1,value:v1}]);};
+      const n=s.channel.bars,sl=s.channel.slope;
+      mk(s.channel.upper-sl*n,s.channel.upper,"#4a90d9");
+      mk(s.channel.lower-sl*n,s.channel.lower,"#4a90d9");
+    }
+  }
   if(["LONG","SHORT"].includes(r.direction)){
     pl(r.entry,"#8b98ab","entry");pl(r.stop_loss,"#e74c3c","SL");pl(r.tp1,"#2ecc71","TP1");pl(r.tp2,"#2ecc71","TP2");
     if(r.ibs&&r.ibs.ob){pl(r.ibs.ob.low,"#3fb6f5","OB↓");pl(r.ibs.ob.high,"#3fb6f5","OB↑");}
@@ -1804,6 +2170,7 @@ async function deepAnalyze(symInput){
     const r=await analyzeOne(asset,funding,ctx);
     try{r.klines15_200=await fetchKlines(sym,"15m",200);}catch(e){r.klines15_200=null;}
     try{r.klines5_200=await fetchKlines(sym,"5m",200);}catch(e){r.klines5_200=null;}
+    if(r.smc)opslog("deep",`${r.asset_symbol}: کانال ${r.smc.channel?r.smc.channel.dir:"—"} · اردر بلاک ${fmt(r.smc.ob.low)}–${fmt(r.smc.ob.high)} · ${r.smc.visits} پولبک · ${({SIGNAL:"سیگنال",ARMED:"آمادهٔ سیگنال",PULLBACK_1:"منتظر پولبک دوم",WATCH:"زیر نظر"})[r.smc.stage]}`,r.smc.stage==="SIGNAL"?"sig":"info");
     OPS.deep.state="idle";opslog("deep",`${r.asset_symbol}: ${r.direction} · امتیاز ${fmt(r.score,1)} · ${LIFE_SHORT[r.status]||r.status}`);
     lastDeep=r;renderDeep(r);
     requestAnimationFrame(()=>{renderPatternChart(r);initLiveChart(r);});
@@ -1836,7 +2203,7 @@ function renderDeep(r){
   <div class="dd">
     <div class="box"><h3>تایم‌فریم‌ها</h3>${tfRow("5m",M["5m"])}${tfRow("15m",M["15m"])}${tfRow("1h",M["1h"])}
       <h3 style="margin-top:14px">ناحیهٔ ورود</h3>
-      <div class="num muted" style="font-size:13px">${fmt(r.entry_zone.low)} → ${fmt(r.entry_zone.high)} <span class="dim">(${r.entry_zone.reference})</span></div>
+      <div class="num muted" style="font-size:13px">${fmt(r.entry_zone.low)} → ${fmt(r.entry_zone.high)} <span class="dim">(${r.entry_zone.reference||(r.smc?"اردر بلاک ۱۵م — استراتژی کانال+OB":"")})</span></div>
       <h3 style="margin-top:14px">رد پای تصمیم</h3>
       <div class="trace">${r.decision_trace.map(t=>"› "+t).join("<br>")}</div>
     </div>
@@ -1848,6 +2215,7 @@ function renderDeep(r){
       <h3 style="margin-top:14px">چک‌لیست اجباری</h3><div class="checks">${checks}</div>
     </div>
   </div>
+  ${smcCardHTML(r)}
   <div class="box" style="margin-top:12px">
     <h3>چارت زندهٔ ۱۵م — تریدینگ‌ویو <span id="liveStat" style="font-size:11px;font-weight:400"></span></h3>
     <p class="muted" style="margin-top:-4px;font-size:13px">کندل‌ها با وب‌سوکت بایننس لحظه‌ای آپدیت می‌شوند. خطوط: EMA21 آبی، EMA50 بنفش، سطوح ورود/استاپ/تارگت و ناحیهٔ OB.</p>
@@ -1972,7 +2340,7 @@ const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
 const setModal=$("#setModal");
 $("#setBtn").onclick=()=>{$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;const sy=SYNC.get();if($("#sSyncBase"))$("#sSyncBase").value=sy.base;if($("#sSyncKey"))$("#sSyncKey").value=sy.key;setModal.classList.add("show");};
 $("#setClose").onclick=()=>setModal.classList.remove("show");
-$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||100,5,120);CFG.concurrency=clamp(+$("#sCon").value||4,1,8);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
+$("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||100,5,120);CFG.concurrency=clamp(+$("#sCon").value||8,1,16);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
   if($("#sSyncBase")){SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();}
   setModal.classList.remove("show");setStatus(SYNC.on()?"تنظیمات ذخیره شد · سینک ابری روشن ☁︎":"تنظیمات ذخیره شد.");
   saveLocal();if(SYNC.on())SYNC.push();};
