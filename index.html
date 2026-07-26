@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v6.2 · استراتژی سنجیده‌شده</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v7.0 · تصمیم بر پایهٔ انتظار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1321,6 +1321,49 @@ function rsiDivergence(cd,k=3){
   }
   return out;
 }
+
+/* =========================================================================
+   CONFIDENCE & EXPECTANCY — the signal decision.
+   An arbitrary 0-100 score tells you nothing about whether a trade pays.
+   Instead: estimate the probability that TP1 lands before the stop, from
+   evidence weighted by an online logistic model, then require the trade to
+   be worth taking:  EV = p·R − (1−p).  Weights start weakly-informative and
+   are updated from this panel's own closed trades, so the model calibrates
+   on the market you actually trade rather than on anyone's opinion.
+   ========================================================================= */
+const CONF_DEF={bias:-0.30,rr:-0.18,depth:0,fvg:0,level:0,channel:0,visits2:0,btc:0,ibs:0,ext:0};
+function confW(){const w=DB.get("conf_w");return Object.assign({},CONF_DEF,w&&typeof w==="object"?w:{});}
+function confFeat(s,ibs){
+  const R=s.rr||0;
+  return{bias:1,
+    rr:Math.max(-1.5,Math.min(2.5,R-1.5)),
+    depth:Math.max(-1,Math.min(1.5,(s.depth-40)/40)),
+    fvg:s.fvg?1:0,
+    level:s.level?1:0,
+    channel:s.channel&&((s.dir==="SHORT"&&s.channel.dir==="نزولی")||(s.dir==="LONG"&&s.channel.dir==="صعودی"))?1:0,
+    visits2:s.visits>=2?1:0,
+    btc:s.btcDiv&&s.btcDiv.bias&&s.btcDiv.bias!=="NEUTRAL"?(s.btcDiv.bias===s.dir?1:-1):0,
+    ibs:ibs&&ibs.dir===s.dir?(ibs.quality>=55?1:0.5):(ibs?-0.5:0),
+    ext:s.tpExt?1:0};
+}
+function confP(s,ibs){
+  const w=confW(),x=confFeat(s,ibs);
+  let z=0;for(const k in x)z+=(w[k]||0)*x[k];
+  return 1/(1+Math.exp(-z));
+}
+function confEV(p,R){return p*R-(1-p);}
+/* one SGD step per closed trade — the model learns from what actually happened */
+function confLearn(feat,won,lr){
+  if(!feat)return;
+  const w=confW();let z=0;for(const k in feat)z+=(w[k]||0)*feat[k];
+  const p=1/(1+Math.exp(-z)),err=(won?1:0)-p,rate=lr||0.05;
+  for(const k in feat)w[k]=(w[k]||0)+rate*err*feat[k];
+  for(const k in w)w[k]=Math.max(-3,Math.min(3,w[k]));
+  DB.set("conf_w",w);DB.set("conf_n",(+DB.get("conf_n")||0)+1);
+}
+function evMin(){const v=+DB.get("ev_min");return isNaN(v)||v===0?0.05:v;}
+function confN(){return +DB.get("conf_n")||0;}
+function confReady(){return confN()>=40;}   // below this the model is still uninformed
 /* ---- the setup ---- */
 function smcSetup(cd,opts){
   opts=opts||{};
@@ -1339,12 +1382,19 @@ function smcSetup(cd,opts){
     const fresh=cd.length-1-ob.brk<=70;
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
-    const entry=ob.dir==="SHORT"?ob.low:ob.high;
+    const edge=ob.dir==="SHORT"?ob.low:ob.high;
+    const entry=exited?last.c:edge;   // no look-ahead: once price has closed out of the box, that close is the fill
     const buf=Math.max(box*0.08,atr*0.12);
     const sl=ob.dir==="SHORT"?ob.high+buf:ob.low-buf;
     const risk=Math.abs(entry-sl);
-    const tp1=tgt.tp1,tp2=tgt.tp2;
-    const rr=tp1&&risk?Math.abs(tp1-entry)/risk:0;
+    const sgn=ob.dir==="SHORT"?-1:1;
+    const Rof=p=>risk?(p-entry)*sgn/risk:0;
+    const pool=(tgt.pool||[]).filter(p=>Rof(p)>0);
+    let tp1=pool.find(p=>Rof(p)>=1.2)||null,tp2=pool.find(p=>Rof(p)>=2.2)||null;
+    let tpExt=false;
+    if(!tp1){tp1=entry+sgn*risk*1.5;tpExt=true;}                 // structure too close — measured move
+    if(!tp2||tp2===tp1)tp2=entry+sgn*Math.max(Math.abs(tp1-entry)*1.8,risk*2.5);
+    const rr=risk?Math.abs(tp1-entry)/risk:0;
     const fvg=fvgs.find(f=>f.dir===ob.dir&&Math.abs(f.mid-ob.mid)/ob.mid<0.03)||null;
     const lvl=levels.find(l=>Math.abs(l.price-ob.mid)/ob.mid<0.006)||null;
     const chOk=ch&&((ob.dir==="SHORT"&&ch.dir==="نزولی")||(ob.dir==="LONG"&&ch.dir==="صعودی"));
@@ -1376,8 +1426,16 @@ function smcSetup(cd,opts){
       quality:Math.max(0,Math.min(100,Math.round(q))),
       ob,visits:v.visits,depth:v.depth,inside:stillIn,exited,
       channel:ch,fvg,level:lvl,levels,fvgs,
-      entry,sl,tp1,tp2,rr:Math.round(rr*100)/100,price,
+      entry,edge,sl,tp1,tp2,tpExt,rr:Math.round(rr*100)/100,price,
       btcDiv:opts.btcDiv||null};
+    cand.p=confP(cand,opts.ibs);
+    cand.ev=confEV(cand.p,cand.rr||0);
+    cand.conf=Math.round(cand.p*100);
+    if(cand.stage==="SIGNAL"){
+      if(!(cand.rr>=1.2))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
+      else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
+      else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
+    }
     const rank=s=>({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[s];
     if(!best||rank(stage)>rank(best.stage)||(rank(stage)===rank(best.stage)&&cand.quality>best.quality))best=cand;
   }
@@ -1486,7 +1544,8 @@ function smcCardHTML(r){
       ${chip(s.fvg?"FVG هم‌جهت ✓":"بدون FVG",!!s.fvg)}
       ${chip(s.level?`روی ${s.level.type==="R"?"مقاومت":"حمایت"} (${s.level.touches} برخورد)`:"بدون سطح کلیدی",!!s.level)}
       ${chip(`تایم‌فریم ${s.tf}`,true)}
-      ${chip(`کیفیت ${s.quality}`,s.quality>=smcQmin())}
+      ${chip(`اعتماد ${s.conf}٪${confReady()?"":" (در حال یادگیری)"}`,s.p>=0.45)}
+      ${chip(`انتظار ریاضی ${(s.ev||0).toFixed(2)}R`,(s.ev||0)>=evMin())}
       ${s.goOnFirst?chip("هم‌سویی قوی — نیازی به پولبک دوم نیست",true):""}
     </div>
     <div class="lvls">
@@ -1497,6 +1556,8 @@ function smcCardHTML(r){
       <div><span>ریسک به ریوارد</span><b class="num">${s.rr||"—"}</b></div>
     </div>
     ${s.btcDiv?`<div class="muted" style="font-size:12px;margin-top:8px">RSI بیت‌کوین ۴ساعته: <b>${s.btcDiv.rsi}</b> — ${s.btcDiv.label}${s.btcDiv.bias!=="NEUTRAL"?` · جهت ${s.btcDiv.bias==="SHORT"?"نزولی":"صعودی"} ${s.btcDiv.bias===s.dir?"<b style=\"color:#2ecc71\">هم‌سو با ستاپ ✓</b>":"<b style=\"color:#e74c3c\">مخالف ستاپ ✗</b>"}`:""}</div>`:""}
+    ${s.skip?`<div class="muted" style="font-size:12px;margin-top:6px">⛔ سیگنال نشد — ${s.skip}</div>`:""}
+    ${!confReady()?`<div class="muted" style="font-size:12px;margin-top:4px">مدل اعتماد هنوز ${confN()} معاملهٔ واقعی دیده (حد نصاب ۴۰). تا آن‌موقع تصمیم فقط بر پایهٔ ریسک‌به‌ریوارد است، نه حدس.</div>`:""}
     ${s.waitReason?`<div class="muted" style="font-size:12px;margin-top:6px">⏳ ${s.waitReason}</div>`:""}
     <div class="muted" style="font-size:12px;margin-top:6px">قانون: بعد از اصلاح، پولبک دوم به اردر بلاک تله است؛ سیگنال دقیقاً وقتی صادر می‌شود که کندل خارج از باکس بسته شود. ورود لبهٔ باکس، استاپ آن‌سوی باکس، تارگت سقف/کف قبلی.</div>
   </div>`;
@@ -1505,7 +1566,7 @@ function smcBadgeHTML(smc){
   if(!smc)return"";
   const m={SIGNAL:[smc.visits>=2?"🚨 پولبک دوم — خروج از باکس":"🚨 ادامهٔ روند — خروج از باکس","#2ecc71"],ARMED:["⏳ داخل باکس (پولبک دوم)","#f0a92e"],PULLBACK_1:["پولبک اول","#8b98ab"]}[smc.stage];
   if(!m)return"";
-  return `<span class="chip" style="border-color:${m[1]}55;color:${m[1]}">${m[0]} · ${smc.tf} · کیفیت ${smc.quality}</span>`;
+  return `<span class="chip" style="border-color:${m[1]}55;color:${m[1]}">${m[0]} · ${smc.tf} · اعتماد ${smc.conf}٪ · ${(smc.ev||0).toFixed(2)}R</span>`;
 }
 function ibsBadgeHTML(ibs,direction){
   if(!ibs||ibs.quality<ibsQmin())return"";
@@ -1571,7 +1632,8 @@ function backtestSMC(cd,qMin,win=200){
     }
     if(i-lastSig<6)continue;
     const s=smcSetup(cd.slice(0,i+1),{tf:"bt"});
-    if(!s||s.stage!=="SIGNAL"||s.quality<qMin||!s.tp1)continue;
+    if(!s||s.stage!=="SIGNAL"||!s.tp1)continue;
+    if((s.ev||0)<qMin)continue;
     const risk=Math.abs(s.entry-s.sl);
     if(!risk||risk/s.entry<0.0008)continue;
     const r1=Math.abs(s.tp1-s.entry)/risk,r2=s.tp2!=null?Math.abs(s.tp2-s.entry)/risk:r1;
@@ -1603,7 +1665,7 @@ async function runBacktest(auto){
   opslog("calib",`بک‌تست خودکار شروع شد روی ${syms.length} نماد`);
   out.innerHTML=`<div class="empty">در حال دریافت ۱۵۰۰ کندل ۱۵م برای ${syms.length} نماد…</div>`;
   const per={};const all={};BUCKETS.forEach(([q])=>all[q]=[]);
-  const SMCB=[[40,"کیفیت ≥۴۰"],[55,"کیفیت ≥۵۵"],[70,"کیفیت ≥۷۰"]];
+  const SMCB=[[0,"انتظار ≥۰"],[0.05,"انتظار ≥۰.۰۵R"],[0.15,"انتظار ≥۰.۱۵R"]];
   const smcPer={};const smcAll={};SMCB.forEach(([q])=>smcAll[q]=[]);
   for(const sym of syms){
     try{
@@ -1636,10 +1698,10 @@ async function runBacktest(auto){
   {const MIN=8;let bs=null;
    for(const[q]of SMCB){const a=btAgg(smcAll[q]);if(a.n>=MIN&&(!bs||a.net>bs.net))bs={q,...a};}
    if(bs){
-     const cur=smcQmin();
+     const cur=evMin();
      html+=`<div class="muted" style="font-size:12px;margin-top:6px">بهترین آستانهٔ استراتژی: <b>≥${bs.q}</b> — ${bs.n} معامله، برد ${bs.winrate}%، خالص ${bs.net>0?"+":""}${bs.net}R${bs.q!==cur?` · خودکار از ${cur} به ${bs.q} تغییر کرد`:" · همین الان فعال است"}</div>`;
-     if(bs.q!==cur)DB.set("smc_qmin",bs.q);
-     opslog("calib",`استراتژی اصلی: آستانه ≥${bs.q} · ${bs.n} معامله · برد ${bs.winrate}% · ${bs.net>0?"+":""}${bs.net}R`,bs.net>=0?"sig":"warn");
+     if(bs.q!==cur)DB.set("ev_min",bs.q);
+     opslog("calib",`استراتژی اصلی: آستانهٔ انتظار ≥${bs.q}R · ${bs.n} معامله · برد ${bs.winrate}% · ${bs.net>0?"+":""}${bs.net}R`,bs.net>=0?"sig":"warn");
    }else{
      html+=`<div class="muted" style="font-size:12px;margin-top:6px">در این بازه، استراتژی اصلی به حد نصاب معامله برای قضاوت نرسید — نماد یا زمان بیشتری لازم است.</div>`;
      opslog("calib","استراتژی اصلی: معاملهٔ کافی در این بازه نبود","warn");
@@ -1739,7 +1801,7 @@ async function analyzeOne(asset,funding,ctx){
   }catch(e){r.smc=null;}
   if(r.smc){
     r.smc.entry_zone={low:Math.min(r.smc.ob.low,r.smc.ob.high),high:Math.max(r.smc.ob.low,r.smc.ob.high),reference:"اردر بلاک ۱۵م — پولبک دوم"};
-    if(r.smc.stage==="SIGNAL"&&r.smc.quality>=smcQmin()&&r.smc.tp1){
+    if(r.smc.stage==="SIGNAL"&&r.smc.tp1){
       r.status="SIGNAL";r.direction=r.smc.dir;r.setup="SMC_OB_2ND_PULLBACK";
       r.entry=r.smc.entry;r.stop_loss=r.smc.sl;r.tp1=r.smc.tp1;r.tp2=r.smc.tp2||r.smc.tp1;
       r.rr=r.smc.rr;r.score=Math.max(r.score||0,r.smc.quality);
@@ -2106,8 +2168,9 @@ function trackSignals(sigs){
   for(const r of sigs){
     if(!["LONG","SHORT"].includes(r.direction)||!(r.stop_loss>0))continue;
     if(STATE.trades.some(t=>t.open&&t.sym===r.binance_symbol))continue;
+    if(r.smc)try{r.smc.feat=confFeat(r.smc,r.ibs);}catch(e){}
     opslog("trade",`پیگیری ${r.asset_symbol} ${r.direction} شروع شد — ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`,"sig");
-    STATE.trades.unshift({sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
+    STATE.trades.unshift({feat:r.smc&&r.smc.feat,p:r.smc&&r.smc.p,sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
   }
   STATE.trades=STATE.trades.slice(0,100);
   renderTrades();radarStart();
@@ -2127,6 +2190,7 @@ function tradeCheck(tr,price){
 function tradeClose(tr,r,why){
   tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
   const win=r>0;
+  if(tr.feat){try{confLearn(tr.feat,win);opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
   opslog("trade",`${win?"✅":"❌"} ${tr.asset} ${tr.dir} — ${why} (${r>0?"+":""}${r}R)`,win?"sig":"err");
   const fb=getFb();
   fb.unshift({time:new Date().toISOString(),symbol:tr.sym,asset:tr.asset,verdict:win?"win":"loss",
