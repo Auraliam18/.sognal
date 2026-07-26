@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v7.0 · تصمیم بر پایهٔ انتظار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v7.1 · ناظر و تعمیرکار</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -249,6 +249,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px">هر اتاق یک بخش از موتور است که مستقل کار می‌کند. اینجا لحظه‌به‌لحظه می‌بینی هرکدام الان مشغول چه کاری‌ست و چند ارز را پایش می‌کند.</p>
     <div id="opsRooms" class="grid" style="margin-top:12px"></div>
+    <div class="box" style="margin-top:12px"><h3>گزارش تعمیرها <span class="dim" style="font-size:11px;font-weight:400">هر خرابی و اینکه چطور برطرف شد</span></h3><div id="opsRepairs"></div></div>
     <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
   </section>
   <section id="view-signals"></section>
@@ -411,6 +412,8 @@ function buildSnapshot(){
     alarms:(typeof RADAR_LIVE!=="undefined"?RADAR_LIVE.alarms:[]).map(a=>({t:new Date(a.t).toISOString(),asset:a.asset,dir:a.dir,price:a.price,st:a.st})),
     trades:STATE.trades||[],
     ops_feed:(typeof OPS!=="undefined"?OPS.feed.slice(0,120):[]),
+    sup_repairs:(typeof SUP!=="undefined"?SUP.repairs.slice(0,40):[]),
+    conf_w:DB.get("conf_w")||null,conf_n:DB.get("conf_n")||0,ev_min:DB.get("ev_min")||null,
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
 }
@@ -430,10 +433,14 @@ function restoreSnapshot(snap){
     if(snap.bt_html){STATE.bt_html=snap.bt_html;STATE.bt_at=snap.bt_at||null;}
     if(Array.isArray(snap.trades))STATE.trades=snap.trades;
     if(Array.isArray(snap.ops_feed)&&typeof OPS!=="undefined"&&!OPS.feed.length)OPS.feed=snap.ops_feed;
+    if(Array.isArray(snap.sup_repairs)&&typeof SUP!=="undefined"&&!SUP.repairs.length)SUP.repairs=snap.sup_repairs;
+    if(snap.conf_w)DB.set("conf_w",snap.conf_w);
+    if(snap.conf_n)DB.set("conf_n",snap.conf_n);
+    if(snap.ev_min)DB.set("ev_min",snap.ev_min);
     return true;
   }catch(e){return false;}
 }
-function saveLocal(){const s=buildSnapshot();DB.set(SNAP_KEY,s);return s;}
+function saveLocal(){const s=buildSnapshot();DB.set(SNAP_KEY,s);if(typeof beat==="function")beat("save");return s;}
 
 const SYNC=(()=>{
   let cfg=Object.assign({base:"",key:""},DB.get("sync")||{});
@@ -1849,7 +1856,7 @@ async function runScan(){
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
     radarSetZones(rows);
     trackSignals(STATE.signals);
-    STATE.last_scan_at=new Date();OPS.scan.state="idle";OPS.nextScan=Date.now()+CFG.interval*1000;
+    STATE.last_scan_at=new Date();OPS.scan.state="idle";beat("scan");OPS.nextScan=Date.now()+CFG.interval*1000;
     {const st=rows.filter(x=>x.smc).reduce((a,x)=>{a[x.smc.stage]=(a[x.smc.stage]||0)+1;return a;},{});
      opslog("scan",`استراتژی کانال+OB: ${st.SIGNAL||0} سیگنال · ${st.ARMED||0} پولبک دوم داخل باکس · ${st.PULLBACK_1||0} پولبک اول`,st.SIGNAL?"sig":"info");}
     opslog("scan",`اسکن کامل شد — ${STATE.signals.length} سیگنال، ${STATE.watchlist.length} در واچ‌لیست از ${rows.length} ارز`,STATE.signals.length?"sig":"info");
@@ -2026,6 +2033,93 @@ async function initLiveChart(r){
   liveConnect(sym);
 }
 
+
+/* =========================================================================
+   SUPERVISOR — the room that watches the other rooms.
+   Every subsystem publishes a heartbeat. This checks them on a 5s tick,
+   repairs whatever has gone quiet, and keeps a record of what broke and
+   what fixed it, so the same failure gets handled faster next time.
+   Nothing here depends on the user being present.
+   ========================================================================= */
+const HB={scan:0,radar:0,paper:0,learn:0,save:0,chart:0,poll:0};
+const SUP={runs:0,repairs:[],fails:{},lastFix:{},polling:false,pollTimer:null,started:Date.now()};
+function beat(k){HB[k]=Date.now();}
+function supRepairLog(id,what,ok){
+  SUP.repairs.unshift({t:Date.now(),id,what,ok});
+  if(SUP.repairs.length>60)SUP.repairs.length=60;
+  SUP.fails[id]=(SUP.fails[id]||0)+1;SUP.lastFix[id]=Date.now();
+  opslog("sup",`${what} — ${ok?"برطرف شد":"تلاش ناموفق، دوباره امتحان می‌شود"}`,ok?"sig":"err");
+  saveLocal();
+}
+/* REST fallback: if the websocket is down, prices still have to flow or paper
+   trades and the entry-zone radar would silently stall. */
+async function pollPrices(){
+  const syms=new Set([...Object.keys(RADAR_LIVE.zones),...(STATE.trades||[]).filter(t=>t.open).map(t=>t.sym)]);
+  if(!syms.size)return;
+  try{
+    const arr=await jget("/fapi/v1/ticker/price");
+    if(!Array.isArray(arr))return;
+    let n=0;const open=(STATE.trades||[]).filter(t=>t.open);
+    for(const t of arr){
+      if(!syms.has(t.symbol))continue;
+      n++;const px=+t.price;
+      const z=RADAR_LIVE.zones[t.symbol];if(z)radarCheck(z,px);
+      for(const tr of open)if(tr.sym===t.symbol)tradeCheck(tr,px);
+    }
+    if(n){opsTick(n);beat("poll");beat("paper");}
+  }catch(e){}
+}
+function startPolling(){
+  if(SUP.polling)return;
+  SUP.polling=true;SUP.pollTimer=setInterval(pollPrices,3000);pollPrices();
+  opslog("sup","وب‌سوکت در دسترس نیست — پایش از مسیر جایگزین (REST) برقرار شد","warn");
+}
+function stopPolling(){
+  if(!SUP.polling)return;
+  SUP.polling=false;clearInterval(SUP.pollTimer);SUP.pollTimer=null;
+  opslog("sup","وب‌سوکت برگشت — مسیر جایگزین خاموش شد","sig");
+}
+function supChecks(){
+  const now=Date.now(),watching=Object.keys(RADAR_LIVE.zones).length>0||(STATE.trades||[]).some(t=>t.open);
+  return[
+    {id:"scan",name:"اتاق اسکن",
+     ok:STATE.scanning||(STATE.last_scan_at&&now-new Date(STATE.last_scan_at).getTime()<CFG.interval*1000*1.6)||now-SUP.started<12e4,
+     what:"اسکن از برنامه عقب افتاد",fix:()=>{if(!STATE.scanning)runScan();return true;}},
+    {id:"radar",name:"اتاق رادار",
+     ok:!watching||(RADAR_LIVE.ws&&now-OPS.lastTick<45e3)||SUP.polling,
+     what:"جریان قیمت قطع شد",fix:()=>{try{if(RADAR_LIVE.ws){RADAR_LIVE.ws.onclose=null;RADAR_LIVE.ws.close();}}catch(e){}
+       RADAR_LIVE.ws=null;radarStart();startPolling();return true;}},
+    {id:"paper",name:"ترید کاغذی",
+     ok:!(STATE.trades||[]).some(t=>t.open)||now-Math.max(HB.paper,OPS.lastTick)<6e4,
+     what:"معامله‌های باز بررسی نمی‌شدند",fix:()=>{pollPrices();return true;}},
+    {id:"learn",name:"یادگیری",
+     ok:(STATE.trades||[]).filter(t=>!t.open&&t.feat&&!t.learned).length===0,
+     what:"نتیجه‌ای ثبت شده بود ولی مدل از آن یاد نگرفته بود",
+     fix:()=>{let n=0;for(const t of (STATE.trades||[]))if(!t.open&&t.feat&&!t.learned){confLearn(t.feat,t.r>0);t.learned=1;n++;}
+       if(n)opslog("calib",`مدل از ${n} نتیجهٔ عقب‌افتاده یاد گرفت (${confN()} معامله)`,"sig");return true;}},
+    {id:"save",name:"حافظه و ابر",
+     ok:now-HB.save<9e5,
+     what:"وضعیت مدتی ذخیره نشده بود",fix:()=>{saveLocal();if(SYNC.on())SYNC.push();beat("save");return true;}},
+    {id:"chart",name:"چارت زنده",
+     ok:!LIVE.sym||!!LIVE.ws||SUP.polling,
+     what:"چارت زنده قطع شده بود",fix:()=>{if(LIVE.sym)liveConnect(LIVE.sym);return true;}}
+  ];
+}
+function supervise(){
+  SUP.runs++;
+  const checks=supChecks();
+  for(const c of checks){
+    if(c.ok)continue;
+    if(SUP.lastFix[c.id]&&Date.now()-SUP.lastFix[c.id]<20000)continue;   // let a repair settle
+    let ok=false;try{ok=!!c.fix();}catch(e){ok=false;}
+    supRepairLog(c.id,`${c.name}: ${c.what}`,ok);
+  }
+  if(SUP.polling&&RADAR_LIVE.ws&&Date.now()-OPS.lastTick<15e3)stopPolling();
+  SUP.health=checks.map(c=>({id:c.id,name:c.name,ok:c.ok}));
+  if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOps();
+}
+setInterval(supervise,5000);
+setTimeout(supervise,15000);
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
    ========================================================================= */
@@ -2036,9 +2130,9 @@ function opslog(room,msg,kind){
   if(OPS.feed.length>240)OPS.feed.length=240;
   if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOpsFeed();
 }
-const ROOMS={scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
+const ROOMS={sup:"اتاق ناظر",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
 function opsTick(n){
-  OPS.ticks+=n;OPS.lastTick=Date.now();
+  OPS.ticks+=n;OPS.lastTick=Date.now();beat("radar");beat("paper");
   OPS.tickWin.push({t:Date.now(),n});
   const cut=Date.now()-5000;while(OPS.tickWin.length&&OPS.tickWin[0].t<cut)OPS.tickWin.shift();
 }
@@ -2062,7 +2156,13 @@ function renderOps(){
   const secs=OPS.nextScan?Math.max(0,Math.round((OPS.nextScan-Date.now())/1000)):0;
   const mmss=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const rate=opsRate(),wsOk=!!RADAR_LIVE.ws;
+  const H=SUP.health||[];const down=H.filter(x=>!x.ok);
   el.innerHTML=[
+    roomCard("sup",true,
+      down.length?`<b style="color:#f0a92e">${down.length} اتاق نیاز به تعمیر دارد</b> — ${down.map(x=>x.name).join("، ")}`
+        :`<b style="color:#2ecc71">همهٔ ${H.length||6} اتاق سالم‌اند</b> · ${SUP.runs} بررسی از شروع`,
+      SUP.repairs.length?`آخرین تعمیر: ${SUP.repairs[0].what} — ${fmtTime(new Date(SUP.repairs[0].t))}${SUP.polling?" · هم‌اکنون روی مسیر جایگزین":""}`
+        :"هر ۵ ثانیه همهٔ اتاق‌ها بررسی می‌شوند؛ هر چه بخوابد بی‌درنگ بیدار می‌شود"),
     roomCard("scan",OPS.scan.state==="running",
       OPS.scan.state==="running"?`در حال تحلیل <b>${OPS.scan.done}</b> از ${OPS.scan.total} نماد…`
         :`${(STATE.universe||[]).length} ارز زیر نظر · اسکن بعدی تا <b class="num">${mmss(secs)}</b>`,
@@ -2084,6 +2184,11 @@ function renderOps(){
       OPS.deep.state==="running"?`در حال تحلیل عمیق ${OPS.deep.sym}…`:(lastDeep?`آخرین تحلیل: <b>${lastDeep.asset_symbol}</b> · ${lastDeep.direction} · امتیاز ${fmt(lastDeep.score,1)}`:"منتظر انتخاب نماد"),
       LIVE.ws?`چارت زندهٔ ${LIVE.sym} متصل — کندل ۱۵م لحظه‌ای`:"چارت زنده وقتی نمادی را باز کنی متصل می‌شود")
   ].join("");
+  const rp=$("#opsRepairs");
+  if(rp)rp.innerHTML=SUP.repairs.length?SUP.repairs.slice(0,12).map(x=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
+      <span class="dim mono" style="flex:none">${fmtTime(new Date(x.t))}</span><span>${x.what}</span>
+      <span style="margin-inline-start:auto;color:${x.ok?"#2ecc71":"#e74c3c"}">${x.ok?"تعمیر شد":"ناموفق"}</span></div>`).join("")
+    :`<div class="dim" style="font-size:12px">هنوز خرابی‌ای رخ نداده.</div>`;
   renderOpsFeed();
 }
 function renderOpsFeed(){
@@ -2190,7 +2295,7 @@ function tradeCheck(tr,price){
 function tradeClose(tr,r,why){
   tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
   const win=r>0;
-  if(tr.feat){try{confLearn(tr.feat,win);opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
+  if(tr.feat&&!tr.learned){try{confLearn(tr.feat,win);tr.learned=1;opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
   opslog("trade",`${win?"✅":"❌"} ${tr.asset} ${tr.dir} — ${why} (${r>0?"+":""}${r}R)`,win?"sig":"err");
   const fb=getFb();
   fb.unshift({time:new Date().toISOString(),symbol:tr.sym,asset:tr.asset,verdict:win?"win":"loss",
