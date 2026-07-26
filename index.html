@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v7.1 · ناظر و تعمیرکار</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v8.0 · پایش پیوسته</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1338,7 +1338,7 @@ function rsiDivergence(cd,k=3){
    are updated from this panel's own closed trades, so the model calibrates
    on the market you actually trade rather than on anyone's opinion.
    ========================================================================= */
-const CONF_DEF={bias:-0.30,rr:-0.18,depth:0,fvg:0,level:0,channel:0,visits2:0,btc:0,ibs:0,ext:0};
+const CONF_DEF={bias:-0.30,rr:-0.18,depth:0,fvg:0,level:0,channel:0,visits2:0,btc:0,ibs:0,ext:0,intel:0};
 function confW(){const w=DB.get("conf_w");return Object.assign({},CONF_DEF,w&&typeof w==="object"?w:{});}
 function confFeat(s,ibs){
   const R=s.rr||0;
@@ -1351,6 +1351,7 @@ function confFeat(s,ibs){
     visits2:s.visits>=2?1:0,
     btc:s.btcDiv&&s.btcDiv.bias&&s.btcDiv.bias!=="NEUTRAL"?(s.btcDiv.bias===s.dir?1:-1):0,
     ibs:ibs&&ibs.dir===s.dir?(ibs.quality>=55?1:0.5):(ibs?-0.5:0),
+    intel:(typeof intelBias==="function")?(s.dir==="LONG"?intelBias():-intelBias()):0,
     ext:s.tpExt?1:0};
 }
 function confP(s,ibs){
@@ -1856,6 +1857,8 @@ async function runScan(){
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
     radarSetZones(rows);
     trackSignals(STATE.signals);
+    watcherStart(rows.map(r=>r.binance_symbol));
+    intelRefresh();
     STATE.last_scan_at=new Date();OPS.scan.state="idle";beat("scan");OPS.nextScan=Date.now()+CFG.interval*1000;
     {const st=rows.filter(x=>x.smc).reduce((a,x)=>{a[x.smc.stage]=(a[x.smc.stage]||0)+1;return a;},{});
      opslog("scan",`استراتژی کانال+OB: ${st.SIGNAL||0} سیگنال · ${st.ARMED||0} پولبک دوم داخل باکس · ${st.PULLBACK_1||0} پولبک اول`,st.SIGNAL?"sig":"info");}
@@ -2034,6 +2037,147 @@ async function initLiveChart(r){
 }
 
 
+
+
+/* =========================================================================
+   MARKET INTELLIGENCE — positioning and sentiment from sources that publish
+   real numbers rather than opinions: Binance futures positioning stats
+   (open interest, account long/short, taker flow) and the Fear & Greed index.
+   Refreshed on a cycle, folded into the setup's evidence, and shown as
+   plain readings so a signal can be checked against them.
+   ========================================================================= */
+const INTEL={snap:{},at:0,busy:false,hist:[]};
+async function intelRefresh(){
+  if(INTEL.busy||Date.now()-INTEL.at<3e5)return INTEL.snap;
+  INTEL.busy=true;
+  const out={};
+  const grab=async(label,fn)=>{try{const v=await fn();if(v!=null)out[label]=v;}catch(e){}};
+  await Promise.all([
+    grab("oi",async()=>{
+      const a=await jget("/futures/data/openInterestHist?symbol=BTCUSDT&period=15m&limit=8");
+      if(!Array.isArray(a)||a.length<2)return null;
+      const f=+a[0].sumOpenInterest,l=+a[a.length-1].sumOpenInterest;
+      return{now:l,chg:+(((l-f)/f)*100).toFixed(2)};
+    }),
+    grab("ls",async()=>{
+      const a=await jget("/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=15m&limit=2");
+      if(!Array.isArray(a)||!a.length)return null;
+      return +(+a[a.length-1].longShortRatio).toFixed(2);
+    }),
+    grab("taker",async()=>{
+      const a=await jget("/futures/data/takerlongshortRatio?symbol=BTCUSDT&period=15m&limit=2");
+      if(!Array.isArray(a)||!a.length)return null;
+      return +(+a[a.length-1].buySellRatio).toFixed(2);
+    }),
+    grab("fng",async()=>{
+      const r=await fetch("https://api.alternative.me/fng/?limit=1",{cache:"no-store"});
+      if(!r.ok)return null;const j=await r.json();
+      const d=j&&j.data&&j.data[0];return d?{v:+d.value,label:d.value_classification}:null;
+    })
+  ]);
+  INTEL.snap=out;INTEL.at=Date.now();INTEL.busy=false;beat("intel");
+  INTEL.hist.unshift({t:Date.now(),...out});if(INTEL.hist.length>48)INTEL.hist.length=48;
+  const bits=[];
+  if(out.oi)bits.push(`اوپن‌اینترست ${out.oi.chg>0?"+":""}${out.oi.chg}%`);
+  if(out.ls!=null)bits.push(`نسبت لانگ/شورت ${out.ls}`);
+  if(out.taker!=null)bits.push(`جریان تیکر ${out.taker}`);
+  if(out.fng)bits.push(`ترس و طمع ${out.fng.v} (${out.fng.label})`);
+  if(bits.length)opslog("intel",bits.join(" · "));
+  return out;
+}
+/* Crowd positioning read: when the crowd is heavily one way and open interest
+   is climbing, the other side is where the stops are. */
+function intelBias(){
+  const s=INTEL.snap;if(!s)return 0;
+  let b=0;
+  if(s.ls!=null){if(s.ls>2.2)b-=1;else if(s.ls<0.75)b+=1;}          // crowd lopsided → fade it
+  if(s.taker!=null){if(s.taker>1.25)b+=0.5;else if(s.taker<0.8)b-=0.5;} // aggressive flow → follow it
+  if(s.fng){if(s.fng.v>=78)b-=0.5;else if(s.fng.v<=22)b+=0.5;}
+  return Math.max(-1,Math.min(1,b));
+}
+setInterval(intelRefresh,3e5);
+/* =========================================================================
+   CONTINUOUS WATCH — every symbol, every closed candle, on 5m and 15m.
+   One combined websocket carries up to 1024 streams, so ~100 symbols on two
+   timeframes fit in a single connection. Buffers are seeded from REST once,
+   then kept current by the stream; each closed candle re-runs the strategy
+   for that symbol alone. Detection stops being a 30-minute snapshot.
+   ========================================================================= */
+const WATCHER={ws:null,buf:{},subs:[],ready:false,evals:0,found:0,retry:null,seeding:false,lastEval:0};
+function bufKey(sym,tf){return sym+"|"+tf;}
+async function watcherSeed(syms,tfs){
+  if(WATCHER.seeding)return;
+  WATCHER.seeding=true;
+  try{
+    for(const tf of tfs){
+      await pool(syms,async sym=>{
+        const k=bufKey(sym,tf);
+        if(WATCHER.buf[k]&&WATCHER.buf[k].length>=240)return;
+        try{WATCHER.buf[k]=await fetchKlines(sym,tf,300);}catch(e){}
+      },CFG.concurrency);
+    }
+    WATCHER.ready=true;
+    opslog("watch",`بافر ${Object.keys(WATCHER.buf).length} سری کندل آماده شد — پایش پیوسته شروع شد`,"sig");
+  }finally{WATCHER.seeding=false;}
+}
+function watcherStart(syms,tfs){
+  tfs=tfs||["5m","15m"];
+  syms=(syms||[]).slice(0,Math.floor(1000/tfs.length));
+  if(!syms.length)return;
+  WATCHER.subs=[];
+  for(const tf of tfs)for(const s of syms)WATCHER.subs.push(s.toLowerCase()+"@kline_"+tf);
+  watcherSeed(syms,tfs);
+  watcherConnect();
+}
+function watcherConnect(){
+  if(WATCHER.ws||!WATCHER.subs.length)return;
+  let ws;
+  try{ws=new WebSocket("wss://fstream.binance.com/stream?streams="+WATCHER.subs.join("/"));}catch(e){return;}
+  WATCHER.ws=ws;
+  ws.onopen=()=>{beat("watch");opslog("watch",`استریم ${WATCHER.subs.length} کانال کندل متصل شد (${WATCHER.subs.length/2} ارز × ۲ تایم‌فریم)`,"sig");};
+  ws.onmessage=ev=>{
+    try{
+      const m=JSON.parse(ev.data),k=m&&m.data&&m.data.k;if(!k)return;
+      beat("watch");
+      const sym=k.s,tf=k.i,key=bufKey(sym,tf),buf=WATCHER.buf[key];
+      if(!buf)return;
+      const bar={t:k.t,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
+      const last=buf[buf.length-1];
+      if(last&&last.t===bar.t)buf[buf.length-1]=bar;else{buf.push(bar);if(buf.length>320)buf.shift();}
+      if(k.x)watcherEvaluate(sym,tf);          // only on a closed candle
+    }catch(e){}
+  };
+  ws.onclose=()=>{WATCHER.ws=null;opslog("watch","استریم قطع شد — اتصال مجدد","warn");clearTimeout(WATCHER.retry);WATCHER.retry=setTimeout(watcherConnect,4000);};
+  ws.onerror=()=>{try{ws.close();}catch(e){}};
+}
+function watcherEvaluate(sym,tf){
+  const buf=WATCHER.buf[bufKey(sym,tf)];
+  if(!buf||buf.length<120)return;
+  WATCHER.evals++;WATCHER.lastEval=Date.now();
+  let s=null;
+  try{s=smcSetup(buf,{btcDiv:(STATE.market_context||{}).btcDiv,tf,intel:INTEL.snap});}catch(e){return;}
+  if(!s)return;
+  const row=(STATE.universe||[]).find(r=>r.binance_symbol===sym);
+  const asset=row?row.asset_symbol:sym.replace("USDT","");
+  if(row){row.smc=s;row.entry_zone=s.entry_zone;}
+  if(s.stage==="SIGNAL"){
+    if(STATE.signals.some(x=>x.binance_symbol===sym&&Date.now()-(x._t||0)<9e5))return;
+    WATCHER.found++;
+    const sig=Object.assign({},row||{},{binance_symbol:sym,asset_symbol:asset,status:"SIGNAL",
+      direction:s.dir,setup:"SMC_"+tf.toUpperCase(),entry:s.entry,stop_loss:s.sl,tp1:s.tp1,tp2:s.tp2,
+      rr:s.rr,score:s.conf,smc:s,entry_zone:s.entry_zone,_t:Date.now(),
+      quote_volume:row?row.quote_volume:0,change_24h_pct:row?row.change_24h_pct:0});
+    STATE.signals=[sig,...STATE.signals.filter(x=>x.binance_symbol!==sym)].slice(0,60);
+    trackSignals([sig]);
+    beep(3);notify(`🚨 ${asset} ${s.dir} — ${tf}`,`ورود ${fmt(s.entry)} · استاپ ${fmt(s.sl)} · انتظار ${s.ev.toFixed(2)}R`);
+    opslog("watch",`🚨 ${asset} ${tf}: ${s.dir} · اعتماد ${s.conf}٪ · انتظار ${s.ev.toFixed(2)}R · R:R ${s.rr}`,"sig");
+    renderSignals();saveLocal();if(SYNC.on())SYNC.push();
+  }else if(s.stage==="ARMED"&&row){
+    row.status="WAITING_CONFIRMATION";row.direction=s.dir;
+    if(!STATE.watchlist.some(x=>x.binance_symbol===sym))STATE.watchlist=[row,...STATE.watchlist].slice(0,80);
+    radarSetZones(STATE.universe||[]);
+  }
+}
 /* =========================================================================
    SUPERVISOR — the room that watches the other rooms.
    Every subsystem publishes a heartbeat. This checks them on a 5s tick,
@@ -2041,7 +2185,7 @@ async function initLiveChart(r){
    what fixed it, so the same failure gets handled faster next time.
    Nothing here depends on the user being present.
    ========================================================================= */
-const HB={scan:0,radar:0,paper:0,learn:0,save:0,chart:0,poll:0};
+const HB={scan:0,radar:0,paper:0,learn:0,save:0,chart:0,poll:0,watch:0,intel:0};
 const SUP={runs:0,repairs:[],fails:{},lastFix:{},polling:false,pollTimer:null,started:Date.now()};
 function beat(k){HB[k]=Date.now();}
 function supRepairLog(id,what,ok){
@@ -2100,6 +2244,13 @@ function supChecks(){
     {id:"save",name:"حافظه و ابر",
      ok:now-HB.save<9e5,
      what:"وضعیت مدتی ذخیره نشده بود",fix:()=>{saveLocal();if(SYNC.on())SYNC.push();beat("save");return true;}},
+    {id:"watch",name:"اتاق پایش",
+     ok:!WATCHER.subs.length||(WATCHER.ws&&now-HB.watch<12e4),
+     what:"استریم پایش پیوسته خوابیده بود",fix:()=>{try{if(WATCHER.ws){WATCHER.ws.onclose=null;WATCHER.ws.close();}}catch(e){}
+       WATCHER.ws=null;watcherConnect();return true;}},
+    {id:"intel",name:"اتاق اطلاعات",
+     ok:now-INTEL.at<9e5||now-SUP.started<12e4,
+     what:"اطلاعات بازار تازه نشده بود",fix:()=>{INTEL.at=0;intelRefresh();return true;}},
     {id:"chart",name:"چارت زنده",
      ok:!LIVE.sym||!!LIVE.ws||SUP.polling,
      what:"چارت زنده قطع شده بود",fix:()=>{if(LIVE.sym)liveConnect(LIVE.sym);return true;}}
@@ -2118,7 +2269,7 @@ function supervise(){
   SUP.health=checks.map(c=>({id:c.id,name:c.name,ok:c.ok}));
   if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOps();
 }
-setInterval(supervise,5000);
+setInterval(supervise,1000);
 setTimeout(supervise,15000);
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
@@ -2130,7 +2281,7 @@ function opslog(room,msg,kind){
   if(OPS.feed.length>240)OPS.feed.length=240;
   if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOpsFeed();
 }
-const ROOMS={sup:"اتاق ناظر",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
+const ROOMS={sup:"اتاق ناظر",watch:"اتاق پایش",intel:"اتاق اطلاعات",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
 function opsTick(n){
   OPS.ticks+=n;OPS.lastTick=Date.now();beat("radar");beat("paper");
   OPS.tickWin.push({t:Date.now(),n});
@@ -2173,6 +2324,17 @@ function renderOps(){
     roomCard("trade",open.length>0,
       `<b>${open.length}</b> معاملهٔ باز · ${closed.length} بسته${closed.length?` · خالص <b style="color:${net>=0?"#2ecc71":"#e74c3c"}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}`,
       open.length?open.slice(0,4).map(t=>`${t.asset} ${t.dir} @ ${fmt(t.entry)} ${t.t1?"· TP1 خورد":""}`).join(" · "):"با اولین سیگنال، پیگیری خودکار شروع می‌شود"),
+    roomCard("watch",!!WATCHER.ws,
+      WATCHER.subs.length?`<b>${WATCHER.subs.length/2}</b> ارز × ۲ تایم‌فریم زیر پایش پیوسته · <b>${WATCHER.evals.toLocaleString("en")}</b> ارزیابی · <b>${WATCHER.found}</b> ستاپ یافت‌شده`:"بعد از اولین اسکن فعال می‌شود",
+      WATCHER.ws?`هر کندلی که بسته می‌شود، همان ارز بی‌درنگ دوباره تحلیل می‌شود — نه هر ۳۰ دقیقه`:(WATCHER.subs.length?"در حال اتصال مجدد…":"")),
+    roomCard("intel",!!INTEL.at,
+      (()=>{const s=INTEL.snap||{};const b=[];
+        if(s.oi)b.push(`اوپن‌اینترست <b>${s.oi.chg>0?"+":""}${s.oi.chg}%</b>`);
+        if(s.ls!=null)b.push(`لانگ/شورت <b>${s.ls}</b>`);
+        if(s.taker!=null)b.push(`جریان تیکر <b>${s.taker}</b>`);
+        if(s.fng)b.push(`ترس و طمع <b>${s.fng.v}</b>`);
+        return b.length?b.join(" · "):"در حال دریافت…";})(),
+      INTEL.at?`آخرین به‌روزرسانی ${fmtTime(new Date(INTEL.at))} · گرایش جمعیت: ${intelBias()>0.2?"به‌نفع خرید":intelBias()<-0.2?"به‌نفع فروش":"خنثی"}`:"منابع: آمار پوزیشن‌گیری بایننس و شاخص ترس و طمع"),
     roomCard("calib",OPS.bt.state==="running",
       OPS.bt.state==="running"?`بک‌تست ${OPS.bt.sym} (<b>${OPS.bt.done}</b>/${OPS.bt.total})…`
         :`آستانهٔ فعال: کیفیت ≥ <b>${ibsQmin()}</b> · ${getFb().length} بازخورد ثبت‌شده`,
