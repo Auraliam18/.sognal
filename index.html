@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v10.0 · تلگرام+تجربه</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v11.0 · برنامهٔ کاری</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -249,6 +249,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px">هر اتاق یک بخش از موتور است که مستقل کار می‌کند. اینجا لحظه‌به‌لحظه می‌بینی هرکدام الان مشغول چه کاری‌ست و چند ارز را پایش می‌کند.</p>
     <div id="opsRooms" class="grid" style="margin-top:12px"></div>
+    <div class="box" style="margin-top:12px"><h3>برنامهٔ کاری اتاق‌ها <span class="dim" style="font-size:11px;font-weight:400" id="curMeta"></span></h3><div id="curBox"></div></div>
     <div class="box" style="margin-top:12px"><h3>گزارش تعمیرها <span class="dim" style="font-size:11px;font-weight:400">هر خرابی و اینکه چطور برطرف شد</span></h3><div id="opsRepairs"></div></div>
     <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
   </section>
@@ -417,6 +418,7 @@ function buildSnapshot(){
     sup_repairs:(typeof SUP!=="undefined"?SUP.repairs.slice(0,40):[]),
     conf_w:DB.get("conf_w")||null,conf_n:DB.get("conf_n")||0,ev_min:DB.get("ev_min")||null,
     cases:DB.get("cases")||null,bf_at:DB.get("bf_at")||null,usdtDom:DB.get("usdtDom")||null,
+    cur_last:DB.get("cur_last")||null,cur_log:(typeof CURST!=="undefined"?CURST.log.slice(0,20):null),
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
 }
@@ -443,6 +445,8 @@ function restoreSnapshot(snap){
     if(Array.isArray(snap.cases)&&snap.cases.length>=(DB.get("cases")||[]).length)DB.set("cases",snap.cases);
     if(snap.bf_at)DB.set("bf_at",snap.bf_at);
     if(snap.usdtDom)DB.set("usdtDom",snap.usdtDom);
+    if(snap.cur_last){DB.set("cur_last",snap.cur_last);if(typeof CURST!=="undefined")CURST.last=snap.cur_last;}
+    if(Array.isArray(snap.cur_log)&&typeof CURST!=="undefined"&&!CURST.log.length)CURST.log=snap.cur_log;
     return true;
   }catch(e){return false;}
 }
@@ -2556,6 +2560,114 @@ function supReport(push){
   return line;
 }
 setInterval(()=>supReport(true),3e5);
+
+/* =========================================================================
+   CURRICULUM — twenty standing assignments the rooms run on their own clock.
+   Each states what to do, and each writes back a finding the panel can act on
+   or that the next assignment builds from. The supervisor runs whichever is
+   due, one at a time, so the work never competes with live monitoring.
+   ========================================================================= */
+const CUR=[
+ {id:1,h:1,room:"calib",name:"دورهٔ آموزش ۴ روزه",
+  run:async()=>{if(!BF.running)await backfillTrain({days:4,topN:80,target:300});return`${BF.trades} پوزیشن آموخته شد`;}},
+ {id:2,h:6,room:"calib",name:"بک‌تست و تنظیم آستانهٔ تصمیم",
+  run:async()=>{await runBacktest(true);return`آستانه ${evMin()}R`;}},
+ {id:3,h:2,room:"calib",name:"کالیبراسیون احتمال — آیا اعتماد با واقعیت می‌خواند؟",
+  run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open&&x.p!=null);
+    if(t.length<20)return`${t.length} نمونه — کمتر از حد قضاوت`;
+    const hi=t.filter(x=>x.p>=0.5),lo=t.filter(x=>x.p<0.5);
+    const hr=a=>a.length?Math.round(a.filter(x=>x.r>0).length/a.length*100):0;
+    return`اعتماد بالا برد ${hr(hi)}% (${hi.length}) · اعتماد پایین برد ${hr(lo)}% (${lo.length})`;}},
+ {id:4,h:3,room:"calib",name:"کدام تایم‌فریم بهتر جواب داده",
+  run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open);
+    const g={};t.forEach(x=>{const k=x.tf||"?";(g[k]=g[k]||[]).push(x);});
+    return Object.entries(g).map(([k,a])=>`${k}: ${a.length} معامله برد ${Math.round(a.filter(x=>x.r>0).length/a.length*100)}%`).join(" · ")||"داده‌ای نیست";}},
+ {id:5,h:3,room:"calib",name:"لانگ در برابر شورت",
+  run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open);
+    const f=d=>{const a=t.filter(x=>x.dir===d);return a.length?`${d} ${a.length} معامله · برد ${Math.round(a.filter(x=>x.r>0).length/a.length*100)}% · ${(a.reduce((s,x)=>s+x.r,0)).toFixed(1)}R`:`${d} بدون معامله`;};
+    return f("LONG")+" | "+f("SHORT");}},
+ {id:6,h:4,room:"calib",name:"وزن‌های آموخته چه می‌گویند",
+  run:async()=>{const w=confW();
+    return Object.entries(w).filter(([k])=>k!=="bias").sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4)
+      .map(([k,v])=>`${k} ${v>0?"+":""}${v.toFixed(2)}`).join(" · ")+` (از ${confN()} نتیجه)`;}},
+ {id:7,h:6,room:"calib",name:"پاک‌سازی تجربه‌های کهنه",
+  run:async()=>{const a=CASES.load();const cut=Date.now()-30*864e5;const keep=a.filter(c=>c.t>cut);
+    if(keep.length!==a.length)DB.set("cases",keep);return`${a.length-keep.length} موقعیت قدیمی‌تر از ۳۰ روز کنار گذاشته شد`;}},
+ {id:8,h:2,room:"watch",name:"پوشش پایش — آیا همهٔ ارزها بافر دارند",
+  run:async()=>{const need=WATCHER.subs.length,have=Object.keys(WATCHER.buf).filter(k=>WATCHER.buf[k].length>=240).length;
+    if(have<need*0.9&&!WATCHER.seeding){const syms=[...new Set(WATCHER.subs.map(x=>x.split("@")[0].toUpperCase()))];watcherSeed(syms,["5m","15m"]);}
+    return`${have}/${need} سری کامل`;}},
+ {id:9,h:1,room:"watch",name:"نرخ ارزیابی — آیا کندل‌ها می‌رسند",
+  run:async()=>`${WATCHER.evals} ارزیابی · ${WATCHER.found} ستاپ · آخرین ${WATCHER.lastEval?fmtTime(new Date(WATCHER.lastEval)):"—"}`},
+ {id:10,h:4,room:"watch",name:"بازچینش جهان پایش بر اساس حجم روز",
+  run:async()=>{try{const t=await fetchTickers();const uni=await buildUniverse(t);
+    watcherStart(uni.map(a=>a.binance_symbol));return`${uni.length} ارز بازچینی شد`;}catch(e){return"ناموفق — شبکه";}}},
+ {id:11,h:1,room:"intel",name:"به‌روزرسانی پوزیشن‌گیری و احساسات",
+  run:async()=>{const s=await intelRefresh();return Object.keys(s||{}).length?`گرایش ${intelBias().toFixed(1)}`:"در دسترس نبود";}},
+ {id:12,h:1,room:"intel",name:"نمونه‌گیری دامیننس تتر",
+  run:async()=>{const d=await fetchUsdtDominance();return domFa(d)+` (${d.samples} نمونه)`;}},
+ {id:13,h:2,room:"intel",name:"واگرایی RSI بیت‌کوین در ۴ ساعته",
+  run:async()=>{try{const k=await fetchKlines("BTCUSDT","4h",200);const d=rsiDivergence(k);
+    if(STATE.market_context)STATE.market_context.btcDiv=d;return`RSI ${d.rsi} — ${d.label}`;}catch(e){return"ناموفق";}}},
+ {id:14,h:3,room:"market",name:"پهنای بازار — چند درصد ارزها مثبت‌اند",
+  run:async()=>{const u=STATE.universe||[];if(!u.length)return"جهانی نیست";
+    const b=Math.round(u.filter(r=>r.change_24h_pct>0).length/u.length*100);
+    if(STATE.market_context)STATE.market_context.breadth=b;renderRegime();return`${b}% صعودی`;}},
+ {id:15,h:6,room:"market",name:"رژیم بازار و بازخوانی بیت‌کوین",
+  run:async()=>{const c=await fetchMarketContext();STATE.market_context=Object.assign(STATE.market_context||{},c);renderRegime();return`رژیم ${c.risk_mode}`;}},
+ {id:16,h:2,room:"trade",name:"هیچ پوزیشنی رها نمانده باشد",
+  run:async()=>{const open=(STATE.trades||[]).filter(t=>t.open);
+    const stale=open.filter(t=>Date.now()-t.t0>36e5*8);
+    stale.forEach(t=>{t.open=false;t.r=t.t1?t.rLock:0;t.why="مهلت تمام شد";
+      if(t.feat&&!t.learned){confLearn(t.feat,t.r>0);CASES.add(t.feat,t.r>0,t.r,{asset:t.asset,dir:t.dir,tf:t.tf});t.learned=1;}});
+    if(stale.length){renderTrades();saveLocal();}
+    return`${open.length-stale.length} باز · ${stale.length} بسته‌شده به‌خاطر مهلت`;}},
+ {id:17,h:12,room:"trade",name:"کارنامهٔ روز",
+  run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open);
+    if(!t.length)return"معامله‌ای بسته نشده";
+    const net=t.reduce((s,x)=>s+x.r,0),w=t.filter(x=>x.r>0).length;
+    const msg=`کارنامه: ${t.length} معامله · برد ${Math.round(w/t.length*100)}% · خالص ${net>0?"+":""}${net.toFixed(1)}R`;
+    if(TG.on())TG.send("📊 <b>"+msg+"</b>");return msg;}},
+ {id:18,h:8,room:"sup",name:"مرور خرابی‌ها — چه چیزی مدام می‌شکند",
+  run:async()=>{const f=SUP.fails||{};const top=Object.entries(f).sort((a,b)=>b[1]-a[1])[0];
+    return top?`بیشترین خرابی: ${top[0]} (${top[1]} بار)`:"خرابی‌ای ثبت نشده";}},
+ {id:19,h:6,room:"sup",name:"سلامت حافظه و همگام‌سازی",
+  run:async()=>{saveLocal();const ok=SYNC.on()?await SYNC.push():null;
+    return`محلی ذخیره شد${ok===null?" · ابری خاموش":ok?" · ابری هم‌گام":" · ابری ناموفق"} · ${CASES.count()} تجربه`;}},
+ {id:20,h:24,room:"sup",name:"گزارش روزانه به تلگرام",
+  run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open);
+    const net=t.reduce((s,x)=>s+x.r,0);
+    const msg=["🗓 <b>گزارش روزانه</b>",
+      `پایش: ${OPS.ticks.toLocaleString("en")} قیمت · ${WATCHER.evals} ارزیابی`,
+      `معاملات: ${t.length} بسته · خالص ${net>0?"+":""}${net.toFixed(1)}R`,
+      `یادگیری: مدل روی ${confN()} نتیجه · ${CASES.count()} تجربه`,
+      `تعمیرها: ${SUP.repairs.length}`].join("\n");
+    if(TG.on())TG.send(msg);return"ارسال شد";}}
+];
+const CURST={last:{},running:false,log:[]};
+function curLoad(){const d=DB.get("cur_last");if(d&&typeof d==="object")CURST.last=d;}
+function curDue(){
+  const now=Date.now();
+  return CUR.filter(a=>now-(CURST.last[a.id]||0)>a.h*36e5)
+            .sort((a,b)=>(CURST.last[a.id]||0)-(CURST.last[b.id]||0))[0]||null;
+}
+async function curTick(){
+  if(CURST.running)return;
+  const a=curDue();if(!a)return;
+  CURST.running=true;
+  try{
+    const out=await a.run();
+    CURST.last[a.id]=Date.now();DB.set("cur_last",CURST.last);
+    CURST.log.unshift({t:Date.now(),id:a.id,name:a.name,room:a.room,out:String(out||"انجام شد")});
+    if(CURST.log.length>40)CURST.log.length=40;
+    opslog(a.room,`برنامهٔ ${a.id} — ${a.name}: ${out}`,"info");
+    saveLocal();
+  }catch(e){
+    CURST.last[a.id]=Date.now()-a.h*36e5*0.75;   // retry sooner on failure
+    opslog(a.room,`برنامهٔ ${a.id} — ${a.name}: ناموفق (${e.message||e})`,"err");
+  }finally{CURST.running=false;}
+}
+setInterval(curTick,12e4);
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
    ========================================================================= */
@@ -2657,6 +2769,19 @@ function renderOps(){
   const keys=Object.keys(ROOMSTATE);
   if(el.childElementCount!==cards.length)el.innerHTML=cards.join("");   // first paint or room set changed
   else keys.forEach(k=>{if(!roomPatch(k))el.innerHTML=cards.join("");});
+  const cb=$("#curBox");
+  if(cb){
+    const meta=$("#curMeta");
+    const due=curDue();
+    if(meta)meta.textContent=`${CUR.length} برنامه · ${Object.keys(CURST.last).length} اجرا شده${due?` · بعدی: ${due.name}`:""}`;
+    const sig=CURST.log.length+"|"+Object.keys(CURST.last).length;
+    if(cb.dataset.sig!==sig){cb.dataset.sig=sig;
+      cb.innerHTML=CURST.log.length?CURST.log.slice(0,10).map(x=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
+        <span class="dim mono" style="flex:none">${fmtTime(new Date(x.t))}</span>
+        <span class="mono" style="flex:none;color:#7f8ea3;min-width:92px">${ROOMS[x.room]||x.room}</span>
+        <span><b>${x.id}. ${x.name}</b> — ${x.out}</span></div>`).join("")
+        :`<div class="dim" style="font-size:12px">${CUR.length} برنامه ثبت شده؛ اولین اجرا تا دو دقیقهٔ دیگر.</div>`;}
+  }
   const rp=$("#opsRepairs");
   if(rp&&rp.dataset.n!==String(SUP.repairs.length)){rp.dataset.n=String(SUP.repairs.length);rp.innerHTML=SUP.repairs.length?SUP.repairs.slice(0,12).map(x=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
       <span class="dim mono" style="flex:none">${fmtTime(new Date(x.t))}</span><span>${x.what}</span>
@@ -3284,7 +3409,7 @@ async function boot(){
   if(await SYNC.autoDetect()){renderSyncStatus();setStatus("فضای ابری خودکار شناسایی و فعال شد ☁︎");}
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
-  renderCalib();renderPatRef();renderSyncStatus();renderTrades();
+  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();
   const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();bootResume();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)
