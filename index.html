@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v8.1 · سنجش در مقیاس</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v8.3 · چراغ‌های گویا</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -2283,6 +2283,7 @@ function opslog(room,msg,kind){
   if(OPS.feed.length>240)OPS.feed.length=240;
   if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOpsFeed();
 }
+const ROOMSTATE={};
 const ROOMS={sup:"اتاق ناظر",watch:"اتاق پایش",intel:"اتاق اطلاعات",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
 function opsTick(n){
   OPS.ticks+=n;OPS.lastTick=Date.now();beat("radar");beat("paper");
@@ -2290,16 +2291,36 @@ function opsTick(n){
   const cut=Date.now()-5000;while(OPS.tickWin.length&&OPS.tickWin[0].t<cut)OPS.tickWin.shift();
 }
 function opsRate(){const s=OPS.tickWin.reduce((a,x)=>a+x.n,0);return Math.round(s/5);}
+const RC_STATE={live:["#2ecc71","فعال","0 0 8px #2ecc71"],ready:["#3fb6f5","آماده","0 0 6px #3fb6f5"],down:["#e74c3c","در حال تعمیر","0 0 8px #e74c3c"]};
 function roomCard(key,alive,head,lines){
-  return `<div class="card fade" style="padding:13px 14px">
+  const broken=(SUP.health||[]).some(h=>h.id===key&&!h.ok);
+  const st=broken?"down":(alive===true?"live":alive==="ready"?"ready":alive?"live":"ready");
+  ROOMSTATE[key]={st,head,lines:lines||""};
+  return `<div class="card fade" id="rc-${key}" style="padding:13px 14px">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="width:8px;height:8px;border-radius:50%;background:${alive?"#2ecc71":"#5b6675"};box-shadow:${alive?"0 0 8px #2ecc71":"none"}"></span>
+      <span class="rc-dot" style="width:8px;height:8px;border-radius:50%;background:${RC_STATE[st][0]};box-shadow:${RC_STATE[st][2]}"></span>
       <b style="font-size:13px">${ROOMS[key]}</b>
-      <span class="dim mono" style="margin-inline-start:auto;font-size:11px">${alive?"فعال":"در انتظار"}</span>
+      <span class="rc-state mono" style="margin-inline-start:auto;font-size:11px;color:${RC_STATE[st][0]}">${RC_STATE[st][1]}</span>
     </div>
-    <div style="font-size:12px;margin-top:7px;line-height:1.9">${head}</div>
-    ${lines?`<div class="dim" style="font-size:11px;margin-top:5px;line-height:1.8">${lines}</div>`:""}
+    <div class="rc-head" style="font-size:12px;margin-top:7px;line-height:1.9">${head}</div>
+    <div class="rc-sub dim" style="font-size:11px;margin-top:5px;line-height:1.8;${lines?"":"display:none"}">${lines||""}</div>
   </div>`;
+}
+/* Update in place: replacing the whole panel every second made it blink. */
+function roomPatch(key){
+  const st=ROOMSTATE[key],card=document.getElementById("rc-"+key);
+  if(!st||!card)return false;
+  const dot=card.querySelector(".rc-dot"),state=card.querySelector(".rc-state"),
+        head=card.querySelector(".rc-head"),sub=card.querySelector(".rc-sub");
+  if(card.dataset.st!==st.st){
+    const c=RC_STATE[st.st];
+    dot.style.background=c[0];dot.style.boxShadow=c[2];
+    state.textContent=c[1];state.style.color=c[0];
+    card.dataset.st=st.st;
+  }
+  if(head.innerHTML!==st.head)head.innerHTML=st.head;
+  if(sub.innerHTML!==st.lines){sub.innerHTML=st.lines;sub.style.display=st.lines?"":"none";}
+  return true;
 }
 function renderOps(){
   const el=$("#opsRooms");if(!el)return;
@@ -2310,26 +2331,26 @@ function renderOps(){
   const mmss=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const rate=opsRate(),wsOk=!!RADAR_LIVE.ws;
   const H=SUP.health||[];const down=H.filter(x=>!x.ok);
-  el.innerHTML=[
+  const cards=[
     roomCard("sup",true,
       down.length?`<b style="color:#f0a92e">${down.length} اتاق نیاز به تعمیر دارد</b> — ${down.map(x=>x.name).join("، ")}`
         :`<b style="color:#2ecc71">همهٔ ${H.length||6} اتاق سالم‌اند</b> · ${SUP.runs} بررسی از شروع`,
       SUP.repairs.length?`آخرین تعمیر: ${SUP.repairs[0].what} — ${fmtTime(new Date(SUP.repairs[0].t))}${SUP.polling?" · هم‌اکنون روی مسیر جایگزین":""}`
         :"هر ۵ ثانیه همهٔ اتاق‌ها بررسی می‌شوند؛ هر چه بخوابد بی‌درنگ بیدار می‌شود"),
-    roomCard("scan",OPS.scan.state==="running",
+    roomCard("scan",OPS.scan.state==="running"||(DB.get("auto")!==false&&(SUP.health||[]).every(h=>h.id!=="scan"||h.ok)),
       OPS.scan.state==="running"?`در حال تحلیل <b>${OPS.scan.done}</b> از ${OPS.scan.total} نماد…`
         :`${(STATE.universe||[]).length} ارز زیر نظر · اسکن بعدی تا <b class="num">${mmss(secs)}</b>`,
       `آخرین اسکن: ${STATE.last_scan_at?fmtTime(STATE.last_scan_at):"—"} · هر ${Math.round(CFG.interval/60)} دقیقه · ۳ تایم‌فریم (۵م/۱۵م/۱ساعته) برای هر ارز`),
-    roomCard("radar",wsOk,
+    roomCard("radar",wsOk?true:(nz?"ready":"ready"),
       `<b>${nz}</b> ناحیهٔ ورود زیر نظر · <b class="num">${rate}</b> قیمت در ثانیه`,
       wsOk?`وب‌سوکت متصل — هر ارز هر ثانیه چک می‌شود که وارد ناحیه‌اش شده یا نه`:"در انتظار اسکن یا اتصال مجدد…"),
-    roomCard("trade",open.length>0,
+    roomCard("trade",open.length>0?true:"ready",
       `<b>${open.length}</b> معاملهٔ باز · ${closed.length} بسته${closed.length?` · خالص <b style="color:${net>=0?"#2ecc71":"#e74c3c"}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}`,
       open.length?open.slice(0,4).map(t=>`${t.asset} ${t.dir} @ ${fmt(t.entry)} ${t.t1?"· TP1 خورد":""}`).join(" · "):"با اولین سیگنال، پیگیری خودکار شروع می‌شود"),
-    roomCard("watch",!!WATCHER.ws,
+    roomCard("watch",WATCHER.ws?true:"ready",
       WATCHER.subs.length?`<b>${WATCHER.subs.length/2}</b> ارز × ۲ تایم‌فریم زیر پایش پیوسته · <b>${WATCHER.evals.toLocaleString("en")}</b> ارزیابی · <b>${WATCHER.found}</b> ستاپ یافت‌شده`:"بعد از اولین اسکن فعال می‌شود",
       WATCHER.ws?`هر کندلی که بسته می‌شود، همان ارز بی‌درنگ دوباره تحلیل می‌شود — نه هر ۳۰ دقیقه`:(WATCHER.subs.length?"در حال اتصال مجدد…":"")),
-    roomCard("intel",!!INTEL.at,
+    roomCard("intel",INTEL.at?true:"ready",
       (()=>{const s=INTEL.snap||{};const b=[];
         if(s.oi)b.push(`اوپن‌اینترست <b>${s.oi.chg>0?"+":""}${s.oi.chg}%</b>`);
         if(s.ls!=null)b.push(`لانگ/شورت <b>${s.ls}</b>`);
@@ -2337,32 +2358,44 @@ function renderOps(){
         if(s.fng)b.push(`ترس و طمع <b>${s.fng.v}</b>`);
         return b.length?b.join(" · "):"در حال دریافت…";})(),
       INTEL.at?`آخرین به‌روزرسانی ${fmtTime(new Date(INTEL.at))} · گرایش جمعیت: ${intelBias()>0.2?"به‌نفع خرید":intelBias()<-0.2?"به‌نفع فروش":"خنثی"}`:"منابع: آمار پوزیشن‌گیری بایننس و شاخص ترس و طمع"),
-    roomCard("calib",OPS.bt.state==="running",
+    roomCard("calib",OPS.bt.state==="running"?true:"ready",
       OPS.bt.state==="running"?`بک‌تست ${OPS.bt.sym} (<b>${OPS.bt.done}</b>/${OPS.bt.total})…`
-        :`آستانهٔ فعال: کیفیت ≥ <b>${ibsQmin()}</b> · ${getFb().length} بازخورد ثبت‌شده`,
-      STATE.bt_at?`آخرین بک‌تست: ${fmtTime(new Date(STATE.bt_at))} · بعدی حدود ۶ ساعت بعد`:"اولین بک‌تست خودکار کمی بعد از اسکن اجرا می‌شود"),
-    roomCard("market",!!c.risk_mode&&c.risk_mode!=="UNKNOWN",
+        :`مدل از <b>${confN()}</b> معاملهٔ واقعی آموخته · آستانهٔ تصمیم <b>${evMin()}R</b> · ${getFb().length} بازخورد`,
+      STATE.bt_at?`آخرین بک‌تست: ${fmtTime(new Date(STATE.bt_at))} · بعدی حدود ۶ ساعت بعد · با هر معاملهٔ بسته‌شده یاد می‌گیرد`
+        :"آمادهٔ یادگیری — با اولین معاملهٔ بسته‌شده وزن‌ها به‌روز می‌شوند؛ بک‌تست خودکار هم کمی بعد از اسکن اجرا می‌شود"),
+    roomCard("market",(c.risk_mode&&c.risk_mode!=="UNKNOWN")?true:"ready",
       `رژیم: <b>${({RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی"})[c.risk_mode]||"نامشخص"}</b>${c.btc_dominance?` · دامیننس <b>${c.btc_dominance}%</b>`:""}${c.breadth!=null?` · <b>${c.breadth}%</b> بازار صعودی`:""}`,
       c.btc_dir?`BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}% در ۲۴ ساعت`:""),
-    roomCard("deep",OPS.deep.state==="running"||!!LIVE.ws,
+    roomCard("deep",(OPS.deep.state==="running"||!!LIVE.ws)?true:"ready",
       OPS.deep.state==="running"?`در حال تحلیل عمیق ${OPS.deep.sym}…`:(lastDeep?`آخرین تحلیل: <b>${lastDeep.asset_symbol}</b> · ${lastDeep.direction} · امتیاز ${fmt(lastDeep.score,1)}`:"منتظر انتخاب نماد"),
       LIVE.ws?`چارت زندهٔ ${LIVE.sym} متصل — کندل ۱۵م لحظه‌ای`:"چارت زنده وقتی نمادی را باز کنی متصل می‌شود")
-  ].join("");
+  ];
+  const keys=Object.keys(ROOMSTATE);
+  if(el.childElementCount!==cards.length)el.innerHTML=cards.join("");   // first paint or room set changed
+  else keys.forEach(k=>{if(!roomPatch(k))el.innerHTML=cards.join("");});
   const rp=$("#opsRepairs");
-  if(rp)rp.innerHTML=SUP.repairs.length?SUP.repairs.slice(0,12).map(x=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
+  if(rp&&rp.dataset.n!==String(SUP.repairs.length)){rp.dataset.n=String(SUP.repairs.length);rp.innerHTML=SUP.repairs.length?SUP.repairs.slice(0,12).map(x=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
       <span class="dim mono" style="flex:none">${fmtTime(new Date(x.t))}</span><span>${x.what}</span>
       <span style="margin-inline-start:auto;color:${x.ok?"#2ecc71":"#e74c3c"}">${x.ok?"تعمیر شد":"ناموفق"}</span></div>`).join("")
-    :`<div class="dim" style="font-size:12px">هنوز خرابی‌ای رخ نداده.</div>`;
+    :`<div class="dim" style="font-size:12px">هنوز خرابی‌ای رخ نداده.</div>`;}
   renderOpsFeed();
 }
 function renderOpsFeed(){
   const f=$("#opsFeed");if(!f)return;
-  const r=$("#opsRate");if(r)r.textContent=`${opsRate()} قیمت/ثانیه · ${OPS.ticks.toLocaleString("en")} بررسی از ابتدا`;
+  const r=$("#opsRate");if(r){const txt=`${opsRate()} قیمت/ثانیه · ${OPS.ticks.toLocaleString("en")} بررسی از ابتدا`;if(r.textContent!==txt)r.textContent=txt;}
   const col={sig:"#2ecc71",warn:"#f0a92e",err:"#e74c3c",info:"var(--dim)"};
-  f.innerHTML=OPS.feed.slice(0,120).map(e=>`<div style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
+  const row=e=>`<div data-t="${e.t}" style="display:flex;gap:9px;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.07)">
     <span class="dim mono" style="flex:none">${fmtTime(new Date(e.t))}</span>
     <span class="mono" style="flex:none;color:#7f8ea3;min-width:92px">${ROOMS[e.room]||e.room}</span>
-    <span style="color:${col[e.kind]||col.info}">${e.msg}</span></div>`).join("")||`<div class="dim" style="font-size:12px">هنوز رویدادی ثبت نشده.</div>`;
+    <span style="color:${col[e.kind]||col.info}">${e.msg}</span></div>`;
+  if(!OPS.feed.length){if(!f.dataset.empty){f.innerHTML='<div class="dim" style="font-size:12px">هنوز رویدادی ثبت نشده.</div>';f.dataset.empty="1";}return;}
+  if(f.dataset.empty){f.innerHTML="";delete f.dataset.empty;}
+  const newest=+(f.firstElementChild&&f.firstElementChild.dataset.t||0);
+  const fresh=OPS.feed.filter(e=>e.t>newest);
+  if(fresh.length){
+    f.insertAdjacentHTML("afterbegin",fresh.slice(0,120).map(row).join(""));
+    while(f.childElementCount>120)f.removeChild(f.lastElementChild);
+  }
 }
 let opsTimer=setInterval(()=>{if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOps();},1000);
 
