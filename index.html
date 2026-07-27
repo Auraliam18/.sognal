@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v11.0 · برنامهٔ کاری</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v11.1 · اتصال تلگرام</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -244,6 +244,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
   </div>
 
+  <div id="tgBanner"></div>
   <div id="alarmBox"></div>
   <section id="view-ops" style="display:none">
     <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
@@ -2271,18 +2272,33 @@ function watcherEvaluate(sym,tf){
 const TG=(()=>{
   const cfg=()=>Object.assign({token:"",chat:""},DB.get("tg")||{});
   const on=()=>{const c=cfg();return !!(c.token&&c.chat);};
-  async function send(text){
+  const QK="tg_queue";
+  function queue(text){const q=DB.get(QK)||[];q.push({t:Date.now(),text});DB.set(QK,q.slice(-40));}
+  async function flush(){
+    const q=DB.get(QK)||[];if(!q.length||!on())return;
+    const keep=[];
+    for(const m of q){const ok=await raw(m.text);if(!ok)keep.push(m);}
+    DB.set(QK,keep);
+    if(q.length>keep.length)opslog("sup",`${q.length-keep.length} پیام معوق تلگرام فرستاده شد`,"sig");
+  }
+  async function raw(text){
     const c=cfg();if(!c.token||!c.chat)return false;
     try{
       const r=await fetch(`https://api.telegram.org/bot${c.token}/sendMessage`,
         {method:"POST",headers:{"Content-Type":"application/json"},
          body:JSON.stringify({chat_id:c.chat,text,parse_mode:"HTML",disable_web_page_preview:true})});
-      if(!r.ok){opslog("sup",`ارسال تلگرام ناموفق (${r.status})`,"err");return false;}
-      return true;
-    }catch(e){opslog("sup","ارسال تلگرام ناموفق — شبکه","err");return false;}
+      return r.ok;
+    }catch(e){return false;}
   }
+  async function send(text){
+    if(!on())return false;
+    const ok=await raw(text);
+    if(!ok){queue(text);opslog("sup","تلگرام در دسترس نبود — پیام در صف ماند و دوباره فرستاده می‌شود","warn");}
+    return ok;
+  }
+  setInterval(flush,6e4);
   function set(token,chat){DB.set("tg",{token:(token||"").trim(),chat:(chat||"").trim()});}
-  return{on,send,set,cfg};
+  return{on,send,set,cfg,flush,pending:()=>(DB.get(QK)||[]).length};
 })();
 function tgSignal(r,s){
   if(!TG.on())return;
@@ -2912,6 +2928,42 @@ function tradeClose(tr,r,why){
   beep(win?2:1);notify(win?`✅ ${tr.asset} — ${why}`:`❌ ${tr.asset} — ${why}`,`نتیجه ${r>0?"+":""}${r}R ثبت شد`);
   renderTrades();renderCalib();saveLocal();if(SYNC.on())SYNC.push();
 }
+
+function renderTgBanner(){
+  const el=$("#tgBanner");if(!el)return;
+  if(TG.on()){
+    if(el.dataset.st!=="on"){el.dataset.st="on";
+      el.innerHTML=`<div class="box" style="border-color:#1e7d5a;margin-bottom:12px;padding:10px 14px">
+        <span style="font-size:13px">📨 تلگرام وصل است — هر سیگنال، نتیجهٔ هر معامله و گزارش ۵ دقیقه‌ای برایت فرستاده می‌شود.</span>
+        <button class="btn ghost" id="tgTest" style="margin-inline-start:10px;font-size:12px">ارسال پیام آزمایشی</button></div>`;
+      const b=$("#tgTest");if(b)b.onclick=async()=>{b.textContent="در حال ارسال…";
+        const ok=await TG.send("🔔 <b>آزمایش</b> — ارتباط پنل با تلگرام برقرار است.");
+        b.textContent=ok?"فرستاده شد ✓":"ناموفق — توکن/شناسه را بررسی کن";};}
+    return;
+  }
+  if(el.dataset.st==="off")return;
+  el.dataset.st="off";
+  el.innerHTML=`<div class="box" style="border-color:#7d5a1e;margin-bottom:12px;padding:12px 14px">
+    <div style="font-size:13px;margin-bottom:8px">📨 <b>سیگنال‌ها ساخته می‌شوند ولی جایی برای رفتن ندارند.</b>
+      توکن ربات را از <span class="mono">@BotFather</span> و شناسهٔ چت را از <span class="mono">@userinfobot</span> بگیر و اینجا بگذار — یک بار برای همیشه.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="f" id="tgTok" style="flex:2;min-width:230px" placeholder="توکن ربات — 123456:ABC..." autocapitalize="none">
+      <input class="f" id="tgChat" style="flex:1;min-width:130px" placeholder="شناسهٔ چت — 123456789" inputmode="numeric">
+      <button class="btn primary" id="tgSave">اتصال</button>
+    </div>
+    <div class="dim" id="tgMsg" style="font-size:12px;margin-top:7px"></div></div>`;
+  const save=$("#tgSave");
+  if(save)save.onclick=async()=>{
+    const t=$("#tgTok").value.trim(),c=$("#tgChat").value.trim(),m=$("#tgMsg");
+    if(!t||!c){m.textContent="هر دو مقدار لازم است.";return;}
+    save.textContent="در حال بررسی…";
+    TG.set(t,c);
+    const ok=await TG.send("✅ <b>پنل به تلگرام وصل شد</b>\nاز این پس هر سیگنال، نتیجهٔ هر معامله و گزارش ۵ دقیقه‌ای اینجا می‌آید.");
+    if(ok){opslog("sup","تلگرام وصل شد — سیگنال‌ها از این پس ارسال می‌شوند","sig");saveLocal();if(SYNC.on())SYNC.push();el.dataset.st="";renderTgBanner();}
+    else{TG.set("","");save.textContent="اتصال";m.textContent="نشد. توکن یا شناسهٔ چت درست نیست — یا هنوز به ربات پیام /start نداده‌ای.";}
+  };
+}
+setInterval(renderTgBanner,4000);
 function renderTrades(){
   const el=$("#tradeBox");if(el===null||typeof el==="undefined")return;
   const T=STATE.trades||[];
@@ -3409,7 +3461,7 @@ async function boot(){
   if(await SYNC.autoDetect()){renderSyncStatus();setStatus("فضای ابری خودکار شناسایی و فعال شد ☁︎");}
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
-  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();
+  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();renderTgBanner();
   const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();bootResume();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)
