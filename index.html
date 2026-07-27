@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v8.3 · چراغ‌های گویا</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v9.0 · دامیننس تتر</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1329,6 +1329,65 @@ function rsiDivergence(cd,k=3){
   return out;
 }
 
+
+/* =========================================================================
+   USDT DOMINANCE — ported from the Codex v4 panel kept in
+   claude-liam-signal/reference, then wired into this engine's decision layer.
+   Money moving into Tether is money leaving alts: a rising USDT.D fights alt
+   longs, a sharply falling one fights alt shorts. Samples are rate-limited,
+   persisted, and fitted by regression so the slope survives a gap in the feed.
+   ========================================================================= */
+const DOM={url:"https://api.coingecko.com/api/v3/global",maxSamples:48,minGapMs:120000,trendMin:0.03,strongMin:0.10};
+function domLoad(){const d=DB.get("usdtDom")||{samples:[]};if(!Array.isArray(d.samples))d.samples=[];return d;}
+function domSave(d){DB.set("usdtDom",d);}
+function domFit(pts){
+  const n=pts.length;if(n<2)return{slope:0};
+  let sx=0,sy=0,sxy=0,sxx=0;
+  for(const[x,y]of pts){sx+=x;sy+=y;sxy+=x*y;sxx+=x*x;}
+  const d=n*sxx-sx*sx;return{slope:d?(n*sxy-sx*sy)/d:0};
+}
+function domState(st,available){
+  const s=st.samples;
+  if(!available||!s.length)return{available:false,value:null,dir:"UNKNOWN",slopePerHr:0,samples:0};
+  const value=s[s.length-1].v;
+  if(s.length<3)return{available:true,value,dir:"FLAT",slopePerHr:0,samples:s.length};
+  const win=s.slice(-12),t0=win[0].t;
+  const slope=domFit(win.map(p=>[(p.t-t0)/3600000,p.v])).slope;
+  let dir="FLAT";
+  if(slope>=DOM.trendMin)dir=slope>=DOM.strongMin?"UP_STRONG":"UP";
+  else if(slope<=-DOM.trendMin)dir=slope<=-DOM.strongMin?"DOWN_STRONG":"DOWN";
+  return{available:true,value,dir,slopePerHr:+slope.toFixed(4),samples:s.length};
+}
+async function fetchUsdtDominance(){
+  const st=domLoad(),now=Date.now(),last=st.samples[st.samples.length-1];
+  if(last&&now-last.t<DOM.minGapMs)return domState(st,true);
+  try{
+    const r=await fetch(DOM.url,{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    const pct=j&&j.data&&j.data.market_cap_percentage&&+j.data.market_cap_percentage.usdt;
+    if(!isFinite(pct)||pct<=0)throw new Error("no usdt pct");
+    st.samples.push({t:now,v:pct});
+    if(st.samples.length>DOM.maxSamples)st.samples.splice(0,st.samples.length-DOM.maxSamples);
+    st.lastOkAt=now;domSave(st);
+    return domState(st,true);
+  }catch(e){
+    const fresh=last&&(now-last.t)<18e5;      // keep using samples up to 30 min old
+    return fresh?domState(st,true):domState(st,false);
+  }
+}
+function domFa(dom){
+  if(!dom||!dom.available)return"دامیننس تتر: در دسترس نیست";
+  const arrow={UP_STRONG:"▲▲",UP:"▲",FLAT:"◆",DOWN:"▼",DOWN_STRONG:"▼▼"}[dom.dir]||"◆";
+  return`دامیننس تتر ${dom.value.toFixed(2)}% ${arrow}`;
+}
+function domConflicts(dir,asset,dom){
+  if(!dom||!dom.available)return false;
+  if(asset==="BTC"||COMMODITY_KEEP.has(asset))return false;
+  if(dir==="LONG")return dom.dir==="UP"||dom.dir==="UP_STRONG";
+  if(dir==="SHORT")return dom.dir==="DOWN_STRONG";
+  return false;
+}
 /* =========================================================================
    CONFIDENCE & EXPECTANCY — the signal decision.
    An arbitrary 0-100 score tells you nothing about whether a trade pays.
@@ -1338,7 +1397,7 @@ function rsiDivergence(cd,k=3){
    are updated from this panel's own closed trades, so the model calibrates
    on the market you actually trade rather than on anyone's opinion.
    ========================================================================= */
-const CONF_DEF={bias:-0.30,rr:-0.18,depth:0,fvg:0,level:0,channel:0,visits2:0,btc:0,ibs:0,ext:0,intel:0};
+const CONF_DEF={bias:-0.30,rr:-0.18,depth:0,fvg:0,level:0,channel:0,visits2:0,btc:0,ibs:0,ext:0,intel:0,usdtd:0};
 function confW(){const w=DB.get("conf_w");return Object.assign({},CONF_DEF,w&&typeof w==="object"?w:{});}
 function confFeat(s,ibs){
   const R=s.rr||0;
@@ -1352,6 +1411,7 @@ function confFeat(s,ibs){
     btc:s.btcDiv&&s.btcDiv.bias&&s.btcDiv.bias!=="NEUTRAL"?(s.btcDiv.bias===s.dir?1:-1):0,
     ibs:ibs&&ibs.dir===s.dir?(ibs.quality>=55?1:0.5):(ibs?-0.5:0),
     intel:(typeof intelBias==="function")?(s.dir==="LONG"?intelBias():-intelBias()):0,
+    usdtd:(s.domConflict?-1:0),
     ext:s.tpExt?1:0};
 }
 function confP(s,ibs){
@@ -1432,7 +1492,8 @@ function smcSetup(cd,opts){
       if(opts.btcDiv.bias===ob.dir)q+=14;else q-=10;
     }
     q+=goOnFirst?6:0;
-    const cand={dir:ob.dir,stage,strong,goOnFirst,waitReason,tf:opts.tf||"15m",
+    const domC=(typeof domConflicts==="function")&&domConflicts(ob.dir,opts.asset,opts.dom);
+    const cand={dir:ob.dir,stage,strong,goOnFirst,waitReason,tf:opts.tf||"15m",domConflict:domC,dom:opts.dom,
       quality:Math.max(0,Math.min(100,Math.round(q))),
       ob,visits:v.visits,depth:v.depth,inside:stillIn,exited,
       channel:ch,fvg,level:lvl,levels,fvgs,
@@ -1445,6 +1506,7 @@ function smcSetup(cd,opts){
       if(!(cand.rr>=1.2))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
       else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
       else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
+      else if(domC)                       {cand.stage="ARMED";cand.skip=`دامیننس تتر ${opts.dom.dir==="UP_STRONG"||opts.dom.dir==="UP"?"صعودی":"در حال ریزش شدید"} — خلاف این ${ob.dir==="LONG"?"خرید":"فروش"}`;}
     }
     const rank=s=>({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[s];
     if(!best||rank(stage)>rank(best.stage)||(rank(stage)===rank(best.stage)&&cand.quality>best.quality))best=cand;
@@ -1781,6 +1843,7 @@ async function fetchMarketContext(){
       else{const k4=await fetchKlines("BTCUSDT","4h",200);const d=rsiDivergence(k4);
         if(d){ctx.btcDiv=d;fetchMarketContext._btc4h={v:d,at:now};}}
     }catch(e){}
+    try{ctx.dom=await fetchUsdtDominance();}catch(e){}
     if(STATE.market_context&&STATE.market_context.breadth!=null)ctx.breadth=STATE.market_context.breadth;
     return ctx;
   }catch(e){return{risk_mode:"UNKNOWN"};}
@@ -1804,8 +1867,9 @@ async function analyzeOne(asset,funding,ctx){
   const r=analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
   try{r.ibs=ibsPullback(c15);}catch(e){r.ibs=null;}
   try{
-    const a=smcSetup(c15,{btcDiv:ctx&&ctx.btcDiv,tf:"15m"});
-    const b=smcSetup(c5,{btcDiv:ctx&&ctx.btcDiv,tf:"5m"});
+    const o={btcDiv:ctx&&ctx.btcDiv,dom:ctx&&ctx.dom,asset:asset.asset_symbol,ibs:r.ibs};
+    const a=smcSetup(c15,Object.assign({tf:"15m"},o));
+    const b=smcSetup(c5,Object.assign({tf:"5m"},o));
     const rank=x=>x?({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[x.stage]*1000+x.quality:-1;
     r.smc=rank(b)>rank(a)?b:a;r.smc5=b;r.smc15=a;
   }catch(e){r.smc=null;}
@@ -1892,7 +1956,8 @@ function renderRegime(){
   const fa={RISK_ON:"ریسک‌پذیر",RISK_OFF:"ریسک‌گریز",NEUTRAL:"خنثی",UNKNOWN:"نامشخص"}[c.risk_mode]||"نامشخص";
   $("#regimeTxt").innerHTML=`رژیم بازار: ${fa} `+(c.btc_dir?`· BTC ${c.btc_dir} ${c.btc_change_24h>=0?"+":""}${(c.btc_change_24h||0).toFixed(1)}%`:"")
     +(c.btc_dominance?` · دامیننس ${c.btc_dominance}%`:"")
-    +(c.breadth!=null?` · ${c.breadth}% بازار صعودی`:"");
+    +(c.breadth!=null?` · ${c.breadth}% بازار صعودی`:"")
+    +(c.dom&&c.dom.available?` · ${domFa(c.dom)}`:"");
 }
 function railHTML(status,direction){
   const idx=LIFE.indexOf(status);const rej=idx<0;
