@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v9.0 · دامیننس تتر</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v10.0 · تلگرام+تجربه</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -372,6 +372,8 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="row"><label>فاصلهٔ اسکن خودکار (ثانیه)</label><input class="f" id="sInt" inputmode="numeric"></div>
     <p class="muted" style="font-size:12px">اگر بایننس از طریق اتصال تو در دسترس نبود، آدرس پایه را به یک میرر/پراکسی معتبر تغییر بده. حداقل حجم ۲۵M و سایر آستانه‌ها طبق کد قفل هستند و تغییر نمی‌کنند.</p>
     <div class="section-title" style="margin-top:14px"><span class="eyebrow">cloud sync (Vercel)</span><h2 style="font-size:15px">ذخیرهٔ ابری (اختیاری)</h2></div>
+    <div class="row"><label>توکن ربات تلگرام (از BotFather)</label><input class="f" id="sTgTok" autocapitalize="none" placeholder="123456:ABC-..."></div>
+    <div class="row"><label>شناسهٔ چت تلگرام (از ربات userinfobot)</label><input class="f" id="sTgChat" inputmode="numeric" placeholder="123456789"></div>
     <div class="row"><label>آدرس پروژهٔ Vercel (مثلاً https://hamid-signal.vercel.app)</label><input class="f" id="sSyncBase" inputmode="url" autocapitalize="none" placeholder="https://...vercel.app"></div>
     <div class="row"><label>کلید شخصی (هر رشتهٔ دلخواه و ثابت؛ همین کلید روی هر دستگاه = همان داده)</label><input class="f" id="sSyncKey" autocapitalize="none" placeholder="مثلاً hamid-369-lamerd"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="syncNowBtn">آزمایش/همگام‌سازی اکنون</button></div>
@@ -414,6 +416,7 @@ function buildSnapshot(){
     ops_feed:(typeof OPS!=="undefined"?OPS.feed.slice(0,120):[]),
     sup_repairs:(typeof SUP!=="undefined"?SUP.repairs.slice(0,40):[]),
     conf_w:DB.get("conf_w")||null,conf_n:DB.get("conf_n")||0,ev_min:DB.get("ev_min")||null,
+    cases:DB.get("cases")||null,bf_at:DB.get("bf_at")||null,usdtDom:DB.get("usdtDom")||null,
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
 }
@@ -437,6 +440,9 @@ function restoreSnapshot(snap){
     if(snap.conf_w)DB.set("conf_w",snap.conf_w);
     if(snap.conf_n)DB.set("conf_n",snap.conf_n);
     if(snap.ev_min)DB.set("ev_min",snap.ev_min);
+    if(Array.isArray(snap.cases)&&snap.cases.length>=(DB.get("cases")||[]).length)DB.set("cases",snap.cases);
+    if(snap.bf_at)DB.set("bf_at",snap.bf_at);
+    if(snap.usdtDom)DB.set("usdtDom",snap.usdtDom);
     return true;
   }catch(e){return false;}
 }
@@ -1628,6 +1634,12 @@ function smcCardHTML(r){
       <div><span>ریسک به ریوارد</span><b class="num">${s.rr||"—"}</b></div>
     </div>
     ${s.btcDiv?`<div class="muted" style="font-size:12px;margin-top:8px">RSI بیت‌کوین ۴ساعته: <b>${s.btcDiv.rsi}</b> — ${s.btcDiv.label}${s.btcDiv.bias!=="NEUTRAL"?` · جهت ${s.btcDiv.bias==="SHORT"?"نزولی":"صعودی"} ${s.btcDiv.bias===s.dir?"<b style=\"color:#2ecc71\">هم‌سو با ستاپ ✓</b>":"<b style=\"color:#e74c3c\">مخالف ستاپ ✗</b>"}`:""}</div>`:""}
+    ${(()=>{const sim=CASES.similar(confFeat(s,r.ibs));
+      if(!sim||sim.n<5)return `<div class="muted" style="font-size:12px;margin-top:8px">حافظهٔ تجربه هنوز ${sim?sim.pool:0} موقعیت دارد — برای قضاوت از روی گذشته کافی نیست.</div>`;
+      const good=sim.ev>0;
+      return `<div style="font-size:12px;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(140,160,190,.06)">
+        <b>در ${sim.n} موقعیت مشابه گذشته:</b> برد <b style="color:${good?"#2ecc71":"#e74c3c"}">${sim.hit}%</b> · خالص <b style="color:${good?"#2ecc71":"#e74c3c"}">${sim.ev>0?"+":""}${sim.ev}R</b>
+        <span class="dim">(از ${sim.pool} موقعیت ثبت‌شده)</span></div>`;})()}
     ${s.skip?`<div class="muted" style="font-size:12px;margin-top:6px">⛔ سیگنال نشد — ${s.skip}</div>`:""}
     ${!confReady()?`<div class="muted" style="font-size:12px;margin-top:4px">مدل اعتماد هنوز ${confN()} معاملهٔ واقعی دیده (حد نصاب ۴۰). تا آن‌موقع تصمیم فقط بر پایهٔ ریسک‌به‌ریوارد است، نه حدس.</div>`:""}
     ${s.waitReason?`<div class="muted" style="font-size:12px;margin-top:6px">⏳ ${s.waitReason}</div>`:""}
@@ -1925,6 +1937,7 @@ async function runScan(){
     trackSignals(STATE.signals);
     watcherStart(rows.map(r=>r.binance_symbol));
     intelRefresh();
+    if(bfNeeded()&&!BF.running)setTimeout(()=>backfillTrain({days:4,topN:80,target:300}),8000);
     STATE.last_scan_at=new Date();OPS.scan.state="idle";beat("scan");OPS.nextScan=Date.now()+CFG.interval*1000;
     {const st=rows.filter(x=>x.smc).reduce((a,x)=>{a[x.smc.stage]=(a[x.smc.stage]||0)+1;return a;},{});
      opslog("scan",`استراتژی کانال+OB: ${st.SIGNAL||0} سیگنال · ${st.ARMED||0} پولبک دوم داخل باکس · ${st.PULLBACK_1||0} پولبک اول`,st.SIGNAL?"sig":"info");}
@@ -2237,6 +2250,7 @@ function watcherEvaluate(sym,tf){
     STATE.signals=[sig,...STATE.signals.filter(x=>x.binance_symbol!==sym)].slice(0,60);
     trackSignals([sig]);
     beep(3);notify(`🚨 ${asset} ${s.dir} — ${tf}`,`ورود ${fmt(s.entry)} · استاپ ${fmt(s.sl)} · انتظار ${s.ev.toFixed(2)}R`);
+    tgSignal(sig,s);
     opslog("watch",`🚨 ${asset} ${tf}: ${s.dir} · اعتماد ${s.conf}٪ · انتظار ${s.ev.toFixed(2)}R · R:R ${s.rr}`,"sig");
     renderSignals();saveLocal();if(SYNC.on())SYNC.push();
   }else if(s.stage==="ARMED"&&row){
@@ -2245,6 +2259,89 @@ function watcherEvaluate(sym,tf){
     radarSetZones(STATE.universe||[]);
   }
 }
+
+/* =========================================================================
+   TELEGRAM — signals leave the panel and reach the phone. Bot API allows
+   browser calls directly, so no server sits in between.
+   ========================================================================= */
+const TG=(()=>{
+  const cfg=()=>Object.assign({token:"",chat:""},DB.get("tg")||{});
+  const on=()=>{const c=cfg();return !!(c.token&&c.chat);};
+  async function send(text){
+    const c=cfg();if(!c.token||!c.chat)return false;
+    try{
+      const r=await fetch(`https://api.telegram.org/bot${c.token}/sendMessage`,
+        {method:"POST",headers:{"Content-Type":"application/json"},
+         body:JSON.stringify({chat_id:c.chat,text,parse_mode:"HTML",disable_web_page_preview:true})});
+      if(!r.ok){opslog("sup",`ارسال تلگرام ناموفق (${r.status})`,"err");return false;}
+      return true;
+    }catch(e){opslog("sup","ارسال تلگرام ناموفق — شبکه","err");return false;}
+  }
+  function set(token,chat){DB.set("tg",{token:(token||"").trim(),chat:(chat||"").trim()});}
+  return{on,send,set,cfg};
+})();
+function tgSignal(r,s){
+  if(!TG.on())return;
+  const dir=s.dir==="LONG"?"🟢 خرید (LONG)":"🔴 فروش (SHORT)";
+  const sim=CASES.similar(s.feat||confFeat(s,r.ibs));
+  const lines=[
+    `<b>${dir} — ${r.asset_symbol}</b>  <code>${s.tf}</code>`,
+    ``,
+    `ورود   <code>${fmt(s.entry)}</code>`,
+    `استاپ  <code>${fmt(s.sl)}</code>`,
+    `تارگت۱ <code>${fmt(s.tp1)}</code>`,
+    s.tp2?`تارگت۲ <code>${fmt(s.tp2)}</code>`:``,
+    ``,
+    `ریسک/ریوارد <b>${s.rr}</b> · اعتماد <b>${s.conf}%</b> · انتظار <b>${(s.ev||0).toFixed(2)}R</b>`,
+    s.ob?`اردر بلاک <code>${fmt(s.ob.low)} — ${fmt(s.ob.high)}</code>`:``,
+    s.channel?`کانال ${s.channel.dir} (${s.channel.drift}%)`:``,
+    s.fvg?`FVG هم‌جهت ✓`:``,
+    s.level?`روی ${s.level.type==="R"?"مقاومت":"حمایت"} با ${s.level.touches} برخورد`:``,
+    sim&&sim.n>=5?`سابقهٔ مشابه: ${sim.n} مورد · برد ${sim.hit}% · ${sim.ev>0?"+":""}${sim.ev}R`:``,
+    s.btcDiv&&s.btcDiv.type?`RSI بیت‌کوین ۴س: ${s.btcDiv.label}`:``,
+    (STATE.market_context&&STATE.market_context.dom&&STATE.market_context.dom.available)?domFa(STATE.market_context.dom):``,
+    ``,
+    `<i>${new Date().toLocaleString("fa-IR")}</i>`
+  ].filter(Boolean);
+  TG.send(lines.join("\n"));
+}
+function tgOutcome(tr){
+  if(!TG.on())return;
+  const win=tr.r>0;
+  TG.send([`${win?"✅":"❌"} <b>${tr.asset} ${tr.dir}</b> — ${tr.why}`,
+    `نتیجه <b>${tr.r>0?"+":""}${tr.r}R</b> · ورود <code>${fmt(tr.entry)}</code>`].join("\n"));
+}
+
+/* =========================================================================
+   CASE MEMORY — before a setup is sent, ask what happened the last times a
+   setup that looked like this one was taken. Nearest neighbours over the same
+   feature vector the confidence model uses, so the two always agree on what
+   "similar" means.
+   ========================================================================= */
+const CASES=(()=>{
+  const KEYS=["rr","depth","fvg","level","channel","visits2","btc","ibs","ext","intel","usdtd"];
+  const load=()=>DB.get("cases")||[];
+  const save=a=>DB.set("cases",a.slice(-3000));
+  function add(feat,won,R,meta){
+    if(!feat)return;
+    const a=load();
+    a.push({f:KEYS.map(k=>+(feat[k]||0).toFixed(3)),w:won?1:0,R:+(+R||0).toFixed(2),
+            t:Date.now(),s:(meta&&meta.asset)||"",d:(meta&&meta.dir)||"",tf:(meta&&meta.tf)||""});
+    save(a);
+  }
+  function dist(a,b){let d=0;for(let i=0;i<a.length;i++){const x=a[i]-b[i];d+=x*x;}return Math.sqrt(d);}
+  function similar(feat,k){
+    if(!feat)return null;
+    const a=load();if(a.length<5)return{n:0,hit:0,ev:0,pool:a.length};
+    const v=KEYS.map(x=>+(feat[x]||0).toFixed(3));
+    const scored=a.map(c=>({c,d:dist(v,c.f)})).sort((p,q)=>p.d-q.d).slice(0,k||25);
+    const n=scored.length,w=scored.filter(x=>x.c.w).length;
+    const ev=scored.reduce((s,x)=>s+(x.c.w?x.c.R:-1),0)/n;
+    return{n,hit:Math.round(w/n*100),ev:+ev.toFixed(2),pool:a.length,
+           radius:+scored[n-1].d.toFixed(2)};
+  }
+  return{add,similar,load,count:()=>load().length};
+})();
 /* =========================================================================
    SUPERVISOR — the room that watches the other rooms.
    Every subsystem publishes a heartbeat. This checks them on a 5s tick,
@@ -2338,6 +2435,127 @@ function supervise(){
 }
 setInterval(supervise,1000);
 setTimeout(supervise,15000);
+
+/* =========================================================================
+   BACKFILL — the training run. Replays four days of real candles across the
+   top symbols on 5m and 15m, takes every setup the live engine would have
+   taken, settles it against what actually happened next, and hands each
+   result to the confidence model and the case memory. One pass gives the
+   learning room several hundred outcomes to reason from instead of none.
+   Yields between symbols so the panel keeps streaming while it runs.
+   ========================================================================= */
+const BF={running:false,done:0,total:0,trades:0,wins:0,netR:0,at:0,sym:"",stop:false};
+function bfNeeded(){return !DB.get("bf_at")||Date.now()-DB.get("bf_at")>864e5;}
+async function backfillTrain(opts){
+  opts=opts||{};
+  if(BF.running)return;
+  const days=opts.days||4,topN=opts.topN||80,target=opts.target||300;
+  BF.running=true;BF.stop=false;BF.done=0;BF.trades=0;BF.wins=0;BF.netR=0;
+  opslog("calib",`دورهٔ آموزش شروع شد — ${days} روز اخیر روی ${topN} ارز، هدف حداقل ${target} پوزیشن`,"sig");
+  try{
+    let syms=(STATE.universe||[]).map(r=>r.binance_symbol);
+    if(syms.length<topN){
+      const t=await fetchTickers();
+      syms=(await buildUniverse(t)).map(a=>a.binance_symbol);
+    }
+    syms=syms.slice(0,topN);
+    BF.total=syms.length;
+    const tfs=[["15m",Math.min(1500,days*96)],["5m",Math.min(1500,days*288)]];
+    for(const sym of syms){
+      if(BF.stop)break;
+      BF.sym=sym;
+      for(const[tf,limit]of tfs){
+        if(BF.stop)break;
+        let cd=null;
+        try{cd=await fetchKlines(sym,tf,limit);}catch(e){continue;}
+        if(!cd||cd.length<260)continue;
+        const res=bfReplay(cd,tf,sym.replace("USDT",""));
+        BF.trades+=res.n;BF.wins+=res.w;BF.netR+=res.net;
+        await new Promise(r=>setTimeout(r,0));      // never block the stream
+      }
+      BF.done++;
+      if(BF.done%10===0){
+        opslog("calib",`آموزش: ${BF.done}/${BF.total} ارز · ${BF.trades} پوزیشن · برد ${BF.trades?Math.round(BF.wins/BF.trades*100):0}% · ${BF.netR>0?"+":""}${BF.netR.toFixed(1)}R`);
+        saveLocal();
+      }
+      if(BF.trades>=target&&BF.done>=Math.min(topN,40))break;
+    }
+    DB.set("bf_at",Date.now());BF.at=Date.now();
+    const hit=BF.trades?Math.round(BF.wins/BF.trades*100):0;
+    opslog("calib",`دورهٔ آموزش تمام شد — ${BF.trades} پوزیشن روی ${BF.done} ارز · برد ${hit}% · خالص ${BF.netR>0?"+":""}${BF.netR.toFixed(1)}R · مدل روی ${confN()} نتیجه آموخته`,"sig");
+    if(TG.on())TG.send([`📚 <b>دورهٔ آموزش تمام شد</b>`,
+      `${BF.trades} پوزیشن روی ${BF.done} ارز (${days} روز اخیر)`,
+      `برد <b>${hit}%</b> · خالص <b>${BF.netR>0?"+":""}${BF.netR.toFixed(1)}R</b>`,
+      `حافظهٔ تجربه: ${CASES.count()} موقعیت`].join("\n"));
+    saveLocal();if(SYNC.on())SYNC.push();
+  }catch(e){opslog("calib","دورهٔ آموزش با خطا متوقف شد: "+(e.message||e),"err");}
+  finally{BF.running=false;}
+}
+/* one symbol, one timeframe: walk forward and settle every signal */
+function bfReplay(cd,tf,asset){
+  let n=0,w=0,net=0,open=null,last=-99;
+  for(let i=240;i<cd.length;i++){
+    const bar=cd[i];
+    if(open){
+      const L=open.dir==="LONG";
+      const hitSL=L?bar.l<=open.sl:bar.h>=open.sl;
+      const hitT1=L?bar.h>=open.tp1:bar.l<=open.tp1;
+      const hitT2=open.tp2!=null&&(L?bar.h>=open.tp2:bar.l<=open.tp2);
+      let closed=null;
+      if(!open.t1&&hitSL)closed=-1;                               // stop first, conservatively
+      else{
+        if(hitT1&&!open.t1){open.t1=true;open.sl=open.entry;}
+        if(open.t1){ if(hitT2)closed=open.R2; else if(hitSL)closed=open.R1; }
+      }
+      if(closed==null&&i-open.i>96)closed=open.t1?open.R1:0;
+      if(closed!=null){
+        n++;if(closed>0)w++;net+=closed;
+        try{confLearn(open.feat,closed>0);CASES.add(open.feat,closed>0,closed,{asset,dir:open.dir,tf});}catch(e){}
+        open=null;
+      }
+      if(open)continue;
+    }
+    if(i-last<6)continue;
+    let s=null;
+    try{s=smcSetup(cd.slice(0,i+1),{tf,asset,dom:(STATE.market_context||{}).dom,btcDiv:(STATE.market_context||{}).btcDiv});}catch(e){continue;}
+    if(!s||s.stage!=="SIGNAL"||!s.tp1)continue;
+    const risk=Math.abs(s.entry-s.sl);
+    if(!risk||risk/s.entry<0.0008)continue;
+    const R1=Math.min(Math.abs(s.tp1-s.entry)/risk,6);
+    const R2=s.tp2!=null?Math.min(Math.abs(s.tp2-s.entry)/risk,10):R1;
+    if(R1<1)continue;
+    last=i;
+    open={i,dir:s.dir,entry:s.entry,sl:s.sl,tp1:s.tp1,tp2:s.tp2,R1,R2,t1:false,
+          feat:confFeat(s,null)};
+  }
+  return{n,w,net};
+}
+
+/* =========================================================================
+   FIVE-MINUTE REPORT — what every room did since the last one. Goes to the
+   event feed always, and to Telegram when it is configured.
+   ========================================================================= */
+const RPT={last:0,n:0,prev:{ticks:0,evals:0,signals:0,closed:0,learned:0}};
+function supReport(push){
+  const trades=STATE.trades||[];
+  const closed=trades.filter(t=>!t.open).length;
+  const cur={ticks:OPS.ticks,evals:WATCHER.evals,signals:STATE.signals.length,closed,learned:confN()};
+  const d=k=>cur[k]-(RPT.prev[k]||0);
+  const H=SUP.health||[],down=H.filter(x=>!x.ok);
+  RPT.n++;
+  const line=[
+    `گزارش ${RPT.n} — ${down.length?`⚠️ ${down.map(x=>x.name).join("، ")} در حال تعمیر`:"همهٔ اتاق‌ها سالم"}`,
+    `پایش: ${d("ticks").toLocaleString("en")} قیمت · ${d("evals")} ارزیابی کندل`,
+    `سیگنال جدید: ${Math.max(0,d("signals"))} · معاملهٔ بسته‌شده: ${Math.max(0,d("closed"))} · یادگیری: +${Math.max(0,d("learned"))}`,
+    BF.running?`آموزش در جریان: ${BF.done}/${BF.total} ارز · ${BF.trades} پوزیشن`:``,
+    `تجربهٔ انباشته: ${CASES.count()} موقعیت · مدل روی ${confN()} نتیجه`
+  ].filter(Boolean);
+  opslog("sup",line.join(" · "),down.length?"warn":"info");
+  if(push&&TG.on())TG.send("🛰 <b>گزارش ۵ دقیقه‌ای</b>\n"+line.join("\n"));
+  RPT.prev=cur;RPT.last=Date.now();
+  return line;
+}
+setInterval(()=>supReport(true),3e5);
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
    ========================================================================= */
@@ -2423,9 +2641,10 @@ function renderOps(){
         if(s.fng)b.push(`ترس و طمع <b>${s.fng.v}</b>`);
         return b.length?b.join(" · "):"در حال دریافت…";})(),
       INTEL.at?`آخرین به‌روزرسانی ${fmtTime(new Date(INTEL.at))} · گرایش جمعیت: ${intelBias()>0.2?"به‌نفع خرید":intelBias()<-0.2?"به‌نفع فروش":"خنثی"}`:"منابع: آمار پوزیشن‌گیری بایننس و شاخص ترس و طمع"),
-    roomCard("calib",OPS.bt.state==="running"?true:"ready",
-      OPS.bt.state==="running"?`بک‌تست ${OPS.bt.sym} (<b>${OPS.bt.done}</b>/${OPS.bt.total})…`
-        :`مدل از <b>${confN()}</b> معاملهٔ واقعی آموخته · آستانهٔ تصمیم <b>${evMin()}R</b> · ${getFb().length} بازخورد`,
+    roomCard("calib",(OPS.bt.state==="running"||BF.running)?true:"ready",
+      BF.running?`دورهٔ آموزش: <b>${BF.done}</b>/${BF.total} ارز · <b>${BF.trades}</b> پوزیشن · برد ${BF.trades?Math.round(BF.wins/BF.trades*100):0}% · ${BF.netR>0?"+":""}${BF.netR.toFixed(1)}R`
+      :OPS.bt.state==="running"?`بک‌تست ${OPS.bt.sym} (<b>${OPS.bt.done}</b>/${OPS.bt.total})…`
+        :`مدل از <b>${confN()}</b> نتیجه آموخته · <b>${CASES.count()}</b> موقعیت در حافظهٔ تجربه · آستانه <b>${evMin()}R</b>`,
       STATE.bt_at?`آخرین بک‌تست: ${fmtTime(new Date(STATE.bt_at))} · بعدی حدود ۶ ساعت بعد · با هر معاملهٔ بسته‌شده یاد می‌گیرد`
         :"آمادهٔ یادگیری — با اولین معاملهٔ بسته‌شده وزن‌ها به‌روز می‌شوند؛ بک‌تست خودکار هم کمی بعد از اسکن اجرا می‌شود"),
     roomCard("market",(c.risk_mode&&c.risk_mode!=="UNKNOWN")?true:"ready",
@@ -2522,6 +2741,7 @@ async function radarAlarm(z,price){
       a.st="🚨 سیگنال شد";
       STATE.signals=[r,...STATE.signals.filter(x=>x.binance_symbol!==r.binance_symbol)];
       trackSignals([r]);
+      if(r.smc)tgSignal(r,r.smc);
       beep(3);notify(`🚨 سیگنال ${r.direction} — ${z.asset}`,`امتیاز ${fmt(r.score,1)} · ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`);
       renderSignals();saveLocal();if(SYNC.on())SYNC.push();
       opslog("radar",`🚨 ${z.asset} همهٔ قوانین را پاس کرد — سیگنال ${r.direction} با امتیاز ${fmt(r.score,1)}`,"sig");
@@ -2557,7 +2777,7 @@ function tradeCheck(tr,price){
 function tradeClose(tr,r,why){
   tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
   const win=r>0;
-  if(tr.feat&&!tr.learned){try{confLearn(tr.feat,win);tr.learned=1;opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
+  if(tr.feat&&!tr.learned){try{confLearn(tr.feat,win);CASES.add(tr.feat,win,r,{asset:tr.asset,dir:tr.dir,tf:tr.tf});tr.learned=1;tgOutcome(tr);opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
   opslog("trade",`${win?"✅":"❌"} ${tr.asset} ${tr.dir} — ${why} (${r>0?"+":""}${r}R)`,win?"sig":"err");
   const fb=getFb();
   fb.unshift({time:new Date().toISOString(),symbol:tr.sym,asset:tr.asset,verdict:win?"win":"loss",
@@ -2769,10 +2989,12 @@ const _scSym=$("#scSym");if(_scSym)_scSym.addEventListener("keydown",e=>{if(e.ke
 const _raBtn=$("#raBtn");if(_raBtn)_raBtn.onclick=runRadar;
 
 const setModal=$("#setModal");
-$("#setBtn").onclick=()=>{$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;const sy=SYNC.get();if($("#sSyncBase"))$("#sSyncBase").value=sy.base;if($("#sSyncKey"))$("#sSyncKey").value=sy.key;setModal.classList.add("show");};
+$("#setBtn").onclick=()=>{const tg=TG.cfg();if($("#sTgTok"))$("#sTgTok").value=tg.token;if($("#sTgChat"))$("#sTgChat").value=tg.chat;$("#sApi").value=CFG.apiBase;$("#sUni").value=CFG.universe;$("#sCon").value=CFG.concurrency;$("#sInt").value=CFG.interval;const sy=SYNC.get();if($("#sSyncBase"))$("#sSyncBase").value=sy.base;if($("#sSyncKey"))$("#sSyncKey").value=sy.key;setModal.classList.add("show");};
 $("#setClose").onclick=()=>setModal.classList.remove("show");
 $("#setSave").onclick=()=>{CFG.apiBase=$("#sApi").value.trim().replace(/\/$/,"")||CFG.apiBase;CFG.universe=clamp(+$("#sUni").value||100,5,120);CFG.concurrency=clamp(+$("#sCon").value||8,1,16);CFG.interval=clamp(+$("#sInt").value||300,30,3600);DB.set("cfg",CFG);
   if($("#sSyncBase")){SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();}
+  if($("#sTgTok")){const was=TG.on();TG.set($("#sTgTok").value,$("#sTgChat").value);
+    if(TG.on()&&!was)TG.send("✅ <b>پنل به تلگرام وصل شد</b>\nاز این پس هر سیگنال، نتیجهٔ هر معامله و گزارش ۵ دقیقه‌ای اینجا می‌آید.").then(ok=>setStatus(ok?"تلگرام وصل شد ✓ — پیام آزمایشی فرستاده شد":"تلگرام وصل نشد — توکن یا شناسهٔ چت را بررسی کن"));}
   setModal.classList.remove("show");setStatus(SYNC.on()?"تنظیمات ذخیره شد · سینک ابری روشن ☁︎":"تنظیمات ذخیره شد.");
   saveLocal();if(SYNC.on())SYNC.push();};
 const _syncNow=$("#syncNowBtn");if(_syncNow)_syncNow.onclick=async()=>{if($("#sSyncBase"))SYNC.set($("#sSyncBase").value,$("#sSyncKey").value);renderSyncStatus();if(!SYNC.on()){setStatus("اول آدرس Vercel و کلید شخصی را وارد کن.");return;}setStatus("در حال همگام‌سازی با فضای ابری…");const ok=await SYNC.push();const cloud=await SYNC.pull();setStatus(ok?`همگام‌سازی شد ☁︎ ${cloud?"(داده ابری موجود است)":""}`:"اتصال ابری ناموفق بود؛ آدرس/کلید را بررسی کن.");};
