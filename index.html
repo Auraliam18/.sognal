@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v11.1 · اتصال تلگرام</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v12.0 · تشخیص علت</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -254,6 +254,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="box" style="margin-top:12px"><h3>گزارش تعمیرها <span class="dim" style="font-size:11px;font-weight:400">هر خرابی و اینکه چطور برطرف شد</span></h3><div id="opsRepairs"></div></div>
     <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
   </section>
+  <div id="whyBox"></div>
   <section id="view-signals"></section>
   <section id="view-watch" style="display:none"></section>
 
@@ -1827,10 +1828,29 @@ async function runBacktest(auto){
 /* =========================================================================
    BINANCE API CLIENT  (runs in the user's browser; data stays local)
    ========================================================================= */
+/* Binance geo-blocks some regions outright, and a single unreachable host was
+   indistinguishable from a quiet market. Try the configured base, then the
+   known mirrors, remember whichever answers, and record every outcome so the
+   panel can say plainly whether data is arriving. */
+const API_HOSTS=["https://fapi.binance.com","https://fapi1.binance.com","https://fapi2.binance.com","https://fapi3.binance.com"];
+function apiBases(){
+  const pref=DB.get("api_ok")||CFG.apiBase;
+  return [pref,CFG.apiBase,...API_HOSTS].filter((v,i,a)=>v&&a.indexOf(v)===i);
+}
 async function jget(path){
-  const r=await fetch(CFG.apiBase+path,{cache:"no-store"});
-  if(!r.ok)throw new Error("HTTP "+r.status+" "+path);
-  return r.json();
+  let lastErr=null;
+  for(const base of apiBases()){
+    try{
+      const r=await fetch(base+path,{cache:"no-store"});
+      if(!r.ok){lastErr=new Error("HTTP "+r.status+" "+path);continue;}
+      const j=await r.json();
+      if(DB.get("api_ok")!==base){DB.set("api_ok",base);opslog("sup",`دادهٔ بازار از ${base.replace("https://","")} گرفته می‌شود`,"sig");}
+      diagNet(true);
+      return j;
+    }catch(e){lastErr=e;}
+  }
+  diagNet(false,lastErr&&lastErr.message);
+  throw lastErr||new Error("no api host reachable");
 }
 function parseKlines(raw){return raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));}
 async function fetchKlines(sym,iv,limit=S.kline_limit){return parseKlines(await jget(`/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${limit}`));}
@@ -1938,6 +1958,7 @@ async function runScan(){
     STATE.universe=rows;
     STATE.signals=rows.filter(r=>r.status==="SIGNAL").sort((a,b)=>b.score-a.score||b.quote_volume-a.quote_volume);
     STATE.watchlist=rows.filter(r=>["WATCHING","APPROACHING_ENTRY_ZONE","WAITING_CONFIRMATION","VALID_ENTRY"].includes(r.status)).sort((a,b)=>b.score-a.score);
+    diagRecord(rows);
     radarSetZones(rows);
     trackSignals(STATE.signals);
     watcherStart(rows.map(r=>r.binance_symbol));
@@ -1953,6 +1974,7 @@ async function runScan(){
     saveLocal(); if(SYNC.on())SYNC.push();
   }catch(e){
     hideProg();
+    renderWhy();
     setStatus(`اتصال به بایننس ناموفق بود (${e.message}). اتصالت را بررسی کن یا در «تنظیمات» آدرس پایهٔ API را به یک میرر معتبر تغییر بده. «تحلیل تک‌نماد» هم می‌تواند کمک کند چون درخواست کمتری دارد.`);
   }finally{STATE.scanning=false;OPS.scan.state="idle";setScanning(false);}
 }
@@ -2006,6 +2028,7 @@ function signalCard(r){
   </div>`;
 }
 function renderSignals(){
+  renderWhy();
   $("#cSig").textContent=STATE.signals.length;
   const v=$("#view-signals");
   v.innerHTML=`<div class="section-title"><span class="eyebrow">tradable</span><h2>سیگنال‌ها</h2></div>`+
@@ -2684,6 +2707,74 @@ async function curTick(){
   }finally{CURST.running=false;}
 }
 setInterval(curTick,12e4);
+
+/* =========================================================================
+   WHY NO SIGNAL — when the list is empty, say which of the possible reasons
+   it actually is: no data reaching the panel, no structure yet, structure
+   waiting on a pullback, or a setup stopped at a named gate. Guessing at this
+   from the outside wasted days; the panel knows and should say.
+   ========================================================================= */
+const DIAG={net:{ok:0,fail:0,lastOk:0,lastErr:"",lastErrAt:0},stages:{},gates:{},at:0};
+function diagNet(ok,err){
+  if(ok){DIAG.net.ok++;DIAG.net.lastOk=Date.now();}
+  else{DIAG.net.fail++;DIAG.net.lastErr=String(err||"").slice(0,120);DIAG.net.lastErrAt=Date.now();}
+}
+function diagRecord(rows){
+  const st={},gt={};
+  for(const r of rows){
+    const s=r.smc;
+    const k=s?s.stage:"NO_STRUCTURE";
+    st[k]=(st[k]||0)+1;
+    if(s&&s.skip){const g=s.skip.split("—")[0].trim();gt[g]=(gt[g]||0)+1;}
+    if(s&&s.waitReason){const g=s.waitReason.split("—")[0].trim();gt[g]=(gt[g]||0)+1;}
+    (r.blockers||[]).forEach(b=>{const n=chkLabelFa(b);gt[n]=(gt[n]||0)+1;});
+  }
+  DIAG.stages=st;DIAG.gates=gt;DIAG.at=Date.now();
+}
+function renderWhy(){
+  const el=$("#whyBox");if(!el)return;
+  el.innerHTML=(STATE.signals&&STATE.signals.length)?"":diagHTML();
+}
+setInterval(renderWhy,5000);
+function diagHTML(){
+  const n=DIAG.net,age=n.lastOk?Math.round((Date.now()-n.lastOk)/1000):null;
+  const dataDown=(!n.lastOk&&n.fail>0)||(age!=null&&age>420);
+  const st=DIAG.stages,tot=Object.values(st).reduce((a,b)=>a+b,0);
+  const gates=Object.entries(DIAG.gates).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  let verdict,detail,tone;
+  if(dataDown){
+    tone="#e74c3c";
+    verdict="داده‌ای از بایننس نمی‌رسد";
+    detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
+      اگر از ایران وصل می‌شوی، بایننس دسترسی را می‌بندد و پنل هیچ کندلی نمی‌گیرد.
+      راه‌حل: یا از VPN استفاده کن، یا در «تنظیمات» آدرس پایهٔ API را به یک میرر در دسترس تغییر بده.`;
+  }else if(!tot){
+    tone="#f0a92e";
+    verdict="هنوز اسکنی کامل نشده";
+    detail="اولین جاروب چند ثانیه بعد از باز شدن پنل شروع می‌شود. تا تمام شدنش هیچ ستاپی ثبت نشده.";
+  }else if((st.SIGNAL||0)>0){
+    tone="#2ecc71";
+    verdict=`${st.SIGNAL} سیگنال در آخرین بررسی`;
+    detail="اگر اینجا چیزی نمی‌بینی، احتمالاً همین حالا صادر شده‌اند — تب سیگنال‌ها را ببین.";
+  }else{
+    tone="#8b98ab";
+    const parts=[];
+    if(st.ARMED)parts.push(`<b>${st.ARMED}</b> ارز داخل اردر بلاک و منتظر بسته شدن کندل بیرون از باکس`);
+    if(st.PULLBACK_1)parts.push(`<b>${st.PULLBACK_1}</b> ارز پولبک اول را زده`);
+    if(st.WATCH)parts.push(`<b>${st.WATCH}</b> ارز ساختار دارد ولی هنوز پولبکی نزده`);
+    if(st.NO_STRUCTURE)parts.push(`<b>${st.NO_STRUCTURE}</b> ارز اصلاً اردر بلاک معتبری ندارد`);
+    verdict="ستاپ آماده‌ای وجود ندارد — نه اینکه چیزی خراب باشد";
+    detail=parts.join(" · ")+(gates.length?`<div style="margin-top:6px">بیشترین مانع: ${gates.map(([g,c])=>`${g} (${c})`).join(" · ")}</div>`:"");
+  }
+  return `<div class="box" style="margin-bottom:12px;border-color:${tone}55">
+    <h3 style="margin:0 0 4px">چرا سیگنالی نیست؟ <span class="dim" style="font-size:11px;font-weight:400">${DIAG.at?fmtTime(new Date(DIAG.at)):"—"}</span></h3>
+    <div style="font-size:13px;color:${tone};font-weight:700">${verdict}</div>
+    <div class="muted" style="font-size:12px;margin-top:5px;line-height:1.9">${detail}</div>
+    <div class="dim" style="font-size:11px;margin-top:6px">
+      داده: ${n.ok} موفق / ${n.fail} ناموفق${age!=null?` · آخرین دریافت ${age}s پیش`:""} ·
+      استریم: ${WATCHER.ws?"متصل":"قطع"} · ${WATCHER.evals} ارزیابی کندل
+    </div></div>`;
+}
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
    ========================================================================= */
