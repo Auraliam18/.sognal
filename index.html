@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v12.1 · اعتبار ستاپ</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v13.0 · مرور دو ساعته</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -231,6 +231,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
     <button class="tab" data-t="scalp">اسکلپ ۱م (رنج)</button>
     <button class="tab" data-t="radar">رادار پامپ</button>
+    <button class="tab" data-t="paper">ترید کاغذی<span class="b" id="cPaper">0</span></button>
     <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
     <button class="tab" data-t="playbook">پلی‌بوک و الگوها</button>
   </div>
@@ -295,6 +296,11 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div id="raOut"></div>
   </section>
 
+  <section id="view-paper" style="display:none">
+    <div class="section-title"><span class="eyebrow">paper trading</span><h2>ترید کاغذی و مرور عملکرد</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px">هر سیگنال اینجا به یک پوزیشن تبدیل می‌شود و تا آخر دنبال می‌شود. هر دو ساعت، نتیجه‌ها از هر زاویه تفکیک و با بازهٔ اطمینان سنجیده می‌شوند تا شانس با یافته اشتباه گرفته نشود.</p>
+    <div id="paperBox" style="margin-top:12px"></div>
+  </section>
   <section id="view-calib" style="display:none">
     <div class="section-title"><span class="eyebrow">learning loop</span><h2>یادگیری و کالیبراسیون</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:720px">
@@ -420,6 +426,8 @@ function buildSnapshot(){
     sup_repairs:(typeof SUP!=="undefined"?SUP.repairs.slice(0,40):[]),
     conf_w:DB.get("conf_w")||null,conf_n:DB.get("conf_n")||0,ev_min:DB.get("ev_min")||null,
     cases:DB.get("cases")||null,bf_at:DB.get("bf_at")||null,usdtDom:DB.get("usdtDom")||null,
+    review:DB.get("review")||null,tune_log:DB.get("tune_log")||null,tune_cool:DB.get("tune_cool")||null,
+    fresh_bars:DB.get("fresh_bars")||null,rr_min:DB.get("rr_min")||null,tf_off:DB.get("tf_off")||null,
     cur_last:DB.get("cur_last")||null,cur_log:(typeof CURST!=="undefined"?CURST.log.slice(0,20):null),
     ibs_qmin:DB.get("ibs_qmin")||null,auto:DB.get("auto"),cfg:CFG,
     bt_html:STATE.bt_html||null,bt_at:STATE.bt_at||null};
@@ -447,6 +455,12 @@ function restoreSnapshot(snap){
     if(Array.isArray(snap.cases)&&snap.cases.length>=(DB.get("cases")||[]).length)DB.set("cases",snap.cases);
     if(snap.bf_at)DB.set("bf_at",snap.bf_at);
     if(snap.usdtDom)DB.set("usdtDom",snap.usdtDom);
+    if(snap.review)DB.set("review",snap.review);
+    if(snap.tune_log)DB.set("tune_log",snap.tune_log);
+    if(snap.tune_cool)DB.set("tune_cool",snap.tune_cool);
+    if(snap.fresh_bars)DB.set("fresh_bars",snap.fresh_bars);
+    if(snap.rr_min)DB.set("rr_min",snap.rr_min);
+    if(snap.tf_off)DB.set("tf_off",snap.tf_off);
     if(snap.cur_last){DB.set("cur_last",snap.cur_last);if(typeof CURST!=="undefined")CURST.last=snap.cur_last;}
     if(Array.isArray(snap.cur_log)&&typeof CURST!=="undefined"&&!CURST.log.length)CURST.log=snap.cur_log;
     return true;
@@ -1463,7 +1477,7 @@ function smcSetup(cd,opts){
    structure broke. Setups taken within ~15 bars of the break pay +0.20R; past
    40 bars they are reliably negative. The imbalance gets absorbed — a block
    price returns to while the impulse is still fresh is one that gets defended. */
-const fresh=cd.length-1-ob.brk<=15;
+const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():15);
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
     const edge=ob.dir==="SHORT"?ob.low:ob.high;
@@ -1519,7 +1533,7 @@ const fresh=cd.length-1-ob.brk<=15;
     cand.ev=confEV(cand.p,cand.rr||0);
     cand.conf=Math.round(cand.p*100);
     if(cand.stage==="SIGNAL"){
-      if(!(cand.rr>=1.2))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
+      if(!(cand.rr>=(+(DB.get("rr_min")||1.2))))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
       else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
       else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
       else if(domC)                       {cand.stage="ARMED";cand.skip=`دامیننس تتر ${opts.dom.dir==="UP_STRONG"||opts.dom.dir==="UP"?"صعودی":"در حال ریزش شدید"} — خلاف این ${ob.dir==="LONG"?"خرید":"فروش"}`;}
@@ -2272,7 +2286,7 @@ function watcherEvaluate(sym,tf){
   const row=(STATE.universe||[]).find(r=>r.binance_symbol===sym);
   const asset=row?row.asset_symbol:sym.replace("USDT","");
   if(row){row.smc=s;row.entry_zone=s.entry_zone;}
-  if(s.stage==="SIGNAL"){
+  if(s.stage==="SIGNAL"&&(typeof tfEnabled!=="function"||tfEnabled(tf))){
     if(STATE.signals.some(x=>x.binance_symbol===sym&&Date.now()-(x._t||0)<9e5))return;
     WATCHER.found++;
     const sig=Object.assign({},row||{},{binance_symbol:sym,asset_symbol:asset,status:"SIGNAL",
@@ -2615,7 +2629,9 @@ const CUR=[
   run:async()=>{if(!BF.running)await backfillTrain({days:4,topN:80,target:300});return`${BF.trades} پوزیشن آموخته شد`;}},
  {id:2,h:6,room:"calib",name:"بک‌تست و تنظیم آستانهٔ تصمیم",
   run:async()=>{await runBacktest(true);return`آستانه ${evMin()}R`;}},
- {id:3,h:2,room:"calib",name:"کالیبراسیون احتمال — آیا اعتماد با واقعیت می‌خواند؟",
+ {id:3,h:2,room:"calib",name:"مرور دو ساعتهٔ ترید کاغذی و یک تغییر کنترل‌شده",
+  run:async()=>{const r=runReview(true);return r.short?`${r.n} معامله — کمتر از حد قضاوت`:`${r.n} معامله · انتظار ${r.all.ev}R`;}},
+ {id:21,h:2,room:"calib",name:"کالیبراسیون احتمال — آیا اعتماد با واقعیت می‌خواند؟",
   run:async()=>{const t=(STATE.trades||[]).filter(x=>!x.open&&x.p!=null);
     if(t.length<20)return`${t.length} نمونه — کمتر از حد قضاوت`;
     const hi=t.filter(x=>x.p>=0.5),lo=t.filter(x=>x.p<0.5);
@@ -2778,6 +2794,239 @@ function diagHTML(){
       داده: ${n.ok} موفق / ${n.fail} ناموفق${age!=null?` · آخرین دریافت ${age}s پیش`:""} ·
       استریم: ${WATCHER.ws?"متصل":"قطع"} · ${WATCHER.evals} ارزیابی کندل
     </div></div>`;
+}
+
+/* =========================================================================
+   PERFORMANCE REVIEW — the analysis that found the staleness problem, run by
+   the panel on its own every two hours instead of by hand once.
+   Splits settled paper trades along every axis that could matter, bootstraps
+   a confidence interval for each slice so a run of luck is not read as a
+   finding, and reports which slices are genuinely positive or negative.
+   Findings the panel can act on, it acts on.
+   ========================================================================= */
+function evOf(g){return g.length?g.reduce((a,t)=>a+(t.r||0),0)/g.length:0;}
+function bootCI(g,B){
+  B=B||400;const n=g.length;if(n<25)return null;
+  const out=[];
+  for(let b=0;b<B;b++){let s=0;for(let i=0;i<n;i++){const t=g[(Math.random()*n)|0];s+=t.r||0;}out.push(s/n);}
+  out.sort((a,b)=>a-b);
+  return[out[Math.floor(B*0.025)],out[Math.floor(B*0.975)]];
+}
+function sliceStat(name,g){
+  if(!g.length)return null;
+  const w=g.filter(t=>t.r>0).length, ev=evOf(g), ci=bootCI(g);
+  return{name,n:g.length,hit:Math.round(w/g.length*100),
+         avgR:+(g.reduce((a,t)=>a+Math.abs(t.r||0),0)/g.length).toFixed(2),
+         ev:+ev.toFixed(3),ci,
+         verdict:!ci?"نمونه کم":ci[0]>0?"مثبت معنادار":ci[1]<0?"منفی معنادار":"بی‌معنا"};
+}
+function reviewOutcomes(){
+  const T=(STATE.trades||[]).filter(t=>!t.open&&t.r!=null);
+  if(T.length<20)return{n:T.length,short:true,groups:[]};
+  const G=[];
+  const push=(title,rows)=>{const list=rows.map(([n,f])=>sliceStat(n,T.filter(f))).filter(Boolean);
+    if(list.length)G.push({title,list});};
+  push("سن ستاپ در لحظهٔ سیگنال",[
+    ["۰ تا ۱۰ کندل",t=>t.age!=null&&t.age<10],
+    ["۱۰ تا ۲۰",t=>t.age!=null&&t.age>=10&&t.age<20],
+    ["۲۰ تا ۴۰",t=>t.age!=null&&t.age>=20&&t.age<40],
+    ["بیش از ۴۰",t=>t.age!=null&&t.age>=40]]);
+  push("تعداد پولبک",[
+    ["۱ پولبک",t=>t.visits===1],["۲ پولبک",t=>t.visits===2],["۳ یا بیشتر",t=>t.visits>=3]]);
+  push("تایم‌فریم",[["۵ دقیقه",t=>t.tf==="5m"],["۱۵ دقیقه",t=>t.tf==="15m"]]);
+  push("جهت",[["لانگ",t=>t.dir==="LONG"],["شورت",t=>t.dir==="SHORT"]]);
+  push("ریسک به ریوارد",[
+    ["زیر ۲",t=>t.rr!=null&&t.rr<2],["۲ تا ۳",t=>t.rr>=2&&t.rr<3],["۳ به بالا",t=>t.rr>=3]]);
+  push("شواهد هم‌جهت",[
+    ["با FVG",t=>t.feat&&t.feat.fvg>0],["بدون FVG",t=>t.feat&&!t.feat.fvg],
+    ["روی سطح کلیدی",t=>t.feat&&t.feat.level>0],
+    ["هم‌جهت با کانال",t=>t.feat&&t.feat.channel>0]]);
+  push("اعتماد مدل",[
+    ["زیر ۴۰٪",t=>t.conf!=null&&t.conf<40],["۴۰ تا ۵۵٪",t=>t.conf>=40&&t.conf<55],["۵۵٪ به بالا",t=>t.conf>=55]]);
+  push("رژیم بازار هنگام ورود",[
+    ["ریسک‌پذیر",t=>t.regime==="RISK_ON"],["خنثی",t=>t.regime==="NEUTRAL"],["ریسک‌گریز",t=>t.regime==="RISK_OFF"]]);
+  const all=sliceStat("همهٔ معاملات",T);
+  return{n:T.length,short:false,all,groups:G,at:Date.now()};
+}
+/* One change per cycle, then measure it.
+   Applying several at once makes the next result unreadable: if it improves,
+   nothing says which change did it, and if it worsens, nothing says which to
+   undo. So each review first grades the change it made last time against the
+   trades that happened since — keeping it or putting it back — and only then
+   makes at most one new change. Slow on purpose; every step is legible. */
+const TUNE=[
+  {id:"fresh",
+   test:r=>{const x=pick(r,"سن ستاپ در لحظهٔ سیگنال","بیش از ۴۰");
+            return x&&x.verdict==="منفی معنادار"&&x.n>=30&&smcFreshBars()>15;},
+   apply:()=>{const was=smcFreshBars();DB.set("fresh_bars",15);return{was,now:15,
+     text:`پنجرهٔ اعتبار ستاپ از ${was} به ۱۵ کندل تنگ شد`};},
+   revert:c=>DB.set("fresh_bars",c.was)},
+  {id:"rr",
+   test:r=>{const x=pick(r,"ریسک به ریوارد","زیر ۲");
+            return x&&x.verdict==="منفی معنادار"&&x.n>=30&&+(DB.get("rr_min")||1.2)<2;},
+   apply:()=>{const was=+(DB.get("rr_min")||1.2);DB.set("rr_min",2);return{was,now:2,
+     text:`حداقل ریسک‌به‌ریوارد از ${was} به ۲ رسید`};},
+   revert:c=>DB.set("rr_min",c.was)},
+  {id:"ev",
+   test:r=>{const x=pick(r,"اعتماد مدل","زیر ۴۰٪");
+            return x&&x.verdict==="منفی معنادار"&&x.n>=30&&evMin()<0.15;},
+   apply:()=>{const was=evMin();DB.set("ev_min",0.15);return{was,now:0.15,
+     text:`آستانهٔ انتظار ریاضی از ${was}R به ۰.۱۵R رسید`};},
+   revert:c=>DB.set("ev_min",c.was)},
+  {id:"tf5",
+   test:r=>{const x=pick(r,"تایم‌فریم","۵ دقیقه");
+            return x&&x.verdict==="منفی معنادار"&&x.n>=50&&tfEnabled("5m");},
+   apply:()=>{const off=DB.get("tf_off")||{};off["5m"]=Date.now();DB.set("tf_off",off);
+     return{was:"on",now:"off",text:"تایم‌فریم ۵ دقیقه موقتاً کنار گذاشته شد"};},
+   revert:()=>{const off=DB.get("tf_off")||{};delete off["5m"];DB.set("tf_off",off);}},
+  {id:"tf15",
+   test:r=>{const x=pick(r,"تایم‌فریم","۱۵ دقیقه");
+            return x&&x.verdict==="منفی معنادار"&&x.n>=50&&tfEnabled("15m");},
+   apply:()=>{const off=DB.get("tf_off")||{};off["15m"]=Date.now();DB.set("tf_off",off);
+     return{was:"on",now:"off",text:"تایم‌فریم ۱۵ دقیقه موقتاً کنار گذاشته شد"};},
+   revert:()=>{const off=DB.get("tf_off")||{};delete off["15m"];DB.set("tf_off",off);}}
+];
+function pick(rep,title,name){
+  const g=rep.groups.find(x=>x.title===title);
+  return g&&g.list.find(x=>x.name===name);
+}
+function tuneLog(){return DB.get("tune_log")||[];}
+/* Grade the previous change on the trades that closed after it was made. */
+function gradeLastChange(){
+  const log=tuneLog();
+  const open=log.find(c=>!c.graded);
+  if(!open)return null;
+  const after=(STATE.trades||[]).filter(t=>!t.open&&t.r!=null&&t.closedAt>open.at);
+  if(after.length<15)return{pending:true,change:open,have:after.length};
+  const evAfter=+evOf(after).toFixed(3);
+  const delta=+(evAfter-open.evBefore).toFixed(3);
+  open.graded=true;open.evAfter=evAfter;open.delta=delta;open.nAfter=after.length;
+  const spec=TUNE.find(t=>t.id===open.id);
+  if(delta<-0.05&&spec){                       // it made things worse — put it back
+    try{spec.revert(open);}catch(e){}
+    open.kept=false;
+    /* and do not try the same thing again tomorrow morning: a reverted change
+       that stays eligible produces an oscillation, not a search. */
+    const cool=DB.get("tune_cool")||{};cool[open.id]=Date.now();DB.set("tune_cool",cool);
+    opslog("calib",`تغییر «${open.text}» برگردانده شد — انتظار از ${open.evBefore}R به ${evAfter}R افت کرد`,"warn");
+  }else{
+    open.kept=true;
+    opslog("calib",`تغییر «${open.text}» ماند — انتظار ${open.evBefore}R → ${evAfter}R (${delta>0?"+":""}${delta})`,delta>0?"sig":"info");
+  }
+  DB.set("tune_log",log);
+  return{graded:true,change:open};
+}
+/* Then, at most one new change. */
+function applyOneChange(rep){
+  if(rep.short)return null;
+  if(tuneLog().some(c=>!c.graded))return null;      // one experiment at a time
+  const cool=DB.get("tune_cool")||{};
+  for(const t of TUNE){
+    if(cool[t.id]&&Date.now()-cool[t.id]<2592e5)continue;   // three days before retrying a reverted change
+    let hit=false;try{hit=t.test(rep);}catch(e){}
+    if(!hit)continue;
+    let res;try{res=t.apply();}catch(e){continue;}
+    const entry={id:t.id,at:Date.now(),evBefore:rep.all.ev,nBefore:rep.n,graded:false,...res};
+    const log=tuneLog();log.unshift(entry);DB.set("tune_log",log.slice(0,40));
+    opslog("calib",`تغییر این دوره: ${res.text} — نتیجه‌اش در مرور بعدی سنجیده می‌شود`,"sig");
+    return entry;
+  }
+  return null;
+}
+function smcFreshBars(){return +(DB.get("fresh_bars")||15);}
+function tfEnabled(tf){const off=DB.get("tf_off")||{};
+  if(!off[tf])return true;
+  if(Date.now()-off[tf]>1728e5){delete off[tf];DB.set("tf_off",off);return true;}  // revisit after two days
+  return false;}
+
+function renderReview(){
+  const el=$("#paperBox");if(!el)return;
+  const T=STATE.trades||[],open=T.filter(t=>t.open),closed=T.filter(t=>!t.open);
+  const net=closed.reduce((a,t)=>a+(t.r||0),0);
+  const saved=DB.get("review")||{};
+  const rep=saved.rep,acts=saved.acts||[];
+  const chip=(t,c)=>`<span class="chip" style="${c?`border-color:${c}55;color:${c}`:""}">${t}</span>`;
+  let html=`<div class="box">
+    <h3>ترید کاغذی — همیشه در جریان</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
+      ${chip(`${open.length} پوزیشن باز`,open.length?"#3fb6f5":null)}
+      ${chip(`${closed.length} بسته‌شده`)}
+      ${closed.length?chip(`برد ${Math.round(closed.filter(t=>t.r>0).length/closed.length*100)}%`,null):""}
+      ${closed.length?chip(`خالص ${net>0?"+":""}${net.toFixed(1)}R`,net>=0?"#2ecc71":"#e74c3c"):""}
+      ${chip(`مدل روی ${confN()} نتیجه`)}
+      ${chip(`${CASES.count()} تجربه`)}
+    </div>`;
+  if(open.length){
+    html+=`<div style="max-height:220px;overflow:auto">`+open.slice(0,25).map(t=>
+      `<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:5px 0;border-top:1px solid rgba(140,160,190,.08)">
+        <b>${t.asset}</b><span class="side ${t.dir}" style="font-size:10px">${t.dir}</span>
+        <span class="dim mono">${t.tf||""}</span>
+        <span class="num dim">@ ${fmt(t.entry)}</span>
+        <span class="dim">R:R ${t.rr||"—"}</span>
+        <span style="margin-inline-start:auto">${t.t1?"🟡 TP1 خورد — استاپ روی ورود":"⏳ باز"}</span>
+      </div>`).join("")+`</div>`;
+  }else html+=`<div class="dim" style="font-size:12px">پوزیشن بازی نیست — با اولین سیگنال باز می‌شود.</div>`;
+  html+=`</div>`;
+
+  html+=`<div class="box" style="margin-top:12px">
+    <h3>مرور دو ساعته <span class="dim" style="font-size:11px;font-weight:400">${saved.at?fmtTime(new Date(saved.at)):"هنوز اجرا نشده"}</span></h3>`;
+  if(!rep||rep.short){
+    html+=`<div class="muted" style="font-size:12px">${rep?`${rep.n} معاملهٔ بسته‌شده — برای قضاوت آماری حداقل ۲۰ تا لازم است.`:"اولین مرور بعد از جمع شدن معاملات اجرا می‌شود."}</div>`;
+  }else{
+    html+=`<div style="font-size:13px;margin-bottom:8px">روی <b>${rep.n}</b> معامله — برد <b>${rep.all.hit}%</b> · میانگین <b>${rep.all.avgR}R</b> · انتظار <b style="color:${rep.all.ev>=0?"#2ecc71":"#e74c3c"}">${rep.all.ev>0?"+":""}${rep.all.ev}R</b></div>`;
+    const col=v=>v==="مثبت معنادار"?"#2ecc71":v==="منفی معنادار"?"#e74c3c":"#8b98ab";
+    html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">`;
+    for(const g of rep.groups){
+      html+=`<tr><td colspan="5" style="padding:9px 4px 3px;font-weight:700;color:#8b98ab">${g.title}</td></tr>`;
+      for(const x of g.list){
+        html+=`<tr style="border-top:1px solid rgba(140,160,190,.08)">
+          <td style="padding:5px 4px">${x.name}</td>
+          <td style="padding:5px 4px" class="num dim">${x.n}</td>
+          <td style="padding:5px 4px" class="num">${x.hit}%</td>
+          <td style="padding:5px 4px" class="num" style="color:${x.ev>=0?"#2ecc71":"#e74c3c"}">${x.ev>0?"+":""}${x.ev}R</td>
+          <td style="padding:5px 4px;color:${col(x.verdict)}">${x.verdict}${x.ci?` <span class="dim mono">[${x.ci[0].toFixed(2)} , ${x.ci[1].toFixed(2)}]</span>`:""}</td></tr>`;
+      }
+    }
+    html+=`</table></div>`;
+  }
+  html+=`<div class="muted" style="font-size:12px;margin-top:8px;line-height:1.9">${acts.map(a=>"› "+a).join("<br>")||"—"}</div>
+    <div class="dim" style="font-size:11px;margin-top:6px">هر دوره فقط یک تغییر اعمال می‌شود و در دورهٔ بعد سنجیده می‌شود؛ اگر نتیجه بدتر شد، برمی‌گردد.</div></div>`;
+
+  const log=tuneLog();
+  if(log.length){
+    html+=`<div class="box" style="margin-top:12px"><h3>دفتر تغییرها <span class="dim" style="font-size:11px;font-weight:400">هر تغییر و اثری که داشت</span></h3>`+
+      log.slice(0,12).map(c=>`<div style="display:flex;gap:9px;font-size:12px;padding:5px 0;border-top:1px solid rgba(140,160,190,.08)">
+        <span class="dim mono" style="flex:none">${fmtTime(new Date(c.at))}</span>
+        <span>${c.text}</span>
+        <span style="margin-inline-start:auto;color:${!c.graded?"#8b98ab":c.kept?"#2ecc71":"#e74c3c"}">
+          ${!c.graded?"در حال سنجش":`${c.evBefore}R → ${c.evAfter}R · ${c.kept?"ماند":"برگردانده شد"}`}</span></div>`).join("")+`</div>`;
+  }
+  el.innerHTML=html;
+}
+function runReview(push){
+  const graded=gradeLastChange();
+  const rep=reviewOutcomes();
+  const change=applyOneChange(rep);
+  const acts=[];
+  if(graded&&graded.graded)acts.push(`سنجش دورهٔ قبل: «${graded.change.text}» ${graded.change.kept?"ماند":"برگردانده شد"} (${graded.change.evBefore}R → ${graded.change.evAfter}R)`);
+  else if(graded&&graded.pending)acts.push(`سنجش «${graded.change.text}» ادامه دارد — ${graded.have} از ۱۵ معاملهٔ لازم`);
+  if(change)acts.push(`تغییر جدید: ${change.text}`);
+  if(!acts.length)acts.push("تغییری لازم نبود");
+  DB.set("review",{rep,acts,at:Date.now()});
+  renderReview();
+  if(rep.short){opslog("calib",`مرور عملکرد: فقط ${rep.n} معاملهٔ بسته‌شده — حداقل ۲۰ تا لازم است`);return rep;}
+  const pos=[],neg=[];
+  rep.groups.forEach(g=>g.list.forEach(x=>{
+    if(x.verdict==="مثبت معنادار")pos.push(`${x.name} ${x.ev>0?"+":""}${x.ev}R`);
+    if(x.verdict==="منفی معنادار")neg.push(`${x.name} ${x.ev}R`);}));
+  opslog("calib",`مرور ${rep.n} معامله — انتظار کل ${rep.all.ev}R${pos.length?` · مثبت: ${pos.slice(0,3).join("، ")}`:""}${neg.length?` · منفی: ${neg.slice(0,3).join("، ")}`:""}`,acts.length?"sig":"info");
+  acts.forEach(a=>opslog("calib",a,"info"));
+  if(push&&TG.on())TG.send(["🔬 <b>مرور دو ساعته</b>",
+    `${rep.n} معاملهٔ بسته‌شده · برد ${rep.all.hit}% · انتظار <b>${rep.all.ev>0?"+":""}${rep.all.ev}R</b>`,
+    pos.length?`✅ ${pos.slice(0,4).join(" · ")}`:"",
+    neg.length?`❌ ${neg.slice(0,4).join(" · ")}`:"",
+    `⚙️ ${acts.join(" · ")}`].filter(Boolean).join("\n"));
+  return rep;
 }
 /* =========================================================================
    OPS ROOM — live telemetry: what every module is doing, right now.
@@ -2993,7 +3242,10 @@ function trackSignals(sigs){
     if(STATE.trades.some(t=>t.open&&t.sym===r.binance_symbol))continue;
     if(r.smc)try{r.smc.feat=confFeat(r.smc,r.ibs);}catch(e){}
     opslog("trade",`پیگیری ${r.asset_symbol} ${r.direction} شروع شد — ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)}`,"sig");
-    STATE.trades.unshift({feat:r.smc&&r.smc.feat,p:r.smc&&r.smc.p,sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
+    STATE.trades.unshift({feat:r.smc&&r.smc.feat,p:r.smc&&r.smc.p,
+      age:r.smc&&r.smc.ob?(r.smc.bars||0):null,visits:r.smc&&r.smc.visits,
+      tf:r.smc&&r.smc.tf,rr:r.smc&&r.smc.rr,conf:r.smc&&r.smc.conf,
+      regime:(STATE.market_context||{}).risk_mode,sym:r.binance_symbol,asset:r.asset_symbol,dir:r.direction,entry:r.entry,sl:r.stop_loss,tp1:r.tp1,tp2:r.tp2,score:r.score,t0:Date.now(),open:true,t1:false,r:0});
   }
   STATE.trades=STATE.trades.slice(0,100);
   renderTrades();radarStart();
@@ -3011,7 +3263,7 @@ function tradeCheck(tr,price){
   }
 }
 function tradeClose(tr,r,why){
-  tr.open=false;tr.r=r;tr.t1e=Date.now();tr.why=why;
+  tr.open=false;tr.r=r;tr.t1e=Date.now();tr.closedAt=Date.now();tr.why=why;
   const win=r>0;
   if(tr.feat&&!tr.learned){try{confLearn(tr.feat,win);CASES.add(tr.feat,win,r,{asset:tr.asset,dir:tr.dir,tf:tr.tf});tr.learned=1;tgOutcome(tr);opslog("calib",`مدل اعتماد از نتیجهٔ ${tr.asset} یاد گرفت (${confN()} معامله)`);}catch(e){}}
   opslog("trade",`${win?"✅":"❌"} ${tr.asset} ${tr.dir} — ${why} (${r>0?"+":""}${r}R)`,win?"sig":"err");
@@ -3237,8 +3489,9 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","watch","single","scalp","radar","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","watch","single","scalp","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
   if(t==="ops")renderOps();
+  if(t==="paper")renderReview();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
@@ -3246,6 +3499,7 @@ $("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
 $("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
 const _scBtn=$("#scBtn");if(_scBtn)_scBtn.onclick=()=>runScalp($("#scSym").value);
 const _btBtn=$("#btRun");if(_btBtn)_btBtn.onclick=runBacktest;
+const _cp=$("#cPaper");if(_cp)_cp.textContent=(STATE.trades||[]).filter(t=>t.open).length;
 const _bell=$("#bellBtn");if(_bell)_bell.onclick=async()=>{beep(1);if(!window.Notification){setStatus("مرورگرت اعلان را پشتیبانی نمی‌کند");return;}const p=await Notification.requestPermission();setStatus(p==="granted"?"اعلان فعال شد ✓ — با هر آلارم و سیگنال، نوتیفیکیشن می‌آید":"اجازهٔ اعلان داده نشد");};
 /* Ask for notification + audio permission on the first interaction of any kind
    (browsers require a gesture; switching a tab is enough — no dedicated click). */
@@ -3556,7 +3810,7 @@ async function boot(){
   if(await SYNC.autoDetect()){renderSyncStatus();setStatus("فضای ابری خودکار شناسایی و فعال شد ☁︎");}
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
-  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();renderTgBanner();
+  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();renderTgBanner();renderReview();
   const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();bootResume();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)

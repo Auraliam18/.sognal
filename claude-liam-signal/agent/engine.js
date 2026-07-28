@@ -306,7 +306,7 @@ function smcSetup(cd,opts){
    structure broke. Setups taken within ~15 bars of the break pay +0.20R; past
    40 bars they are reliably negative. The imbalance gets absorbed — a block
    price returns to while the impulse is still fresh is one that gets defended. */
-const fresh=cd.length-1-ob.brk<=15;
+const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():15);
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
     const edge=ob.dir==="SHORT"?ob.low:ob.high;
@@ -362,7 +362,7 @@ const fresh=cd.length-1-ob.brk<=15;
     cand.ev=confEV(cand.p,cand.rr||0);
     cand.conf=Math.round(cand.p*100);
     if(cand.stage==="SIGNAL"){
-      if(!(cand.rr>=1.2))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
+      if(!(cand.rr>=(+(DB.get("rr_min")||1.2))))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
       else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
       else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
       else if(domC)                       {cand.stage="ARMED";cand.skip=`دامیننس تتر ${opts.dom.dir==="UP_STRONG"||opts.dom.dir==="UP"?"صعودی":"در حال ریزش شدید"} — خلاف این ${ob.dir==="LONG"?"خرید":"فروش"}`;}
