@@ -302,7 +302,11 @@ function smcSetup(cd,opts){
     // signal: at least the second visit, and price has now closed back out of the box
     const margin=Math.max((ob.high-ob.low)*0.15,atr*0.15);
     const exited=ob.dir==="SHORT"?last.c<ob.low-margin:last.c>ob.high+margin;
-    const fresh=cd.length-1-ob.brk<=70;
+    /* Measured, not assumed: expectancy falls monotonically with how long ago the
+   structure broke. Setups taken within ~15 bars of the break pay +0.20R; past
+   40 bars they are reliably negative. The imbalance gets absorbed — a block
+   price returns to while the impulse is still fresh is one that gets defended. */
+const fresh=cd.length-1-ob.brk<=15;
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
     const edge=ob.dir==="SHORT"?ob.low:ob.high;
