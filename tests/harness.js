@@ -3,7 +3,7 @@
 const fs=require('fs');
 function loadEngine(patch){
   const re=/<script[^>]*>([\s\S]*?)<\/script>/g;let m,best="";
-  const html=fs.readFileSync('/home/user/.sognal/index.html','utf8');
+  const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
   while((m=re.exec(html)))if(m[1].length>best.length)best=m[1];
   let src=best.slice(best.indexOf('function rsiSeries'),best.indexOf('function ibsDetectSwings'));
   if(patch)for(const[k,v]of Object.entries(patch))src=src.split(k).join(v);
