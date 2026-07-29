@@ -1,0 +1,95 @@
+{
+  "name": "Signal — cycle report fan-out",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 30}]}},
+      "id": "trigger",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-620, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/repos/Auraliam18/.sognal/contents/claude-liam-signal/cycles/latest.md?ref=claude/hamid-signal-agent-smc-dkot7v",
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "id": "fetch",
+      "name": "Fetch latest cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decode the report and pull out the numbers. The panel writes a fixed\n// headline line, so one regex is enough and there is nothing to keep in sync.\nconst item = $input.first().json;\nif (!item || !item.content) return [];\nconst md = Buffer.from(item.content, 'base64').toString('utf8');\n\nconst head = md.match(/\\*\\*Overall: (\\d+)% win, ([\\d.]+) average R, ([+-]?[\\d.]+)R expectancy\\*\\* \\[([-\\d.]+), ([-\\d.]+)\\] — (\\w+)/);\nconst meta = md.match(/(\\d+) trades across (\\d+) simulated markets/);\nconst when = md.match(/# Paper trading cycle — (.+)$/m);\nif (!head) return [];\n\nconst sha = item.sha;\nconst seen = $getWorkflowStaticData('global');\nif (seen.lastSha === sha) return [];   // nothing new since last run\nseen.lastSha = sha;\n\nconst negatives = [...md.matchAll(/\\| ([^|]+) \\| \\d+ \\| \\d+% \\| [\\d.]+ \\| ([+-][\\d.]+)R \\| \\[([-\\d.]+), ([-\\d.]+)\\] \\| negative \\|/g)]\n  .map(m => `${m[1].trim()} ${m[2]}R`);\n\nreturn [{ json: {\n  cycle: (when ? when[1] : new Date().toISOString()).trim(),\n  trades: meta ? +meta[1] : null,\n  markets: meta ? +meta[2] : null,\n  winRate: +head[1] / 100,\n  avgR: +head[2],\n  expectancy: +head[3],\n  ciLow: +head[4],\n  ciHigh: +head[5],\n  verdict: head[6],\n  negatives,\n  markdown: md\n}}];"
+      },
+      "id": "parse",
+      "name": "Parse the report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-180, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "Notion-Version", "value": "2022-06-28"},
+          {"name": "Authorization", "value": "Bearer ={{ $env.NOTION_TOKEN }}"}
+        ]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  parent: { database_id: $env.NOTION_CYCLES_DB },\n  properties: {\n    'Cycle': { title: [{ text: { content: $json.cycle } }] },\n    'Run at': { date: { start: new Date().toISOString() } },\n    'Trades': { number: $json.trades },\n    'Win rate': { number: $json.winRate },\n    'Avg R': { number: $json.avgR },\n    'Expectancy R': { number: $json.expectancy },\n    'Interval low': { number: $json.ciLow },\n    'Interval high': { number: $json.ciHigh },\n    'Verdict': { select: { name: $json.verdict } },\n    'Change made': { rich_text: [{ text: { content: $json.negatives.length ? 'Negative slices found — panel applies one change next review' : 'None — no slice was significantly negative' } }] },\n    'Weakest slice': { rich_text: [{ text: { content: $json.negatives.join('; ') || 'none' } }] },\n    'Source': { select: { name: 'simulated' } }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "notion",
+      "name": "Row into Notion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  chat_id: $env.TG_CHAT,\n  parse_mode: 'HTML',\n  text: [\n    '📊 <b>چرخهٔ ترید کاغذی</b>',\n    `${$json.trades} معامله روی ${$json.markets} بازار`,\n    `برد <b>${Math.round($json.winRate*100)}%</b> · میانگین <b>${$json.avgR}R</b>`,\n    `انتظار <b>${$json.expectancy > 0 ? '+' : ''}${$json.expectancy}R</b> [${$json.ciLow} , ${$json.ciHigh}]`,\n    $json.negatives.length ? `❌ برش منفی: ${$json.negatives.join(' · ')}` : '✅ هیچ برشی منفی معنادار نبود — تغییری لازم نیست'\n  ].join('\\n')\n}) }}",
+        "options": {}
+      },
+      "id": "telegram",
+      "name": "Summary to Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 300]
+    },
+    {
+      "parameters": {
+        "name": "={{ 'cycle-' + $json.cycle.replace(/[^0-9]/g, '-') + '.md' }}",
+        "driveId": {"__rl": true, "mode": "list", "value": "My Drive"},
+        "folderId": {"__rl": true, "mode": "id", "value": "={{ $env.DRIVE_FOLDER_ID }}"},
+        "options": {}
+      },
+      "id": "drive",
+      "name": "Archive to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [120, 420],
+      "notesInFlow": true,
+      "notes": "Needs a Google Drive credential in n8n"
+    }
+  ],
+  "connections": {
+    "Every 30 minutes": {"main": [[{"node": "Fetch latest cycle", "type": "main", "index": 0}]]},
+    "Fetch latest cycle": {"main": [[{"node": "Parse the report", "type": "main", "index": 0}]]},
+    "Parse the report": {"main": [[
+      {"node": "Row into Notion", "type": "main", "index": 0},
+      {"node": "Summary to Telegram", "type": "main", "index": 0},
+      {"node": "Archive to Drive", "type": "main", "index": 0}
+    ]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {}
+}
