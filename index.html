@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v13.1 · پارامتر سنجیده</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v14.0 · میز تمرین زنده</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -426,6 +426,7 @@ function buildSnapshot(){
     sup_repairs:(typeof SUP!=="undefined"?SUP.repairs.slice(0,40):[]),
     conf_w:DB.get("conf_w")||null,conf_n:DB.get("conf_n")||0,ev_min:DB.get("ev_min")||null,
     cases:DB.get("cases")||null,bf_at:DB.get("bf_at")||null,usdtDom:DB.get("usdtDom")||null,
+    paper:DB.get("paper")||null,
     review:DB.get("review")||null,tune_log:DB.get("tune_log")||null,tune_cool:DB.get("tune_cool")||null,
     fresh_bars:DB.get("fresh_bars")||null,rr_min:DB.get("rr_min")||null,tf_off:DB.get("tf_off")||null,
     cur_last:DB.get("cur_last")||null,cur_log:(typeof CURST!=="undefined"?CURST.log.slice(0,20):null),
@@ -455,6 +456,7 @@ function restoreSnapshot(snap){
     if(Array.isArray(snap.cases)&&snap.cases.length>=(DB.get("cases")||[]).length)DB.set("cases",snap.cases);
     if(snap.bf_at)DB.set("bf_at",snap.bf_at);
     if(snap.usdtDom)DB.set("usdtDom",snap.usdtDom);
+    if(snap.paper){DB.set("paper",snap.paper);if(typeof PAPER!=="undefined"&&Array.isArray(snap.paper.trades))Object.assign(PAPER,snap.paper);}
     if(snap.review)DB.set("review",snap.review);
     if(snap.tune_log)DB.set("tune_log",snap.tune_log);
     if(snap.tune_cool)DB.set("tune_cool",snap.tune_cool);
@@ -2222,6 +2224,103 @@ function intelBias(){
   return Math.max(-1,Math.min(1,b));
 }
 setInterval(intelRefresh,3e5);
+
+/* =========================================================================
+   PAPER DESK — trades the live tape at real prices with no money and no
+   signal. Its gates are deliberately loose: a strict desk produces a handful
+   of outcomes a day, which teaches nothing. This one takes almost every
+   structure it finds, follows each to its end against live prices, and hands
+   the result to the learning room. Nothing here reaches the panel's signal
+   list or Telegram — it exists so the rooms have something to learn from.
+   ========================================================================= */
+const PAPER={trades:[],closed:0,wins:0,net:0,seen:{},started:Date.now()};
+function paperLoad(){const d=DB.get("paper");if(d&&Array.isArray(d.trades)){Object.assign(PAPER,d);}}
+function paperSave(){DB.set("paper",{trades:PAPER.trades.slice(0,600),closed:PAPER.closed,
+  wins:PAPER.wins,net:PAPER.net,started:PAPER.started});}
+/* Loose on purpose. The strict gates belong to signals, not to practice. */
+function paperTake(s,sym,tf){
+  if(!s||!s.tp1||!["LONG","SHORT"].includes(s.dir))return false;
+  /* Any structure with a real entry, stop and target is worth practising on.
+     Waiting for the pullback to complete is what the signal desk is for; here
+     it would throw away most of the sample. A block that has not been revisited
+     yet is a limit order at its edge, which is how the setup is traded anyway. */
+  if(!["SIGNAL","ARMED","PULLBACK_1","WATCH"].includes(s.stage))return false;
+  const risk=Math.abs(s.entry-s.sl);
+  if(!risk||risk/s.entry<0.0005)return false;
+  if((s.rr||0)<0.8)return false;                              // only refuse the truly worthless
+  if(!(s.entry>0)||!(s.sl>0))return false;
+  const k=sym+"|"+tf;
+  if(PAPER.seen[k]&&Date.now()-PAPER.seen[k]<18e5)return false;  // one per symbol/timeframe per 30 min
+  if(PAPER.trades.filter(t=>t.open).length>=120)return false;    // a ceiling, not a filter
+  PAPER.seen[k]=Date.now();
+  const R1=Math.abs(s.tp1-s.entry)/risk;
+  PAPER.trades.unshift({sym,asset:sym.replace("USDT",""),dir:s.dir,tf,stage:s.stage,
+    entry:s.entry,sl:s.sl,tp1:s.tp1,tp2:s.tp2,R1:Math.min(R1,6),
+    R2:s.tp2!=null?Math.min(Math.abs(s.tp2-s.entry)/risk,10):Math.min(R1,6),
+    open:true,t1:false,t0:Date.now(),
+    age:s.ob?(s.bars||null):null,visits:s.visits,rr:s.rr,conf:s.conf,ev:s.ev,
+    regime:(STATE.market_context||{}).risk_mode,feat:confFeat(s,null)});
+  PAPER.trades=PAPER.trades.slice(0,600);
+  opslog("paper",`${sym.replace("USDT","")} ${s.dir} ${tf} — تمرین باز شد @ ${fmt(s.entry)} · R:R ${s.rr}`);
+  return true;
+}
+function paperCheck(tr,price){
+  const L=tr.dir==="LONG";
+  const hitSL=L?price<=tr.sl:price>=tr.sl;
+  const hitT1=L?price>=tr.tp1:price<=tr.tp1;
+  const hitT2=tr.tp2!=null&&(L?price>=tr.tp2:price<=tr.tp2);
+  let r=null,why="";
+  if(!tr.t1&&hitSL){r=-1;why="استاپ";}
+  else{
+    if(hitT1&&!tr.t1){tr.t1=true;tr.sl=tr.entry;}
+    if(tr.t1){ if(hitT2){r=tr.R2;why="تارگت ۲";} else if(hitSL){r=tr.R1;why="برگشت به ورود";} }
+  }
+  if(r==null&&Date.now()-tr.t0>288e5){r=tr.t1?tr.R1:0;why="مهلت";}
+  if(r==null)return false;
+  tr.open=false;tr.r=+(+r).toFixed(2);tr.why=why;tr.closedAt=Date.now();
+  PAPER.closed++;if(r>0)PAPER.wins++;PAPER.net+=r;
+  try{confLearn(tr.feat,r>0);CASES.add(tr.feat,r>0,r,{asset:tr.asset,dir:tr.dir,tf:tr.tf,sym:tr.sym});}catch(e){}
+  opslog("paper",`${tr.asset} ${tr.dir} ${tr.tf} — ${why} ${r>0?"+":""}${tr.r}R · تجربه ثبت شد`,r>0?"sig":"info");
+  paperSave();
+  return true;
+}
+function paperStats(){
+  const open=PAPER.trades.filter(t=>t.open).length;
+  return{open,closed:PAPER.closed,wins:PAPER.wins,net:+PAPER.net.toFixed(1),
+    hit:PAPER.closed?Math.round(PAPER.wins/PAPER.closed*100):0};
+}
+/* =========================================================================
+   THE LEARNING ROOM'S ANSWER — asked before any signal goes out.
+   Not "is this setup good in general" but "what has this coin done, with this
+   strategy, in situations that looked like this one".
+   ========================================================================= */
+function askLearningRoom(sym,feat,dir){
+  const all=CASES.load();
+  const bySym=all.filter(c=>c.s===sym.replace("USDT","")||c.sym===sym);
+  const sim=CASES.similar(feat,30);
+  const agg=g=>{if(!g.length)return null;const w=g.filter(x=>x.w).length;
+    return{n:g.length,hit:Math.round(w/g.length*100),ev:+(g.reduce((a,x)=>a+(x.w?x.R:-1),0)/g.length).toFixed(2)};};
+  const coin=agg(bySym), coinDir=agg(bySym.filter(c=>c.d===dir));
+  return{coin,coinDir,similar:sim,pool:all.length};
+}
+/* The supervisor's call. Experience can veto, but only when it has enough of
+   it to be worth listening to — a handful of trades is an anecdote. */
+function supervisorApproves(sym,s){
+  const q=askLearningRoom(sym,confFeat(s,null),s.dir);
+  const reasons=[];
+  let ok=true;
+  if(q.coinDir&&q.coinDir.n>=12&&q.coinDir.ev<-0.25){
+    ok=false;reasons.push(`این ارز در ${q.coinDir.n} تمرین ${s.dir} گذشته ${q.coinDir.ev}R داده`);
+  }else if(q.similar&&q.similar.n>=20&&q.similar.ev<-0.3){
+    ok=false;reasons.push(`${q.similar.n} موقعیت مشابه گذشته ${q.similar.ev}R داده‌اند`);
+  }
+  if(ok){
+    if(q.coinDir&&q.coinDir.n>=8)reasons.push(`${q.coinDir.n} تمرین ${s.dir} روی این ارز: برد ${q.coinDir.hit}% · ${q.coinDir.ev>0?"+":""}${q.coinDir.ev}R`);
+    else if(q.similar&&q.similar.n>=10)reasons.push(`${q.similar.n} موقعیت مشابه: برد ${q.similar.hit}% · ${q.similar.ev>0?"+":""}${q.similar.ev}R`);
+    else reasons.push(`سابقهٔ کافی نیست (${q.pool} تجربه) — بر پایهٔ خود ستاپ`);
+  }
+  return{ok,why:reasons.join(" · "),q};
+}
 /* =========================================================================
    CONTINUOUS WATCH — every symbol, every closed candle, on 5m and 15m.
    One combined websocket carries up to 1024 streams, so ~100 symbols on two
@@ -2270,6 +2369,7 @@ function watcherConnect(){
       const bar={t:k.t,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};
       const last=buf[buf.length-1];
       if(last&&last.t===bar.t)buf[buf.length-1]=bar;else{buf.push(bar);if(buf.length>320)buf.shift();}
+      for(const pt of PAPER.trades)if(pt.open&&pt.sym===sym)paperCheck(pt,bar.c);
       if(k.x)watcherEvaluate(sym,tf);          // only on a closed candle
     }catch(e){}
   };
@@ -2286,8 +2386,15 @@ function watcherEvaluate(sym,tf){
   const row=(STATE.universe||[]).find(r=>r.binance_symbol===sym);
   const asset=row?row.asset_symbol:sym.replace("USDT","");
   if(row){row.smc=s;row.entry_zone=s.entry_zone;}
+  paperTake(s,sym,tf);          // practice on everything, quietly
   if(s.stage==="SIGNAL"&&(typeof tfEnabled!=="function"||tfEnabled(tf))){
     if(STATE.signals.some(x=>x.binance_symbol===sym&&Date.now()-(x._t||0)<9e5))return;
+    const verdict=supervisorApproves(sym,s);
+    if(!verdict.ok){
+      opslog("sup",`سیگنال ${asset} ${tf} صادر نشد — ${verdict.why}`,"warn");
+      return;
+    }
+    s.experience=verdict.why;
     WATCHER.found++;
     const sig=Object.assign({},row||{},{binance_symbol:sym,asset_symbol:asset,status:"SIGNAL",
       direction:s.dir,setup:"SMC_"+tf.toUpperCase(),entry:s.entry,stop_loss:s.sl,tp1:s.tp1,tp2:s.tp2,
@@ -2298,6 +2405,7 @@ function watcherEvaluate(sym,tf){
     beep(3);notify(`🚨 ${asset} ${s.dir} — ${tf}`,`ورود ${fmt(s.entry)} · استاپ ${fmt(s.sl)} · انتظار ${s.ev.toFixed(2)}R`);
     tgSignal(sig,s);
     opslog("watch",`🚨 ${asset} ${tf}: ${s.dir} · اعتماد ${s.conf}٪ · انتظار ${s.ev.toFixed(2)}R · R:R ${s.rr}`,"sig");
+    opslog("calib",`تأیید اتاق یادگیری برای ${asset}: ${verdict.why}`,"sig");
     renderSignals();saveLocal();if(SYNC.on())SYNC.push();
   }else if(s.stage==="ARMED"&&row){
     row.status="WAITING_CONFIRMATION";row.direction=s.dir;
@@ -2434,6 +2542,7 @@ async function pollPrices(){
       n++;const px=+t.price;
       const z=RADAR_LIVE.zones[t.symbol];if(z)radarCheck(z,px);
       for(const tr of open)if(tr.sym===t.symbol)tradeCheck(tr,px);
+      for(const pt of PAPER.trades)if(pt.open&&pt.sym===t.symbol)paperCheck(pt,px);
     }
     if(n){opsTick(n);beat("poll");beat("paper");}
   }catch(e){}
@@ -2674,6 +2783,13 @@ const CUR=[
     if(STATE.market_context)STATE.market_context.breadth=b;renderRegime();return`${b}% صعودی`;}},
  {id:15,h:6,room:"market",name:"رژیم بازار و بازخوانی بیت‌کوین",
   run:async()=>{const c=await fetchMarketContext();STATE.market_context=Object.assign(STATE.market_context||{},c);renderRegime();return`رژیم ${c.risk_mode}`;}},
+ {id:22,h:1,room:"paper",name:"تمرین‌های رهاشده را ببند",
+  run:async()=>{const stale=PAPER.trades.filter(t=>t.open&&Date.now()-t.t0>288e5);
+    stale.forEach(t=>{t.open=false;t.r=t.t1?t.R1:0;t.why="مهلت";t.closedAt=Date.now();
+      PAPER.closed++;if(t.r>0)PAPER.wins++;PAPER.net+=t.r;
+      try{confLearn(t.feat,t.r>0);CASES.add(t.feat,t.r>0,t.r,{asset:t.asset,dir:t.dir,tf:t.tf,sym:t.sym});}catch(e){}});
+    if(stale.length)paperSave();
+    const p=paperStats();return `${p.open} باز · ${p.closed} بسته · ${stale.length} به‌خاطر مهلت`;}},
  {id:16,h:2,room:"trade",name:"هیچ پوزیشنی رها نمانده باشد",
   run:async()=>{const open=(STATE.trades||[]).filter(t=>t.open);
     const stale=open.filter(t=>Date.now()-t.t0>36e5*8);
@@ -2821,7 +2937,8 @@ function sliceStat(name,g){
          verdict:!ci?"نمونه کم":ci[0]>0?"مثبت معنادار":ci[1]<0?"منفی معنادار":"بی‌معنا"};
 }
 function reviewOutcomes(){
-  const T=(STATE.trades||[]).filter(t=>!t.open&&t.r!=null);
+  /* The practice desk is where the sample lives — signals are rare by design. */
+  const T=[...(PAPER.trades||[]),...(STATE.trades||[])].filter(t=>!t.open&&t.r!=null);
   if(T.length<20)return{n:T.length,short:true,groups:[]};
   const G=[];
   const push=(title,rows)=>{const list=rows.map(([n,f])=>sliceStat(n,T.filter(f))).filter(Boolean);
@@ -2896,7 +3013,7 @@ function gradeLastChange(){
   const log=tuneLog();
   const open=log.find(c=>!c.graded);
   if(!open)return null;
-  const after=(STATE.trades||[]).filter(t=>!t.open&&t.r!=null&&t.closedAt>open.at);
+  const after=[...(PAPER.trades||[]),...(STATE.trades||[])].filter(t=>!t.open&&t.r!=null&&t.closedAt>open.at);
   if(after.length<15)return{pending:true,change:open,have:after.length};
   const evAfter=+evOf(after).toFixed(3);
   const delta=+(evAfter-open.evBefore).toFixed(3);
@@ -2946,8 +3063,25 @@ function renderReview(){
   const saved=DB.get("review")||{};
   const rep=saved.rep,acts=saved.acts||[];
   const chip=(t,c)=>`<span class="chip" style="${c?`border-color:${c}55;color:${c}`:""}">${t}</span>`;
-  let html=`<div class="box">
-    <h3>ترید کاغذی — همیشه در جریان</h3>
+  const P=paperStats();
+  let html=`<div class="box" style="border-color:#2c3a4d">
+    <h3>میز تمرین <span class="dim" style="font-size:11px;font-weight:400">روی کندل زنده · بدون پول · بدون سیگنال</span></h3>
+    <p class="muted" style="margin:2px 0 10px;font-size:12.5px">اینجا تقریباً هر ساختاری که پیدا شود معامله می‌شود، چون میز سخت‌گیر چیزی یاد نمی‌دهد. نتیجهٔ هر کدام مستقیم به اتاق یادگیری می‌رود. هیچ‌کدام از این‌ها سیگنال نیستند و به تلگرام نمی‌روند.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <span class="chip"${P.open?' style="border-color:#3fb6f555;color:#3fb6f5"':''}>${P.open} تمرین باز</span>
+      <span class="chip">${P.closed} بسته‌شده</span>
+      ${P.closed?`<span class="chip">برد ${P.hit}%</span><span class="chip" style="border-color:${P.net>=0?"#2ecc71":"#e74c3c"}55;color:${P.net>=0?"#2ecc71":"#e74c3c"}">خالص ${P.net>0?"+":""}${P.net}R</span>`:""}
+      <span class="chip">${CASES.count()} تجربه در حافظه</span>
+    </div>
+    ${PAPER.trades.length?`<div style="max-height:200px;overflow:auto">`+PAPER.trades.slice(0,20).map(t=>
+      `<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.08)">
+        <b>${t.asset}</b><span class="side ${t.dir}" style="font-size:10px">${t.dir}</span>
+        <span class="dim mono">${t.tf}</span><span class="num dim">@ ${fmt(t.entry)}</span>
+        <span style="margin-inline-start:auto">${t.open?(t.t1?"🟡 TP1":"⏳ باز"):(t.r>0?`✅ +${t.r}R`:`❌ ${t.r}R`)}</span>
+      </div>`).join("")+`</div>`:`<div class="dim" style="font-size:12px">با اولین ساختار، تمرین شروع می‌شود.</div>`}
+  </div>
+  <div class="box" style="margin-top:12px">
+    <h3>سیگنال‌های واقعی — پیگیری</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
       ${chip(`${open.length} پوزیشن باز`,open.length?"#3fb6f5":null)}
       ${chip(`${closed.length} بسته‌شده`)}
@@ -3039,7 +3173,7 @@ function opslog(room,msg,kind){
   if($("#view-ops")&&$("#view-ops").style.display!=="none")renderOpsFeed();
 }
 const ROOMSTATE={};
-const ROOMS={sup:"اتاق ناظر",watch:"اتاق پایش",intel:"اتاق اطلاعات",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
+const ROOMS={sup:"اتاق ناظر",paper:"میز تمرین",watch:"اتاق پایش",intel:"اتاق اطلاعات",scan:"اتاق اسکن",radar:"اتاق رادار",trade:"اتاق پیگیری",calib:"اتاق کالیبراسیون",market:"اتاق بازار",deep:"اتاق تحلیل عمیق",chart:"اتاق چارت"};
 function opsTick(n){
   OPS.ticks+=n;OPS.lastTick=Date.now();beat("radar");beat("paper");
   OPS.tickWin.push({t:Date.now(),n});
@@ -3099,6 +3233,9 @@ function renderOps(){
     roomCard("radar",wsOk?true:(nz?"ready":"ready"),
       `<b>${nz}</b> ناحیهٔ ورود زیر نظر · <b class="num">${rate}</b> قیمت در ثانیه`,
       wsOk?`وب‌سوکت متصل — هر ارز هر ثانیه چک می‌شود که وارد ناحیه‌اش شده یا نه`:"در انتظار اسکن یا اتصال مجدد…"),
+    (()=>{const p=paperStats();return roomCard("paper",p.open>0?true:"ready",
+      `<b>${p.open}</b> تمرین باز · <b>${p.closed}</b> بسته${p.closed?` · برد <b>${p.hit}%</b> · خالص <b style="color:${p.net>=0?"#2ecc71":"#e74c3c"}">${p.net>0?"+":""}${p.net}R</b>`:""}`,
+      "روی کندل زنده و قیمت واقعی، بدون پول و بدون سیگنال — شرط‌ها شل‌اند تا اتاق یادگیری تجربهٔ کافی جمع کند");})(),
     roomCard("trade",open.length>0?true:"ready",
       `<b>${open.length}</b> معاملهٔ باز · ${closed.length} بسته${closed.length?` · خالص <b style="color:${net>=0?"#2ecc71":"#e74c3c"}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}`,
       open.length?open.slice(0,4).map(t=>`${t.asset} ${t.dir} @ ${fmt(t.entry)} ${t.t1?"· TP1 خورد":""}`).join(" · "):"با اولین سیگنال، پیگیری خودکار شروع می‌شود"),
@@ -3199,6 +3336,7 @@ function radarStart(){
     for(const t of arr){
       const z=RADAR_LIVE.zones[t.s];if(z)radarCheck(z,+t.c);
       for(const tr of open)if(tr.sym===t.s)tradeCheck(tr,+t.c);
+      for(const pt of PAPER.trades)if(pt.open&&pt.sym===t.s)paperCheck(pt,+t.c);
     }}catch(e){}};
   ws.onopen=()=>opslog("radar",`وب‌سوکت متصل شد — پایش ثانیه‌ای ${Object.keys(RADAR_LIVE.zones).length} ناحیهٔ ورود`,"sig");
   ws.onclose=()=>{RADAR_LIVE.ws=null;opslog("radar","اتصال قطع شد — تلاش مجدد تا ۷ ثانیه","warn");clearTimeout(RADAR_LIVE.retry);RADAR_LIVE.retry=setTimeout(radarStart,7000);};
@@ -3810,7 +3948,7 @@ async function boot(){
   if(await SYNC.autoDetect()){renderSyncStatus();setStatus("فضای ابری خودکار شناسایی و فعال شد ☁︎");}
   const local=DB.get(SNAP_KEY);
   if(local){restoreSnapshot(local);}
-  renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();renderTgBanner();renderReview();
+  paperLoad();renderCalib();renderPatRef();renderSyncStatus();renderTrades();curLoad();renderTgBanner();renderReview();
   const _q=$("#btCurQ");if(_q)_q.textContent=ibsQmin()+"%";
   if(local){renderAll();bootResume();setStatus(`بازیابی از حافظهٔ محلی · آخرین اسکن ${fmtTime(STATE.last_scan_at)} · ${STATE.signals.length} سیگنال · ${STATE.watchlist.length} واچ‌لیست`);}
   // Path B: reconcile with cloud (last-write-wins by updatedAt)
