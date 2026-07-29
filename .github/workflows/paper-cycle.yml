@@ -1,0 +1,48 @@
+# Runs a paper-trading cycle every two hours on GitHub's runners and commits the
+# report. The compute happens here rather than on the laptop, and the results
+# survive any machine being switched off.
+name: Paper trading cycle
+
+on:
+  schedule:
+    - cron: "13 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paper-cycle
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run cycle
+        env:
+          MARKETS: "600"
+        run: node tests/cycle.js | tee cycle-output.txt
+      - name: Commit report
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add claude-liam-signal/cycles
+          if git diff --cached --quiet; then
+            echo "nothing new"
+          else
+            git commit -m "Paper trading cycle $(date -u '+%Y-%m-%d %H:%M') UTC
+
+          Ran on a GitHub runner so the laptop stays free. Report and raw
+          per-slice numbers are in claude-liam-signal/cycles."
+            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
+          fi
+      - name: Summary
+        run: cat claude-liam-signal/cycles/latest.md >> $GITHUB_STEP_SUMMARY
