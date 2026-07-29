@@ -1,0 +1,50 @@
+# Overnight parameter search across hosted runners. Every candidate is fitted on
+# one set of markets and judged on markets it never saw, so a configuration that
+# only looks good in-sample cannot be adopted. The laptop is not involved.
+name: Overnight parameter search
+
+on:
+  schedule:
+    - cron: "41 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: search
+  cancel-in-progress: false
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Search
+        env:
+          FIT: "200"
+          TEST: "200"
+        run: node tests/search.js
+      - name: Commit findings
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add claude-liam-signal/cycles
+          if git diff --cached --quiet; then
+            echo "nothing new"
+          else
+            git commit -m "Parameter search $(date -u '+%Y-%m-%d') — fitted and judged on separate markets
+
+          Ranked on out-of-sample expectancy only; a candidate has to clear zero
+          on markets it never saw before it counts as a finding."
+            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
+          fi
+      - name: Summary
+        run: cat claude-liam-signal/cycles/search-latest.md >> $GITHUB_STEP_SUMMARY
