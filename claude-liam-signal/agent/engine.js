@@ -112,7 +112,7 @@ function smcOrderBlocks(cd,k=4,max=4){
     if(brk<0)continue;
     const dir=piv.t==="L"?"SHORT":"LONG";
     // the break must be decisive, and the leg after it must actually displace price
-    if(Math.abs(cd[brk].c-piv.p)<atr*0.5)continue;
+    if(Math.abs(cd[brk].c-piv.p)<atr*0.35)continue;
     let ext=cd[brk].c;
     for(let i=brk;i<Math.min(cd.length,brk+6);i++)ext=dir==="SHORT"?Math.min(ext,cd[i].l):Math.max(ext,cd[i].h);
     if(Math.abs(ext-piv.p)<atr*1.5)continue;
@@ -306,7 +306,7 @@ function smcSetup(cd,opts){
    structure broke. Setups taken within ~15 bars of the break pay +0.20R; past
    40 bars they are reliably negative. The imbalance gets absorbed — a block
    price returns to while the impulse is still fresh is one that gets defended. */
-const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():15);
+const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():10);
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
     const edge=ob.dir==="SHORT"?ob.low:ob.high;
