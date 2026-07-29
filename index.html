@@ -216,7 +216,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v13.0 · مرور دو ساعته</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v13.1 · پارامتر سنجیده</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1283,7 +1283,7 @@ function smcOrderBlocks(cd,k=4,max=4){
     if(brk<0)continue;
     const dir=piv.t==="L"?"SHORT":"LONG";
     // the break must be decisive, and the leg after it must actually displace price
-    if(Math.abs(cd[brk].c-piv.p)<atr*0.5)continue;
+    if(Math.abs(cd[brk].c-piv.p)<atr*0.35)continue;
     let ext=cd[brk].c;
     for(let i=brk;i<Math.min(cd.length,brk+6);i++)ext=dir==="SHORT"?Math.min(ext,cd[i].l):Math.max(ext,cd[i].h);
     if(Math.abs(ext-piv.p)<atr*1.5)continue;
@@ -1477,7 +1477,7 @@ function smcSetup(cd,opts){
    structure broke. Setups taken within ~15 bars of the break pay +0.20R; past
    40 bars they are reliably negative. The imbalance gets absorbed — a block
    price returns to while the impulse is still fresh is one that gets defended. */
-const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():15);
+const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars():10);
     const stillIn=price>=ob.low&&price<=ob.high;
     const tgt=smcTargets(cd,ob.dir,ob.dir==="SHORT"?ob.low:ob.high);
     const edge=ob.dir==="SHORT"?ob.low:ob.high;
@@ -2933,7 +2933,7 @@ function applyOneChange(rep){
   }
   return null;
 }
-function smcFreshBars(){return +(DB.get("fresh_bars")||15);}
+function smcFreshBars(){return +(DB.get("fresh_bars")||10);}
 function tfEnabled(tf){const off=DB.get("tf_off")||{};
   if(!off[tf])return true;
   if(Date.now()-off[tf]>1728e5){delete off[tf];DB.set("tf_off",off);return true;}  // revisit after two days
