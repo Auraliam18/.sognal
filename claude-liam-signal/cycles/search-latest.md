@@ -1,24 +1,12 @@
-# Parameter search — 2026-07-30 06:25 UTC
+# Parameter search — 2026-07-30 07:26 UTC
 
-144 configurations, fitted on 200 markets and judged on 200 the engine never saw. 6322.4s.
+6 configurations, fitted on 25 markets and judged on 25 the engine never saw. 38s.
 
-**Shipped configuration** — out-of-sample +0.2831R [0.2162, 0.3483] on 2014 trades.
+**Shipped configuration** — out-of-sample +0.2276R [0.0566, 0.3826] on 265 trades.
 
 | rank | fresh | R min | decisive | displacement | in-sample | out-of-sample | interval | trades |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 15 | 1.8 | 0.5 | 1.5 | +0.2228R | **+0.2831R** | [0.2162, 0.3483] | 2014 |
-| 2 | 15 | 1.8 | 0.35 | 1.5 | +0.2228R | **+0.2831R** | [0.2238, 0.337] | 2014 |
-| 3 | 15 | 1.8 | 0.7 | 1.5 | +0.2228R | **+0.2831R** | [0.2146, 0.3439] | 2014 |
-| 4 | 10 | 1.8 | 0.5 | 1.5 | +0.2228R | **+0.2831R** | [0.219, 0.3396] | 2014 |
-| 5 | 10 | 1.8 | 0.35 | 1.5 | +0.2228R | **+0.2831R** | [0.2245, 0.3444] | 2014 |
-| 6 | 10 | 1.8 | 0.7 | 1.5 | +0.2228R | **+0.2831R** | [0.2181, 0.3525] | 2014 |
-| 7 | 20 | 1.8 | 0.5 | 1.5 | +0.2228R | **+0.2831R** | [0.2178, 0.3458] | 2014 |
-| 8 | 20 | 1.8 | 0.35 | 1.5 | +0.2228R | **+0.2831R** | [0.2103, 0.3429] | 2014 |
-| 9 | 20 | 1.8 | 0.7 | 1.5 | +0.2228R | **+0.2831R** | [0.2205, 0.3467] | 2014 |
-| 10 | 25 | 1.8 | 0.5 | 1.5 | +0.2228R | **+0.2831R** | [0.2218, 0.3448] | 2014 |
-| 11 | 25 | 1.8 | 0.35 | 1.5 | +0.2228R | **+0.2831R** | [0.2235, 0.343] | 2014 |
-| 12 | 25 | 1.8 | 0.7 | 1.5 | +0.2228R | **+0.2831R** | [0.2248, 0.3458] | 2014 |
 
 ## Verdict
 
-Nothing beats what is already shipped by a margin worth taking (best is 0.000R over it, out-of-sample). No change.
+No configuration cleared zero out-of-sample with enough trades to judge. Nothing to adopt.

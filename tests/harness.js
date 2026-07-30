@@ -6,7 +6,12 @@ function loadEngine(patch){
   const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
   while((m=re.exec(html)))if(m[1].length>best.length)best=m[1];
   let src=best.slice(best.indexOf('function rsiSeries'),best.indexOf('function ibsDetectSwings'));
-  if(patch)for(const[k,v]of Object.entries(patch))src=src.split(k).join(v);
+  if(patch&&patch.__regex){
+    for(const[re,rep]of patch.__regex){
+      if(!re.test(src))throw new Error("patch anchor did not match: "+re);
+      src=src.replace(re,rep);
+    }
+  }else if(patch)for(const[k,v]of Object.entries(patch))src=src.split(k).join(v);
   const shim=`const _M={};const DB={get:k=>_M[k],set:(k,v)=>{_M[k]=v;}};`;
   return (new Function(shim+src+"\nreturn{smcSetup,confLearn,confW,confFeat,confP,confEV,DB};"))();
 }
