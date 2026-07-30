@@ -1,0 +1,79 @@
+# Backtests both strategies on candles that really traded.
+#
+# This has to run here rather than on the laptop for two reasons: the runner has
+# the cores, and it can reach Binance, which some networks block outright. What
+# it produces is the one number the simulator cannot give — how the engine did on
+# the actual tape, on 15m and 5m, for the original strategy and the channel-rules
+# strategy side by side.
+name: Historical backtest
+
+on:
+  schedule:
+    - cron: "37 5 * * *"        # once a day, after the overnight parameter search
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "How many of the most-traded pairs"
+        default: "60"
+      bars:
+        description: "Candles per series per timeframe"
+        default: "5000"
+      tf:
+        description: "Timeframes, comma separated"
+        default: "15m,5m"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run the backtest
+        run: |
+          python3 claude-liam-signal/python/backtest.py \
+            --symbols "${{ github.event.inputs.symbols || '60' }}" \
+            --bars "${{ github.event.inputs.bars || '5000' }}" \
+            --tf "${{ github.event.inputs.tf || '15m,5m' }}" \
+            | tee backtest-output.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '```'
+            tail -n 60 backtest-output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit the report
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add claude-liam-signal/backtests
+          if git diff --cached --quiet; then
+            echo "nothing new"
+          else
+            git commit -m "Historical backtest on real candles $(date -u '+%Y-%m-%d %H:%M') UTC
+
+          Both strategies replayed through the shipped engine over real 15m and
+          5m klines. Expectancy and 95% bootstrap intervals per strategy, per
+          timeframe and per direction are in claude-liam-signal/backtests."
+            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
+          fi

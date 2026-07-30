@@ -244,6 +244,96 @@ function domConflicts(dir,asset,dom){
   return false;
 }
 
+
+/* =========================================================================
+   WHAT THE SETUP STILL NEEDED — from the channel's own summary.
+
+   Direction is not a setup. Before anything else the trade needs room: the
+   distance from entry to the opposing supply or demand, measured in units of
+   its own risk. A short into a demand block two thirds of the way to target has
+   nowhere to go, however clean the structure looks.
+
+   Then liquidity. Equal highs and lows are resting stops, and inducement is the
+   move that reaches for them before the real one leaves. A block that has swept
+   liquidity is a different proposition from one that has not.
+
+   And structure has to be real. A run of inside candles on thin volume draws
+   highs and lows that no participant defended.
+   ========================================================================= */
+
+/* Room to run: nearest opposing zone between entry and target, in risk units. */
+function roomToRun(cd,dir,entry,risk,obs,levels,fvgs){
+  if(!risk)return{r:0,blocker:null};
+  const ahead=[];
+  const opp=dir==="LONG"?"SHORT":"LONG";
+  (obs||[]).forEach(o=>{if(o.dir===opp)ahead.push({p:o.mid,what:"اردر بلاک مقابل"});});
+  (fvgs||[]).forEach(f=>{if(f.dir===opp)ahead.push({p:f.mid,what:"FVG مقابل"});});
+  (levels||[]).forEach(l=>{
+    if(l.touches>=2)ahead.push({p:l.price,what:(l.type==="R"?"مقاومت":"حمایت")+` ×${l.touches}`});
+  });
+  const beyond=ahead.filter(x=>dir==="LONG"?x.p>entry*1.0005:x.p<entry*0.9995);
+  if(!beyond.length)return{r:99,blocker:null};
+  beyond.sort((a,b)=>dir==="LONG"?a.p-b.p:b.p-a.p);
+  const first=beyond[0];
+  return{r:+(Math.abs(first.p-entry)/risk).toFixed(2),blocker:first.what,at:first.p};
+}
+
+/* Equal highs and lows are stops resting in the open. */
+function liquidityPools(cd,tolPct){
+  tolPct=tolPct||0.0012;
+  const n=Math.min(cd.length,120), s=cd.slice(-n);
+  const hi=[],lo=[];
+  for(let i=3;i<s.length-3;i++){
+    const isH=s[i].h>=Math.max(...s.slice(i-3,i).map(x=>x.h))&&s[i].h>=Math.max(...s.slice(i+1,i+4).map(x=>x.h));
+    const isL=s[i].l<=Math.min(...s.slice(i-3,i).map(x=>x.l))&&s[i].l<=Math.min(...s.slice(i+1,i+4).map(x=>x.l));
+    if(isH)hi.push({p:s[i].h,i});
+    if(isL)lo.push({p:s[i].l,i});
+  }
+  const cluster=(arr,kind)=>{
+    const out=[];
+    for(const v of arr){
+      const f=out.find(c=>Math.abs(c.price-v.p)/v.p<tolPct);
+      if(f){f.n++;f.last=Math.max(f.last,v.i);}
+      else out.push({price:v.p,n:1,last:v.i,kind});
+    }
+    return out.filter(c=>c.n>=2);      // two touches at the same level is a pool
+  };
+  return[...cluster(hi,"buy"),...cluster(lo,"sell")].sort((a,b)=>b.n-a.n).slice(0,6);
+}
+
+/* Inducement: the reach for those stops that happens before the real move.
+   A block that formed after a sweep is standing on cleared liquidity. */
+function inducementSwept(cd,ob,pools){
+  if(!ob||!pools||!pools.length)return null;
+  const from=Math.max(0,ob.i-20), to=Math.min(cd.length,ob.brk+3);
+  for(const pool of pools){
+    for(let i=from;i<to;i++){
+      const c=cd[i];
+      /* Wick through the pool, close back on the other side — taken and rejected. */
+      if(pool.kind==="buy"&&c.h>pool.price&&c.c<pool.price)
+        return{kind:"buy",price:pool.price,n:pool.n,bar:i};
+      if(pool.kind==="sell"&&c.l<pool.price&&c.c>pool.price)
+        return{kind:"sell",price:pool.price,n:pool.n,bar:i};
+    }
+  }
+  return null;
+}
+
+/* Structure nobody defended: inside candles on thin participation. */
+function structureIsThin(cd,lookback){
+  const n=Math.min(lookback||30,cd.length-1), s=cd.slice(-n);
+  let inside=0;
+  for(let i=1;i<s.length;i++)
+    if(s[i].h<=s[i-1].h&&s[i].l>=s[i-1].l)inside++;
+  const insideRatio=inside/(s.length-1);
+  const vols=s.map(c=>c.v||0).filter(v=>v>0);
+  const recent=vols.slice(-10).reduce((a,b)=>a+b,0)/Math.max(1,Math.min(10,vols.length));
+  const base=vols.reduce((a,b)=>a+b,0)/Math.max(1,vols.length);
+  const volRatio=base?recent/base:1;
+  return{insideRatio:+insideRatio.toFixed(2),volRatio:+volRatio.toFixed(2),
+         thin:insideRatio>0.45||(vols.length>10&&volRatio<0.45)};
+}
+function roomMin(){const v=+DB.get("room_min");return isNaN(v)||v===0?1.5:v;}
 /* =========================================================================
    WILDER — three ideas from New Concepts in Technical Trading Systems (1978),
    the book that introduced RSI, ATR, ADX/DMI and Parabolic SAR as one system:
@@ -385,6 +475,8 @@ function smcSetup(cd,opts){
   const atr=smcATR(cd)||1e-9;
   const dmi=wilderADX(cd);
   const fs=wilderFailureSwing(cd);
+  const pools=liquidityPools(cd);
+  const thin=structureIsThin(cd);
   const ch=smcChannel(cd),obs=smcOrderBlocks(cd),fvgs=smcFVGs(cd),levels=smcLevels(cd);
   if(!obs.length)return null;
   const last=cd[cd.length-1],price=last.c;
@@ -417,6 +509,8 @@ const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars()
     if(!tp2||tp2===tp1)tp2=entry+sgn*Math.max(Math.abs(tp1-entry)*1.8,risk*2.5);
     const rr=risk?Math.abs(tp1-entry)/risk:0;
     const fvg=fvgs.find(f=>f.dir===ob.dir&&Math.abs(f.mid-ob.mid)/ob.mid<0.03)||null;
+    const room=roomToRun(cd,ob.dir,entry,risk,obs,levels,fvgs);
+    const swept=inducementSwept(cd,ob,pools);
     const lvl=levels.find(l=>Math.abs(l.price-ob.mid)/ob.mid<0.006)||null;
     const chOk=ch&&((ob.dir==="SHORT"&&ch.dir==="نزولی")||(ob.dir==="LONG"&&ch.dir==="صعودی"));
     let stage="WATCH",q=0;
@@ -451,7 +545,7 @@ const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars()
       channel:ch,fvg,level:lvl,levels,fvgs,
       entry,edge,sl,tp1,tp2,tpExt,rr:Math.round(rr*100)/100,price,
       btcDiv:opts.btcDiv||null};
-    cand.dmi=dmi;cand.failSwing=fs;
+    cand.dmi=dmi;cand.failSwing=fs;cand.room=room;cand.swept=swept;cand.pools=pools;cand.thin=thin;
     cand.p=confP(cand,opts.ibs);
     cand.ev=confEV(cand.p,cand.rr||0);
     cand.conf=Math.round(cand.p*100);
@@ -459,6 +553,13 @@ const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars()
       if(!(cand.rr>=(+(DB.get("rr_min")||1.2))))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
       else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
       else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
+      /* Room to run and thin structure are measured and shown, but they do not
+         gate. 4,153 simulated trades: filtering on room gained 0.076R with the
+         interval [-0.012, 0.160] straddling zero, and a nine-threshold sweep
+         flipped in and out of significance without a gradient — that is noise.
+         Thin structure never fired: the simulator's inside-candle ratio tops out
+         at 0.45 and its volume ratio bottoms at 0.40, so it cannot produce the
+         tape that rule targets. Both wait on the real-candle backtest. */
       else if(adxFloor()&&dmi.adx<adxFloor()){cand.stage="ARMED";cand.skip=`ADX ${dmi.adx} زیر حد ${adxFloor()} — بازار روند ندارد`;}
       else if(domC)                       {cand.stage="ARMED";cand.skip=`دامیننس تتر ${opts.dom.dir==="UP_STRONG"||opts.dom.dir==="UP"?"صعودی":"در حال ریزش شدید"} — خلاف این ${ob.dir==="LONG"?"خرید":"فروش"}`;}
     }
