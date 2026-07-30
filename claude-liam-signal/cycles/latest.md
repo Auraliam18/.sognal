@@ -1,26 +1,26 @@
-# Paper trading cycle — 2026-07-30 19:48 UTC
+# Paper trading cycle — 2026-07-30 21:01 UTC
 
-5964 trades across 600 simulated markets, 4 cores, 75.1s.
+4850 trades across 600 simulated markets, 4 cores, 106.1s.
 
-**Overall: 44% win, 1.89 average R, +0.255R expectancy** [0.218, 0.289] — positive
+**Overall: 45% win, 1.89 average R, +0.28R expectancy** [0.24, 0.324] — positive
 
 | slice | trades | win | avg R | expectancy | 95% interval | verdict |
 |---|---|---|---|---|---|---|
-| direction · long | 3026 | 47% | 1.9 | +0.333R | [0.282, 0.391] | positive |
-| direction · short | 2938 | 41% | 1.88 | +0.175R | [0.129, 0.222] | positive |
-| pullbacks · first | 5675 | 44% | 1.89 | +0.259R | [0.223, 0.299] | positive |
-| pullbacks · second | 274 | 42% | 1.94 | +0.188R | [0.029, 0.349] | positive |
-| pullbacks · third+ | 15 | 40% | 1.95 | +0.166R | — | inconclusive (small) |
-| evidence · with FVG | 5402 | 45% | 1.89 | +0.271R | [0.234, 0.311] | positive |
-| evidence · without FVG | 562 | 39% | 1.86 | +0.105R | [-0.02, 0.226] | inconclusive |
-| evidence · at key level | 1645 | 44% | 1.87 | +0.252R | [0.178, 0.318] | positive |
-| evidence · with channel | 3534 | 46% | 1.86 | +0.294R | [0.247, 0.349] | positive |
-| evidence · against channel | 2430 | 42% | 1.94 | +0.199R | [0.136, 0.262] | positive |
-| risk-reward · under 2R | 5612 | 45% | 1.8 | +0.258R | [0.221, 0.299] | positive |
-| risk-reward · 2-3R | 205 | 36% | 2.45 | +0.221R | [-0.009, 0.46] | inconclusive |
-| risk-reward · 3R+ | 147 | 24% | 4.57 | +0.178R | [-0.139, 0.545] | inconclusive |
-| penetration · under 50% | 1623 | 46% | 1.85 | +0.31R | [0.238, 0.379] | positive |
-| penetration · 50%+ | 4341 | 43% | 1.91 | +0.235R | [0.196, 0.276] | positive |
+| direction · long | 2469 | 48% | 1.9 | +0.371R | [0.318, 0.435] | positive |
+| direction · short | 2381 | 42% | 1.88 | +0.185R | [0.134, 0.243] | positive |
+| pullbacks · first | 4624 | 45% | 1.89 | +0.281R | [0.24, 0.325] | positive |
+| pullbacks · second | 216 | 42% | 1.98 | +0.227R | [0.05, 0.411] | positive |
+| pullbacks · third+ | 10 | 60% | 1.87 | +0.749R | — | inconclusive (small) |
+| evidence · with FVG | 4557 | 45% | 1.9 | +0.287R | [0.241, 0.326] | positive |
+| evidence · without FVG | 293 | 41% | 1.85 | +0.177R | [0.035, 0.35] | positive |
+| evidence · at key level | 1264 | 44% | 1.86 | +0.246R | [0.169, 0.33] | positive |
+| evidence · with channel | 3014 | 46% | 1.87 | +0.314R | [0.264, 0.369] | positive |
+| evidence · against channel | 1836 | 42% | 1.94 | +0.225R | [0.156, 0.288] | positive |
+| risk-reward · under 2R | 4577 | 45% | 1.8 | +0.272R | [0.236, 0.318] | positive |
+| risk-reward · 2-3R | 146 | 41% | 2.42 | +0.388R | [0.086, 0.639] | positive |
+| risk-reward · 3R+ | 127 | 28% | 4.63 | +0.428R | [0.034, 0.876] | positive |
+| penetration · under 50% | 1335 | 46% | 1.85 | +0.317R | [0.242, 0.397] | positive |
+| penetration · 50%+ | 3515 | 44% | 1.91 | +0.266R | [0.222, 0.312] | positive |
 
 ## Action
 
