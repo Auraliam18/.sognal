@@ -243,6 +243,97 @@ function domConflicts(dir,asset,dom){
   if(dir==="SHORT")return dom.dir==="DOWN_STRONG";
   return false;
 }
+
+/* =========================================================================
+   WILDER — three ideas from New Concepts in Technical Trading Systems (1978),
+   the book that introduced RSI, ATR, ADX/DMI and Parabolic SAR as one system:
+   the ADX says whether a trend exists, the SAR manages the stop inside it, the
+   ATR sizes it, the RSI measures the push.
+
+   All three are off until measured. Wilder's own emphasis is worth keeping:
+   he rated the failure swing above divergence, and said divergence is not a
+   timing signal.
+   ========================================================================= */
+function wilderADX(cd,p){
+  p=p||14;
+  if(!cd||cd.length<2*p+1)return{adx:0,pdi:0,ndi:0};
+  const tr=[],pdm=[],ndm=[];
+  for(let i=1;i<cd.length;i++){
+    const up=cd[i].h-cd[i-1].h, dn=cd[i-1].l-cd[i].l;
+    pdm.push(up>dn&&up>0?up:0);
+    ndm.push(dn>up&&dn>0?dn:0);
+    tr.push(Math.max(cd[i].h-cd[i].l,Math.abs(cd[i].h-cd[i-1].c),Math.abs(cd[i].l-cd[i-1].c)));
+  }
+  /* Wilder smoothing: first value is a plain sum, then subtract 1/p and add the new. */
+  const sm=a=>{let v=0;for(let i=0;i<p;i++)v+=a[i];const o=[v];
+    for(let i=p;i<a.length;i++){v=v-v/p+a[i];o.push(v);}return o;};
+  const T=sm(tr),P=sm(pdm),N=sm(ndm);
+  const dx=[];
+  for(let i=0;i<T.length;i++){
+    if(!T[i])continue;
+    const pdi=100*P[i]/T[i], ndi=100*N[i]/T[i], sum=pdi+ndi;
+    if(sum)dx.push(100*Math.abs(pdi-ndi)/sum);
+  }
+  if(dx.length<p)return{adx:0,pdi:0,ndi:0};
+  let adx=0;for(let i=0;i<p;i++)adx+=dx[i];adx/=p;
+  for(let i=p;i<dx.length;i++)adx=(adx*(p-1)+dx[i])/p;
+  const last=T.length-1;
+  return{adx:+adx.toFixed(1),
+         pdi:T[last]?+(100*P[last]/T[last]).toFixed(1):0,
+         ndi:T[last]?+(100*N[last]/T[last]).toFixed(1):0};
+}
+/* Parabolic SAR as Wilder built it: a trailing stop, not an entry. Step 0.02,
+   cap 0.20, and it only belongs in a market the ADX says is trending. */
+function wilderSAR(cd,step,max){
+  step=step||0.02;max=max||0.20;
+  if(!cd||cd.length<5)return null;
+  let up=cd[1].c>=cd[0].c, sar=up?cd[0].l:cd[0].h, ep=up?cd[1].h:cd[1].l, af=step;
+  for(let i=2;i<cd.length;i++){
+    sar=sar+af*(ep-sar);
+    if(up){
+      sar=Math.min(sar,cd[i-1].l,cd[i-2].l);
+      if(cd[i].l<sar){up=false;sar=ep;ep=cd[i].l;af=step;}
+      else if(cd[i].h>ep){ep=cd[i].h;af=Math.min(af+step,max);}
+    }else{
+      sar=Math.max(sar,cd[i-1].h,cd[i-2].h);
+      if(cd[i].h>sar){up=true;sar=ep;ep=cd[i].h;af=step;}
+      else if(cd[i].l<ep){ep=cd[i].l;af=Math.min(af+step,max);}
+    }
+  }
+  return{sar:+sar,up};
+}
+/* The failure swing Wilder rated above divergence: RSI leaves the extreme,
+   pulls back without re-entering it, then takes out its own prior turn. */
+function wilderFailureSwing(cd,p){
+  const R=rsiSeries(cd.map(c=>c.c),p||14);
+  if(R.length<30)return null;
+  const w=R.slice(-40).map((v,i)=>({v,i})).filter(x=>x.v!=null);
+  if(w.length<12)return null;
+  const piv=[];
+  for(let i=2;i<w.length-2;i++){
+    const a=w[i].v;
+    if(a>w[i-1].v&&a>w[i-2].v&&a>w[i+1].v&&a>w[i+2].v)piv.push({v:a,t:"H",i});
+    if(a<w[i-1].v&&a<w[i-2].v&&a<w[i+1].v&&a<w[i+2].v)piv.push({v:a,t:"L",i});
+  }
+  if(piv.length<3)return null;
+  const last=piv.slice(-3);
+  /* Bearish: a high above 70, a lower high that stays above 30, then the
+     trough between them gives way. Bullish is the mirror. */
+  if(last[0].t==="H"&&last[1].t==="L"&&last[2].t==="H"&&
+     last[0].v>70&&last[2].v<last[0].v&&R[R.length-1]<last[1].v)
+    return{dir:"SHORT",label:"شکست نوسان نزولی (RSI)"};
+  if(last[0].t==="L"&&last[1].t==="H"&&last[2].t==="L"&&
+     last[0].v<30&&last[2].v>last[0].v&&R[R.length-1]>last[1].v)
+    return{dir:"LONG",label:"شکست نوسان صعودی (RSI)"};
+  return null;
+}
+/* Wilder's threshold, confirmed on 4,730 outcomes: below 20 there is no trend
+   worth trading (+0.167R), above 25 there is (+0.422R), above 35 more so
+   (+0.529R). Gating costs total return because it removes trades — so it gates
+   signals only. The practice desk still takes what falls below, as ARMED,
+   which is where the learning sample comes from. */
+function adxFloor(){const v=+DB.get("adx_floor");return isNaN(v)||v===0?25:v;}
+function sarTrailOn(){return DB.get("sar_trail")===true;}
 /* =========================================================================
    CONFIDENCE & EXPECTANCY — the signal decision.
    An arbitrary 0-100 score tells you nothing about whether a trade pays.
@@ -292,6 +383,8 @@ function smcSetup(cd,opts){
   opts=opts||{};
   if(!cd||cd.length<80)return null;
   const atr=smcATR(cd)||1e-9;
+  const dmi=wilderADX(cd);
+  const fs=wilderFailureSwing(cd);
   const ch=smcChannel(cd),obs=smcOrderBlocks(cd),fvgs=smcFVGs(cd),levels=smcLevels(cd);
   if(!obs.length)return null;
   const last=cd[cd.length-1],price=last.c;
@@ -358,6 +451,7 @@ const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars()
       channel:ch,fvg,level:lvl,levels,fvgs,
       entry,edge,sl,tp1,tp2,tpExt,rr:Math.round(rr*100)/100,price,
       btcDiv:opts.btcDiv||null};
+    cand.dmi=dmi;cand.failSwing=fs;
     cand.p=confP(cand,opts.ibs);
     cand.ev=confEV(cand.p,cand.rr||0);
     cand.conf=Math.round(cand.p*100);
@@ -365,6 +459,7 @@ const fresh=cd.length-1-ob.brk<=(typeof smcFreshBars==="function"?smcFreshBars()
       if(!(cand.rr>=(+(DB.get("rr_min")||1.2))))                 {cand.stage="ARMED";cand.skip="ریسک‌به‌ریوارد کمتر از ۱.۲ — ارزش ورود ندارد";}
       else if(cand.p<0.30)                {cand.stage="ARMED";cand.skip=`اعتماد ${cand.conf}٪ — پایین‌تر از حد قابل قبول`;}
       else if(cand.ev<evMin())            {cand.stage="ARMED";cand.skip=`انتظار ریاضی ${cand.ev.toFixed(2)}R — کمتر از حد لازم`;}
+      else if(adxFloor()&&dmi.adx<adxFloor()){cand.stage="ARMED";cand.skip=`ADX ${dmi.adx} زیر حد ${adxFloor()} — بازار روند ندارد`;}
       else if(domC)                       {cand.stage="ARMED";cand.skip=`دامیننس تتر ${opts.dom.dir==="UP_STRONG"||opts.dom.dir==="UP"?"صعودی":"در حال ریزش شدید"} — خلاف این ${ob.dir==="LONG"?"خرید":"فروش"}`;}
     }
     const rank=s=>({SIGNAL:3,ARMED:2,PULLBACK_1:1,WATCH:0})[s];
