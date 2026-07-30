@@ -10,6 +10,14 @@ name: Historical backtest
 on:
   schedule:
     - cron: "37 5 * * *"        # once a day, after the overnight parameter search
+  # Until this file reaches the default branch, the schedule cannot fire and
+  # neither can a manual dispatch — GitHub only offers those from the default
+  # branch. A push trigger scoped to the working branch runs it in the meantime.
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/**"
+      - ".github/workflows/backtest.yml"
   workflow_dispatch:
     inputs:
       symbols:
