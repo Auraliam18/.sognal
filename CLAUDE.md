@@ -36,6 +36,12 @@ The simulator has volatility clustering, fat tails and regime switching, and it
 tests whether the engine has an edge against a hard model — not whether it
 makes money on the real tape.
 
+That distinction turned out to matter more than it sounded. Measured on
+30 July 2026, the simulator said 45% win and +0.283R where 3,931 trades on real
+candles said 22.7% and +0.069R. So a simulator number is never a performance
+claim. It is only ever "this rule moved expectancy by X against the same
+simulator". Performance claims come from `python/backtest.py`, on real klines.
+
 ## Corrections
 
 When a previous conclusion turns out to be wrong, say so directly and show the

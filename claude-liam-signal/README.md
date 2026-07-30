@@ -38,3 +38,27 @@ Kept in `../tests/`. `evaluate.js` runs the strategy over simulated markets;
 `worker.js` shards it across cores. Numbers reported to date, and what they
 mean, are in the commit messages rather than duplicated here, so they cannot
 drift out of sync with the code that produced them.
+
+### Which measurement answers which question
+
+Two kinds of evidence, and they are not interchangeable.
+
+**Simulated markets** (`tests/`) answer *does this rule help*. Thousands of
+markets, cheap, and both arms of any comparison are wrong in the same direction,
+so a difference between them is meaningful. This is the right place to test a
+gate, a threshold or a filter.
+
+**Real candles** (`python/backtest.py`, the `Historical backtest` workflow)
+answer *how well does this actually do*. The engine is lifted out of
+`index.html` and replayed over klines that really traded, on 15m and 5m, never
+seeing more than 400 bars and never seeing a bar it has not reached.
+
+They do not agree about magnitude, and the real tape is the one to quote.
+On 30 July the simulator said 45% win and +0.283R; 3,931 trades on real candles
+said **22.7% win and +0.069R** — half the win rate, a quarter of the expectancy.
+The edge is real and the interval clears zero, but it is about four times smaller
+than the simulator has been claiming. See
+[`cycles/real-candles-2026-07-30.md`](cycles/real-candles-2026-07-30.md).
+
+So: never quote a simulator figure as a performance claim. Quote it only as
+*this rule moved expectancy by X against the same simulator*.
