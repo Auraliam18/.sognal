@@ -1,0 +1,93 @@
+{
+  "name": "Signal — panel watchdog",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 15}]}},
+      "id": "trigger",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-620, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://auraliam18.github.io/.sognal/",
+        "options": {"response": {"response": {"fullResponse": true, "neverError": true}}, "timeout": 15000}
+      },
+      "id": "check",
+      "name": "Is the panel up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alert on a transition, not on every failing check — a site down for an\n// hour should produce one message, not four.\nconst r = $input.first().json;\nconst up = r.statusCode >= 200 && r.statusCode < 400;\nconst body = typeof r.body === 'string' ? r.body : '';\nconst version = (body.match(/cycle v[\\d.]+[^<]*/) || [''])[0];\n\nconst s = $getWorkflowStaticData('global');\nconst was = s.up;\ns.up = up;\ns.version = version || s.version;\n\nif (was === undefined) return [];\nif (was === up) return [];\nreturn [{ json: { up, statusCode: r.statusCode, version: s.version } }];"
+      },
+      "id": "transition",
+      "name": "Only on a change",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-180, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  chat_id: $env.TG_CHAT,\n  parse_mode: 'HTML',\n  text: $json.up\n    ? `✅ <b>پنل برگشت</b>\\n${$json.version || ''}`\n    : `🔴 <b>پنل در دسترس نیست</b>\\nکد ${$json.statusCode} — انتشار دوباره اجرا می‌شود.`\n}) }}",
+        "options": {}
+      },
+      "id": "notify",
+      "name": "Tell Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [60, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {"options": {"caseSensitive": true, "version": 2}, "conditions": [
+          {"leftValue": "={{ $json.up }}", "rightValue": false, "operator": {"type": "boolean", "operation": "false"}}
+        ], "combinator": "and"},
+        "options": {}
+      },
+      "id": "ifdown",
+      "name": "If it went down",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [60, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/Auraliam18/.sognal/actions/workflows/pages.yml/dispatches",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [
+          {"name": "Accept", "value": "application/vnd.github+json"},
+          {"name": "Authorization", "value": "=Bearer {{ $env.GITHUB_TOKEN }}"}
+        ]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ref: 'main' }) }}",
+        "options": {}
+      },
+      "id": "redeploy",
+      "name": "Republish the panel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 380]
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {"main": [[{"node": "Is the panel up", "type": "main", "index": 0}]]},
+    "Is the panel up": {"main": [[{"node": "Only on a change", "type": "main", "index": 0}]]},
+    "Only on a change": {"main": [[
+      {"node": "Tell Telegram", "type": "main", "index": 0},
+      {"node": "If it went down", "type": "main", "index": 0}
+    ]]},
+    "If it went down": {"main": [[{"node": "Republish the panel", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {}
+}
