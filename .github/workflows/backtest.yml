@@ -71,17 +71,34 @@ jobs:
           } >> $GITHUB_STEP_SUMMARY
 
       - name: Commit the report
+        env:
+          BRANCH: claude/hamid-signal-agent-smc-dkot7v
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
           git add claude-liam-signal/backtests
           if git diff --cached --quiet; then
             echo "nothing new"
-          else
-            git commit -m "Historical backtest on real candles $(date -u '+%Y-%m-%d %H:%M') UTC
+            exit 0
+          fi
+          git commit -m "Historical backtest on real candles $(date -u '+%Y-%m-%d %H:%M') UTC
 
           Both strategies replayed through the shipped engine over real 15m and
           5m klines. Expectancy and 95% bootstrap intervals per strategy, per
           timeframe and per direction are in claude-liam-signal/backtests."
-            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
-          fi
+          # The run takes minutes, and a session working on the same branch can
+          # land a commit in that window — which is exactly what sank the first
+          # run. Rebase onto whatever arrived and try again; the report is a new
+          # file each time, so there is nothing for a rebase to conflict with.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$BRANCH"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected, rebasing onto $BRANCH (attempt $attempt)"
+            git fetch origin "$BRANCH" || true
+            git rebase "origin/$BRANCH" || { git rebase --abort; exit 1; }
+            sleep $((attempt * 3))
+          done
+          echo "could not push the report after five attempts"
+          exit 1
