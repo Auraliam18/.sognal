@@ -45,6 +45,30 @@ the same direction. It is the wrong tool for asking *how well does this do*.
 
 This is the fifth correction in this project and the largest.
 
+### Is it the data, or is it a different harness?
+
+Worth asking before accepting the number, because the two harnesses are not
+identical. `tests/harness.js` closes fully at target one; the backtest moves the
+stop to entry there and then waits for target two, exactly as the paper desk
+does. It also caps the visible history at 400 bars, requires R ≥ 1 rather than
+R ≥ 0.5, and uses a six-bar cooldown rather than eight.
+
+Most of those differences make the backtest *more* generous, not less — target
+two pays more than target one, and a trade that reaches target one and then times
+out is still credited. The win criterion is the same in both: a trade wins if and
+only if it touched target one.
+
+The one difference that could plausibly cut the other way is the 400-bar window,
+so it was measured on its own — same engine, same simulated markets, only the
+window changed:
+
+| history the engine can see | n | win | expectancy |
+|---|---|---|---|
+| 400 bars, as the panel gets | 474 | 47.5% | 0.472R |
+| unlimited | 466 | 47.2% | 0.460R |
+
+No difference. The gap between 45% and 22.7% is the data, not the harness.
+
 ## Three things the real tape says that the simulator never did
 
 **The 15m timeframe carries no measurable edge on its own.** 2,071 trades,
