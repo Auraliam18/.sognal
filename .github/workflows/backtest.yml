@@ -97,7 +97,8 @@ jobs:
             fi
             echo "push rejected, rebasing onto $BRANCH (attempt $attempt)"
             git fetch origin "$BRANCH" || true
-            git rebase "origin/$BRANCH" || { git rebase --abort; exit 1; }
+            git -c rebase.autoStash=true rebase "origin/$BRANCH" \
+              || { git rebase --abort 2>/dev/null; exit 1; }
             sleep $((attempt * 3))
           done
           echo "could not push the report after five attempts"

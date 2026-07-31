@@ -24,8 +24,8 @@ on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "How many of the most-traded pairs to scan"
-        default: "120"
+        description: "How many of the most-traded pairs (48h) to scan"
+        default: "100"
 
 permissions:
   contents: write
@@ -63,7 +63,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python3 claude-liam-signal/python/scan.py \
-            --symbols "${{ github.event.inputs.symbols || '120' }}" \
+            --symbols "${{ github.event.inputs.symbols || '100' }}" \
             --telegram \
             | tee scan-output.txt
 
@@ -78,13 +78,19 @@ jobs:
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          git add signals
+          # brain/ as well as signals/: the scan writes the events room and each
+          # room's state too. Staging only signals/ left those modifications
+          # unstaged, and `git rebase` refuses to run with a dirty tree — which
+          # is exactly how the retry died instead of retrying.
+          git add signals brain
           git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git commit -q -m "Live scan $(date -u '+%Y-%m-%d %H:%M') UTC"
           for attempt in 1 2 3 4 5; do
             git push origin "HEAD:$BRANCH" && exit 0
             git fetch origin "$BRANCH" || true
-            git rebase "origin/$BRANCH" || { git rebase --abort; exit 1; }
+            # autostash so anything written after the commit cannot block us
+            git -c rebase.autoStash=true rebase "origin/$BRANCH" \
+              || { git rebase --abort 2>/dev/null; exit 1; }
             sleep $((attempt * 3))
           done
           exit 1

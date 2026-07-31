@@ -78,7 +78,8 @@ jobs:
           for attempt in 1 2 3 4 5; do
             git push origin "HEAD:$BRANCH" && exit 0
             git fetch origin "$BRANCH" || true
-            git rebase "origin/$BRANCH" || { git rebase --abort; exit 1; }
+            git -c rebase.autoStash=true rebase "origin/$BRANCH" \
+              || { git rebase --abort 2>/dev/null; exit 1; }
             sleep $((attempt * 3))
           done
           exit 1

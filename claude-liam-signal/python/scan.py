@@ -43,6 +43,34 @@ def klines_now(sym, tf, bars=BARS):
              "c": float(k[4]), "v": float(k[5])} for k in rows]
 
 
+def top_by_48h(n):
+    """The most-traded pairs over the last 48 hours, not the last 24.
+
+    Binance's ticker endpoint only reports a rolling 24h window, so using it
+    would quietly answer a different question from the one asked. Summing 48
+    hourly candles per pair costs one extra request each and answers the actual
+    one. The 24h ranking is used only to decide which pairs are worth measuring
+    properly — a coin outside the top 250 by day is not going to enter the top
+    100 by two days.
+    """
+    shortlist = top_symbols(250)
+    vols = {}
+
+    def vol48(sym):
+        rows = get(f"/api/v3/klines?symbol={sym}&interval=1h&limit=48")
+        return sym, sum(float(r[7]) for r in rows)      # index 7 is quote volume
+
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        for f in [ex.submit(vol48, s) for s in shortlist]:
+            try:
+                sym, v = f.result()
+                vols[sym] = v
+            except Exception:                            # noqa: BLE001 - drop what will not answer
+                continue
+    ranked = sorted(vols.items(), key=lambda kv: -kv[1])
+    return [s for s, _ in ranked[:n]]
+
+
 def usdt_dominance():
     """Context only — it never decides, it can only conflict with a direction."""
     try:
@@ -58,7 +86,7 @@ def usdt_dominance():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--symbols", type=int, default=120)
+    ap.add_argument("--symbols", type=int, default=100)
     ap.add_argument("--tf", default="5m,15m")
     ap.add_argument("--cores", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--telegram", action="store_true",
@@ -67,9 +95,10 @@ def main():
     tfs = [t.strip() for t in args.tf.split(",") if t.strip()]
 
     t0 = time.time()
-    syms = top_symbols(args.symbols)
+    syms = top_by_48h(args.symbols)
     pairs = [(s, tf) for tf in tfs for s in syms]
-    print(f"scanning {len(syms)} symbols × {len(tfs)} timeframes", flush=True)
+    print(f"scanning the {len(syms)} most-traded pairs of the last 48h "
+          f"× {len(tfs)} timeframes", flush=True)
 
     jobs, failed = [], 0
     with ThreadPoolExecutor(max_workers=10) as ex:
