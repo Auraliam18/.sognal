@@ -5,7 +5,10 @@ function loadEngine(patch){
   const re=/<script[^>]*>([\s\S]*?)<\/script>/g;let m,best="";
   const html=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
   while((m=re.exec(html)))if(m[1].length>best.length)best=m[1];
-  let src=best.slice(best.indexOf('function rsiSeries'),best.indexOf('function ibsDetectSwings'));
+  /* Up to smcQmin rather than to ibsDetectSwings: the IBS engine sits between
+     the two, and stopping short of it meant strategy 1 could not be measured at
+     all. Everything added is additive — smcSetup is unchanged. */
+  let src=best.slice(best.indexOf('function rsiSeries'),best.indexOf('function smcQmin'));
   if(patch&&patch.__regex){
     for(const[re,rep]of patch.__regex){
       if(!re.test(src))throw new Error("patch anchor did not match: "+re);
@@ -13,7 +16,8 @@ function loadEngine(patch){
     }
   }else if(patch)for(const[k,v]of Object.entries(patch))src=src.split(k).join(v);
   const shim=`const _M={};const DB={get:k=>_M[k],set:(k,v)=>{_M[k]=v;}};`;
-  return (new Function(shim+src+"\nreturn{smcSetup,confLearn,confW,confFeat,confP,confEV,DB};"))();
+  return (new Function(shim+src+"\nreturn{smcSetup,ibsPullback,ibsDetectSwings,ibsDetectBOS,"+
+    "ibsDetectOB,ibsDetectChoch,confLearn,confW,confFeat,confP,confEV,DB};"))();
 }
 function evaluate(E,cd,opts){
   opts=opts||{};const minQ=opts.minQ==null?0:opts.minQ;

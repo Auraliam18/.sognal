@@ -29,14 +29,18 @@ ROOT = HERE.parent.parent
 CACHE = HERE / ".klines-cache"
 OUT = ROOT / "claude-liam-signal" / "backtests"
 HOSTS = ["https://api.binance.com", "https://data-api.binance.vision", "https://api1.binance.com"]
+FUTURES_HOSTS = ["https://fapi.binance.com"]
 STABLE = ("USDCUSDT", "FDUSDUSDT", "TUSDUSDT", "BUSDUSDT", "EURUSDT", "DAIUSDT", "USDPUSDT")
 MS = {"5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 
 
-def get(path, tries=4):
+def get(path, tries=4, futures=False):
+    """Spot by default. `futures=True` reaches the perpetuals host, which is
+    where BTCDOMUSDT lives — real BTC dominance rather than a proxy for it."""
+    hosts = FUTURES_HOSTS if futures else HOSTS
     last = None
     for attempt in range(tries):
-        host = HOSTS[attempt % len(HOSTS)]
+        host = hosts[attempt % len(hosts)]
         try:
             req = urllib.request.Request(host + path, headers={"User-Agent": "hamid-signal-backtest"})
             with urllib.request.urlopen(req, timeout=30) as r:
