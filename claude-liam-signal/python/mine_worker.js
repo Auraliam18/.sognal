@@ -30,6 +30,37 @@ const WINDOW = 400;        // what the panel sees
 const WARMUP = 320;
 const MAX_BARS = 96;       // 24h on 15m — a setup that has not resolved by then has not
 const COOLDOWN = 8;
+const FILL_WINDOW = 24;    // 6h on 15m — a pullback that has not come by then is not coming
+
+/* A trade at a price the market never reached is not a trade.
+
+   Both strategies can name an entry away from the current price — a limit at the
+   order block edge, waiting for the pullback. Assuming that limit always fills
+   is the single most flattering mistake a backtest can make, because the setups
+   where price runs away without returning are exactly the ones that would have
+   been "right", and counting them hands the strategy every winner it never took.
+
+   Measured on this data it was worth 8.5x: the strategy-1 setups that entered at
+   the real market price returned +0.103R, the ones assumed filled at the block
+   returned +0.873R.
+
+   So the fill is required. Walk forward from the signal and open only when price
+   actually trades through the entry level, inside a window; if it never does,
+   there is no trade at all. `waited` is kept because how long a fill took is
+   worth knowing later. */
+function fill(tr, bars, window) {
+  const L = tr.dir === "LONG";
+  for (let i = 0; i < Math.min(bars.length, window); i++) {
+    const b = bars[i];
+    if (L ? b.l <= tr.entry : b.h >= tr.entry) {
+      /* The filling bar can also take the stop out. Assume it did — the
+         pessimistic reading, and the one that cannot flatter. */
+      const stopped = L ? b.l <= tr.sl : b.h >= tr.sl;
+      return { at: i, waited: i, stoppedOnFill: stopped };
+    }
+  }
+  return null;
+}
 
 /* Manage exactly as the paper desk does: target one moves the stop to entry,
    then target two or the return to entry closes it. A bar that could have hit
@@ -122,8 +153,14 @@ for (const job of jobs) {
       if (R1 < 0.8) continue;
       const R2 = s.tp2 != null ? Math.min(Math.abs(s.tp2 - s.entry) / risk, 12) : R1;
 
-      const res = outcome({ dir: s.dir, entry: s.entry, sl: s.sl, tp1: s.tp1, tp2: s.tp2, R1, R2 },
-                          cd.slice(i + 1, i + 1 + MAX_BARS));
+      const tr = { dir: s.dir, entry: s.entry, sl: s.sl, tp1: s.tp1, tp2: s.tp2, R1, R2 };
+      const forward = cd.slice(i + 1, i + 1 + MAX_BARS);
+      const f = fill(tr, forward, FILL_WINDOW);
+      if (!f) continue;                       // never filled — never a trade
+
+      const res = f.stoppedOnFill
+        ? { r: -1, why: "stop", bars: f.waited + 1 }
+        : outcome(tr, forward.slice(f.at + 1));
       last = i;
       found[s.dir]++;
 
@@ -134,6 +171,8 @@ for (const job of jobs) {
         rr: +R1.toFixed(2), R2: +R2.toFixed(2),
         r: +res.r.toFixed(3), outcome: res.why, held: res.bars,
         win: res.r > 0 ? 1 : 0,
+        waitedToFill: f.waited,          // 0 means it filled on the next bar
+        filledAtMarket: s.inOB ? 1 : 0,
         /* conditions at the moment it fired — the raw material for "why" */
         quality: s.quality ?? null,
         conf: s.conf ?? null,
