@@ -1,0 +1,7 @@
+# Append-only logs: two writers appending to the same file are both right, and a
+# conflict between them is noise. `union` keeps both sides instead of stopping a
+# rebase — which is what happened when the runner's scan and a local run each
+# appended to the same day's events.
+brain/events/*.jsonl        merge=union
+brain/learning/*.jsonl      merge=union
+brain/rooms/*/log.jsonl     merge=union
