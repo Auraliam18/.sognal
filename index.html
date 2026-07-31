@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v15.1 · جای حرکت و نقدینگی روی کارت</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v16.0 · اسکن از راه دور</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3070,9 +3070,94 @@ function diagRecord(rows){
   }
   DIAG.stages=st;DIAG.gates=gt;DIAG.at=Date.now();
 }
+/* =========================================================================
+   RELAYED SIGNALS — the same engine, run somewhere the exchange is reachable.
+
+   Binance blocks Iran outright, and then the panel has no candles and correctly
+   refuses to invent a signal. That is the right behaviour and it stays. But an
+   unreachable exchange is a network fact, not a market fact: the setups are out
+   there either way. So a workflow runs `python/scan.py` on a GitHub runner every
+   few minutes — same engine lifted out of this file, same gates, same
+   thresholds — and writes signals/latest.json. The panel reads it and shows what
+   the engine says, labelled as relayed so it is never mistaken for a local read.
+
+   The panel's own live feed always wins when it has one. This is the fallback.
+   ========================================================================= */
+const RELAY={data:null,at:0,err:null,tried:0};
+function relayStale(){return !RELAY.data||Date.now()-RELAY.data.generated>25*60000;}
+async function relayFetch(){
+  try{
+    const r=await fetch("./signals/latest.json?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(!j||!Array.isArray(j.signals))throw new Error("بدون سیگنال در فایل");
+    RELAY.data=j;RELAY.at=Date.now();RELAY.err=null;
+    opslog("scan",`اسکن از راه دور: ${j.signals.length} سیگنال · ${j.generatedText}`,j.signals.length?"sig":"info");
+  }catch(e){RELAY.err=e.message||String(e);}
+  RELAY.tried++;
+}
+/* Only worth fetching when the panel cannot see the market itself. */
+function relayTick(){
+  const n=DIAG.net,age=n.lastOk?Date.now()-n.lastOk:null;
+  const blind=(!n.lastOk&&n.fail>0)||(age!=null&&age>420000);
+  if(blind&&relayStale())relayFetch();
+}
+setInterval(relayTick,60000);setTimeout(relayTick,6000);
+
+function relayCard(s){
+  const px=v=>v==null?"—":fmt(v);
+  const chip=(t,on)=>`<span class="chip" style="${on?"border-color:#2f7d5b;color:#8fe3bd":""}">${t}</span>`;
+  return `<div class="box" style="margin-top:10px;border-color:#1e7d5a">
+    <h3>🚨 ${s.sym} — ${s.dir==="LONG"?"خرید":"فروش"} <span class="mono dim" style="font-size:11px">${s.tf}</span></h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px">
+      ${chip(`ریسک به ریوارد ${s.rr}`,s.rr>=1.5)}
+      ${chip(`اعتماد ${s.conf}٪`,s.conf>=45)}
+      ${chip(`انتظار ریاضی ${(s.ev||0).toFixed(2)}R`,(s.ev||0)>0)}
+      ${s.adx!=null?chip(`ADX ${s.adx}`,s.adx>=25):""}
+      ${chip(`پولبک ${s.visits} بار`,s.visits>=2)}
+      ${s.fvg?chip("FVG هم‌جهت ✓",true):""}
+      ${s.level?chip(`روی ${s.level.type==="R"?"مقاومت":"حمایت"} (${s.level.touches} برخورد)`,true):""}
+      ${s.room?chip(s.room.r>=99?"مانعی تا تارگت نیست":`جای حرکت ${s.room.r}× تا ${s.room.blocker}`,s.room.r>=1.5):""}
+      ${s.swept?chip(`نقدینگی جمع شد (${s.swept.n} برخورد)`,true):""}
+    </div>
+    <div class="lvls">
+      <div><span>ورود (لبهٔ باکس)</span><b class="num">${px(s.entry)}</b></div>
+      <div><span>استاپ</span><b class="num sl">${px(s.sl)}</b></div>
+      <div><span>تارگت‌ها</span><b class="num tp">${px(s.tp1)}${s.tp2!=null?" / "+px(s.tp2):""}</b></div>
+      <div><span>قیمت هنگام اسکن</span><b class="num">${px(s.price)}</b></div>
+    </div>
+  </div>`;
+}
+function relayHTML(){
+  const j=RELAY.data;
+  if(!j){
+    if(!RELAY.tried)return"";
+    return `<div class="box" style="margin-bottom:12px;border-color:#f0a92e55">
+      <h3 style="margin:0 0 4px">اسکن از راه دور</h3>
+      <div class="muted" style="font-size:12px;line-height:1.9">
+        هنوز فایلی نرسیده${RELAY.err?` — <span class="mono">${RELAY.err}</span>`:""}.
+        این فایل را ورک‌فلوی «Live scan» روی گیت‌هاب هر چند دقیقه می‌سازد؛
+        اگر پنل را محلی باز کرده‌ای، از نسخهٔ منتشرشده بازش کن.</div></div>`;
+  }
+  const mins=Math.round((Date.now()-j.generated)/60000);
+  const c=j.counts||{};
+  const head=`<div class="box" style="margin-bottom:12px;border-color:${j.signals.length?"#1e7d5a":"#8b98ab55"}">
+    <h3 style="margin:0 0 4px">اسکن از راه دور — همین موتور، جایی که بایننس در دسترس است
+      <span class="dim" style="font-size:11px;font-weight:400">${mins} دقیقه پیش</span></h3>
+    <div style="font-size:13px;color:${j.signals.length?"#2ecc71":"#8b98ab"};font-weight:700">
+      ${j.signals.length?`${j.signals.length} سیگنال`:"هیچ ستاپی از تمام گیت‌ها رد نشد"}</div>
+    <div class="muted" style="font-size:12px;margin-top:5px;line-height:1.9">
+      ${j.series} سری روی ${j.symbols} ارز · ${c.ARMED||0} آماده · ${c.PULLBACK_1||0} پولبک اول · ${c.WATCH||0} تحت نظر.
+      ${j.signals.length?"":"این یک نتیجهٔ عادی است، نه خرابی."}
+      <div style="margin-top:6px" class="dim">${j.note||""}</div>
+    </div></div>`;
+  return head+j.signals.slice(0,12).map(relayCard).join("");
+}
+
 function renderWhy(){
   const el=$("#whyBox");if(!el)return;
-  el.innerHTML=(STATE.signals&&STATE.signals.length)?"":diagHTML();
+  if(STATE.signals&&STATE.signals.length){el.innerHTML="";return;}
+  el.innerHTML=diagHTML()+relayHTML();
 }
 setInterval(renderWhy,5000);
 function diagHTML(){

@@ -1,7 +1,7 @@
 /* Hamid Signal Agent — service worker
    Caches the app shell so the panel opens instantly (even offline),
    while always going to the network for live market data and the cloud API. */
-const CACHE = "hsa-shell-v15.1";
+const CACHE = "hsa-shell-v16.0";
 const ASSETS = [
   "./",
   "./index.html",
@@ -37,6 +37,10 @@ self.addEventListener("fetch", (e) => {
   // those from cache handed callers the app shell instead of their data.
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/api/")) return;
+  // The relayed scan is rewritten every few minutes. Serving it cache-first
+  // would pin the panel to whichever scan it saw first — the one thing this
+  // file must never do is go stale.
+  if (url.pathname.includes("/signals/")) return;
 
   // App shell: cache-first, then network. Only a navigation may fall back to
   // the cached page; a failed asset must fail, not silently become HTML.

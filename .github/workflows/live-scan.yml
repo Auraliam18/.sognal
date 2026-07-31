@@ -1,0 +1,100 @@
+# Runs the engine over the newest real candles and publishes what it says.
+#
+# The panel does this itself in the browser whenever it can reach the exchange.
+# Where it cannot — Binance blocks Iran outright — it has no candles and refuses
+# to invent a signal, which is correct and stays that way. But an unreachable
+# exchange is a network fact, not a market fact: the setups exist either way.
+# So the same engine runs here, where the network reaches, and the panel reads
+# the result and shows it labelled as relayed.
+#
+# Nothing is decided differently. Same engine lifted out of index.html, same
+# gates, same thresholds. The only added judgement is the ordering, which
+# follows the real-candle backtest: 5m measured an edge, 15m did not.
+name: Live scan
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/scan*"
+      - ".github/workflows/live-scan.yml"
+      - "index.html"
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "How many of the most-traded pairs to scan"
+        default: "120"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-scan
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Scan
+        run: |
+          python3 claude-liam-signal/python/scan.py \
+            --symbols "${{ github.event.inputs.symbols || '120' }}" \
+            | tee scan-output.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+
+      - name: Publish to the working branch
+        env:
+          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add signals
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Live scan $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for attempt in 1 2 3 4 5; do
+            git push origin "HEAD:$BRANCH" && exit 0
+            git fetch origin "$BRANCH" || true
+            git rebase "origin/$BRANCH" || { git rebase --abort; exit 1; }
+            sleep $((attempt * 3))
+          done
+          exit 1
+
+      # The panel is served from gh-pages, and it fetches ./signals/latest.json
+      # relative to itself, so the file has to be there too or the relay reads
+      # a 404 and the panel stays blind for no reason.
+      - name: Publish to the deployed panel
+        run: |
+          git fetch origin gh-pages
+          git worktree add /tmp/ghp origin/gh-pages --detach
+          mkdir -p /tmp/ghp/signals
+          cp signals/latest.json /tmp/ghp/signals/latest.json
+          cd /tmp/ghp
+          git add signals
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Live scan $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for attempt in 1 2 3 4 5; do
+            git push origin "HEAD:gh-pages" && exit 0
+            git fetch origin gh-pages || true
+            git rebase origin/gh-pages || { git rebase --abort; exit 1; }
+            sleep $((attempt * 3))
+          done
+          exit 1
