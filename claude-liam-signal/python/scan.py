@@ -18,7 +18,7 @@ So a 5m setup outranks a 15m one of the same stage. That is a ranking, not a
 gate — 15m spanning zero means no evidence of an edge, not evidence of none, and
 switching it off is a bigger claim than one 52-day window supports.
 
-    python3 scan.py --symbols 120
+    python3 scan.py --symbols 100 --telegram
 """
 import argparse, json, os, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
@@ -29,10 +29,12 @@ ROOT = HERE.parent.parent
 OUT = ROOT / "signals"
 sys.path.insert(0, str(HERE))
 from backtest import get, top_symbols, MS          # same fetching, same retries
+import brain                                        # permanent memory
 
 BARS = 420                                          # engine sees 400 after the open one goes
 STAGE_RANK = {"SIGNAL": 3, "ARMED": 2, "PULLBACK_1": 1, "WATCH": 0}
 TF_RANK = {"5m": 1, "15m": 0}                       # measured, see the docstring
+STRATS = {"smc": "کانال + اردر بلاک", "ibs": "IBS + پولبک"}
 
 
 def klines_now(sym, tf, bars=BARS):
@@ -107,13 +109,52 @@ def main():
     counts = {k: sum(1 for s in setups if s["stage"] == k) for k in STAGE_RANK}
     signals = [s for s in setups if s["stage"] == "SIGNAL"]
 
+    # Each strategy is counted on its own. Blurring them together would hide the
+    # thing worth knowing, which is whether one of them is carrying the other.
+    per_strategy = {
+        k: {"name": v,
+            "signals": sum(1 for s in signals if s.get("strategy") == k),
+            "armed": sum(1 for s in setups if s.get("strategy") == k and s["stage"] == "ARMED"),
+            "watching": sum(1 for s in setups if s.get("strategy") == k and s["stage"] == "WATCH")}
+        for k, v in STRATS.items()}
+
+    # A setup that has not fired yet is worth an alarm at the price that would
+    # make it fire, so it gets looked at the moment price arrives rather than
+    # whenever the next scan happens to run.
+    alarms = [{"sym": s["sym"], "tf": s["tf"], "dir": s["dir"],
+               "strategy": s.get("strategy"), "strategyName": s.get("strategyName"),
+               "price": s["entry"], "now": s.get("price"),
+               "distancePct": (abs((s.get("price") or s["entry"]) - s["entry"]) / s["entry"] * 100)
+               if s["entry"] else None,
+               "why": s.get("waitReason") or s.get("skip") or "منتظر تأییدیه",
+               "stage": s["stage"]}
+              for s in setups if s["stage"] in ("ARMED", "PULLBACK_1")]
+    alarms.sort(key=lambda a: a["distancePct"] if a["distancePct"] is not None else 999)
+
+    # The events room: what was true at this moment, written down now so the
+    # learning room can ask later which conditions went with which outcome.
+    ctx = usdt_dominance()
+    brain.event("scan", symbols=len(syms), series=len(jobs),
+                counts=counts, per_strategy=per_strategy, context=ctx,
+                signals=[{"sym": s["sym"], "tf": s["tf"], "dir": s["dir"],
+                          "strategy": s.get("strategy"), "entry": s["entry"],
+                          "sl": s["sl"], "tp1": s["tp1"], "rr": s["rr"]}
+                         for s in signals])
+    brain.room_save("scan", {"lastScan": int(time.time() * 1000),
+                             "counts": counts, "per_strategy": per_strategy})
+    brain.room_save("radar", {"alarms": alarms[:80]})
+    for s in signals:
+        brain.room_log("watch", f"{s['sym']} {s['tf']} {s['dir']} — {s.get('strategyName','')}", "sig")
+
     report = {
         "generated": int(time.time() * 1000),
         "generatedText": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
         "source": "real Binance candles, scanned on a GitHub runner",
         "symbols": len(syms), "series": len(jobs), "timeframes": tfs,
         "counts": counts,
-        "context": usdt_dominance(),
+        "per_strategy": per_strategy,
+        "alarms": alarms[:40],
+        "context": ctx,
         "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی "
                 "روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی "
                 "۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — "
@@ -145,6 +186,13 @@ def main():
 
     print(f"\n{counts['SIGNAL']} signals · {counts['ARMED']} armed · "
           f"{counts['PULLBACK_1']} first pullback · {counts['WATCH']} watching")
+    for k, v in per_strategy.items():
+        print(f"  {v['name']:<22} {v['signals']:>3} signal · {v['armed']:>3} armed · {v['watching']:>4} watching")
+    if alarms:
+        print(f"\nalarms set on {len(alarms)} setups waiting for confirmation — nearest:")
+        for a in alarms[:6]:
+            d = f"{a['distancePct']:.2f}%" if a["distancePct"] is not None else "—"
+            print(f"  {a['sym']:<12} {a['tf']:<4} {a['dir']:<5} at {a['price']:<12.6g} ({d} away) — {a['why']}")
     for s in signals[:20]:
         room = f"{s['room']['r']}×" if s.get("room") else "—"
         print(f"  🚨 {s['sym']:<12} {s['tf']:<4} {s['dir']:<5} "

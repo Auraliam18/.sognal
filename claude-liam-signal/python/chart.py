@@ -99,13 +99,25 @@ def render(candles, s, path, bars=110):
     ax.set_xlim(-1, n * 1.30)                  # room on the right for the level labels
 
     long = s.get("dir") == "LONG"
+    # The strategy belongs on the picture, not only in the caption: a screenshot
+    # forwarded on its own should still say which engine produced it.
+    strat = {"ibs": "IBS+PULLBACK", "smc": "CHANNEL+OB"}.get(s.get("strategy"), "")
     title = f"{s.get('sym','')}   {s.get('tf','')}   {'LONG' if long else 'SHORT'}"
+    if strat:
+        title += f"   ·   {strat}"
     ax.text(0, 1.085, title, transform=ax.transAxes, color=UP if long else DOWN,
             fontsize=13.5, fontweight="bold", va="bottom", ha="left", family="monospace")
 
-    sub = f"R:R {s.get('rr','—')}   ·   conf {s.get('conf','—')}%   ·   EV {s.get('ev',0):.2f}R"
+    bits = [f"R:R {s.get('rr','—')}"]
+    if s.get("conf") is not None:
+        bits.append(f"conf {s['conf']}%")
+    if s.get("ev") is not None:
+        bits.append(f"EV {s['ev']:.2f}R")
+    if s.get("quality") is not None:
+        bits.append(f"quality {s['quality']}")
     if s.get("adx") is not None:
-        sub += f"   ·   ADX {s['adx']}"
+        bits.append(f"ADX {s['adx']}")
+    sub = "   ·   ".join(bits)
     if s.get("room") and s["room"].get("r") is not None:
         r = s["room"]["r"]
         sub += "   ·   room " + ("clear" if r >= 99 else f"{r}x")

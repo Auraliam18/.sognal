@@ -43,7 +43,7 @@ def _load_sent():
 
 
 def _key(s):
-    return f"{s['sym']}|{s['tf']}|{s['dir']}|{float(s['entry']):.10g}"
+    return f"{s.get('strategy','?')}|{s['sym']}|{s['tf']}|{s['dir']}|{float(s['entry']):.10g}"
 
 
 def _post(token, method, fields, files=None):
@@ -67,14 +67,25 @@ def _post(token, method, fields, files=None):
 
 def caption(s):
     dir_fa = "🟢 خرید (LONG)" if s["dir"] == "LONG" else "🔴 فروش (SHORT)"
-    L = [f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>", ""]
+    L = [f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
+    # Which strategy produced this. Two strategies run side by side and a signal
+    # that does not say which one it came from cannot be judged or learned from.
+    if s.get("strategyName"):
+        L.append(f"استراتژی: <b>{s['strategyName']}</b>")
+    L.append("")
     L.append(f"ورود    <code>{s['entry']:.10g}</code>")
     L.append(f"استاپ   <code>{s['sl']:.10g}</code>")
     L.append(f"تارگت۱  <code>{s['tp1']:.10g}</code>")
     if s.get("tp2") is not None:
         L.append(f"تارگت۲  <code>{s['tp2']:.10g}</code>")
-    L += ["", f"ریسک/ریوارد <b>{s['rr']}</b> · اعتماد <b>{s['conf']}%</b> · "
-              f"انتظار <b>{s.get('ev',0):.2f}R</b>"]
+    line = f"ریسک/ریوارد <b>{s['rr']}</b>"
+    if s.get("conf") is not None:
+        line += f" · اعتماد <b>{s['conf']}%</b>"
+    if s.get("ev") is not None:
+        line += f" · انتظار <b>{s['ev']:.2f}R</b>"
+    if s.get("quality") is not None:
+        line += f" · کیفیت <b>{s['quality']}</b>"
+    L += ["", line]
     if s.get("ob"):
         L.append(f"اردر بلاک <code>{s['ob']['low']:.10g} — {s['ob']['high']:.10g}</code>")
     if s.get("channel"):

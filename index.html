@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v16.1 · موجودی واقعی میز تمرین</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v17.0 · دو استراتژی، مغز دائمی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -1822,11 +1822,22 @@ function ibsPullback(candles15m){
   q+=inOB?20:nearOB?8:0;
   q+=rejCandle?10:0;
   q+=barsAgo<=20?8:barsAgo<=40?4:0;
-  const slDist=dir==='SHORT'?(ob.high-cur)*1.05:(cur-ob.low)*1.05;
-  const tp1=dir==='SHORT'?cur-slDist*1.5:cur+slDist*1.5;
-  const tp2=dir==='SHORT'?cur-slDist*2.5:cur+slDist*2.5;
+  /* Risk and reward have to be measured from the same price, and that price is
+     the entry. This used to size the stop distance from `cur` — wherever price
+     happened to be — while booking the entry at the block mid, so whenever price
+     had run away from the block the two disagreed and the reported reward was
+     the distance from somewhere nobody was entering. On one simulated setup it
+     read R:R 12.92 where the trade actually offered 1.48: risk 1.49 from the
+     entry, reward 19.23 measured from a price 7 above it. Every strategy-1
+     number that has ever been reported was inflated by that gap.
+     The 1.5 and 2.5 multipliers are what the author intended; now they hold. */
+  const entry=inOB?cur:ob.mid;
+  const sl=dir==='SHORT'?ob.high*1.003:ob.low*0.997;
+  const risk=Math.abs(entry-sl);
+  const tp1=dir==='SHORT'?entry-risk*1.5:entry+risk*1.5;
+  const tp2=dir==='SHORT'?entry-risk*2.5:entry+risk*2.5;
   return{dir,bos,ob,choch,inOB,nearOB,rejCandle,barsAgo,quality:Math.min(100,q),
-         cur,entry:inOB?cur:ob.mid,sl:dir==='SHORT'?ob.high*1.003:ob.low*0.997,tp1,tp2};
+         cur,entry,sl,tp1,tp2};
 }
 function smcQmin(){return +(DB.get("smc_qmin")||48);}
 function ibsQmin(){return +(DB.get("ibs_qmin")||55);}
