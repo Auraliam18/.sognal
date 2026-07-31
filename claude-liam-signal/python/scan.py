@@ -59,6 +59,8 @@ def main():
     ap.add_argument("--symbols", type=int, default=120)
     ap.add_argument("--tf", default="5m,15m")
     ap.add_argument("--cores", type=int, default=os.cpu_count() or 4)
+    ap.add_argument("--telegram", action="store_true",
+                    help="deliver new signals as charts (needs TELEGRAM_BOT_TOKEN/CHAT_ID)")
     args = ap.parse_args()
     tfs = [t.strip() for t in args.tf.split(",") if t.strip()]
 
@@ -121,7 +123,25 @@ def main():
     }
 
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "latest.json").write_text(json.dumps(report, indent=1))
+    # Telegram gets the candles so it can draw the setup; the published file does
+    # not, or 236 setups × 120 bars would make it megabytes for no reader.
+    if args.telegram:
+        from telegram import send_signals
+
+        def draw(s, path):
+            if not s.get("candles"):
+                return None
+            from chart import render
+            return render(s["candles"], s, path)
+
+        send_signals(signals, draw)
+
+    def strip(s):
+        return {k: v for k, v in s.items() if k != "candles"}
+
+    report["signals"] = [strip(s) for s in report["signals"]]
+    report["watch"] = [strip(s) for s in report["watch"]]
+    (OUT / "latest.json").write_text(json.dumps(report, ensure_ascii=False, indent=1))
 
     print(f"\n{counts['SIGNAL']} signals · {counts['ARMED']} armed · "
           f"{counts['PULLBACK_1']} first pullback · {counts['WATCH']} watching")

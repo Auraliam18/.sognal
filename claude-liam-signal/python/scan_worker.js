@@ -41,6 +41,10 @@ for (const job of jobs) {
     thin: s.thin ? { insideRatio: s.thin.insideRatio, volRatio: s.thin.volRatio } : null,
     goOnFirst: !!s.goOnFirst, waitReason: s.waitReason || null, skip: s.skip || null,
     lastClose: cd[cd.length - 1].t,
+    /* The box itself, so the chart can draw what the price has to close out of. */
+    ob: s.ob ? { low: s.ob.low, high: s.ob.high } : null,
+    /* Enough tail to draw the setup without carrying 400 bars per symbol. */
+    candles: cd.slice(-120),
   });
 }
 

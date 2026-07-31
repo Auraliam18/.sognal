@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # to dispatch the Pages rebuild
 
 concurrency:
   group: live-scan
@@ -50,10 +51,20 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Scan
+      - name: Charting dependency
+        run: pip install --quiet matplotlib
+
+      # Delivery is skipped, loudly, when the secrets are absent — the scan still
+      # runs and still publishes to the panel. Add TELEGRAM_BOT_TOKEN and
+      # TELEGRAM_CHAT_ID under Settings → Secrets → Actions to switch it on.
+      - name: Scan and deliver
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python3 claude-liam-signal/python/scan.py \
             --symbols "${{ github.event.inputs.symbols || '120' }}" \
+            --telegram \
             | tee scan-output.txt
 
       - name: Summary
@@ -98,3 +109,18 @@ jobs:
             sleep $((attempt * 3))
           done
           exit 1
+
+      # Pages rebuilds on a six-hour cron, which would leave the deployed panel
+      # serving a scan hours old. `deploy-pages` refuses to run from anything but
+      # the default branch, so the fix is to dispatch it there rather than to add
+      # a push trigger here.
+      - name: Rebuild the published panel
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pages.yml/dispatches" \
+            -d '{"ref":"main"}' && echo "pages rebuild requested"
