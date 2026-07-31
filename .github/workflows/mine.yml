@@ -75,11 +75,18 @@ jobs:
 
           Both strategies over the same coins and the same days, with the market
           context at each setup. Experiences, events and patterns are in brain/."
+          # Another run can land while this one works. Rebasing generated files
+          # conflicts for no good reason, so this merges instead: .gitattributes
+          # union-merges the append-only logs, and for the whole-file room state
+          # the copy this run just produced is the fresher one and wins.
           for attempt in 1 2 3 4 5; do
             git push origin "HEAD:$BRANCH" && exit 0
             git fetch origin "$BRANCH" || true
-            git -c rebase.autoStash=true rebase "origin/$BRANCH" \
-              || { git rebase --abort 2>/dev/null; exit 1; }
+            if ! git merge --no-edit "origin/$BRANCH"; then
+              git checkout --ours -- brain/rooms 2>/dev/null || true
+              git add -A brain signals 2>/dev/null || git add -A brain || true
+              git -c core.editor=true commit --no-edit || { git merge --abort; exit 1; }
+            fi
             sleep $((attempt * 3))
           done
           exit 1
