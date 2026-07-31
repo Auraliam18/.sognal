@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v16.0 · اسکن از راه دور</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v16.1 · موجودی واقعی میز تمرین</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -2487,10 +2487,47 @@ function paperCheck(tr,price){
   paperSave();
   return true;
 }
+/* =========================================================================
+   EQUITY — R is the honest unit, money is the readable one.
+
+   The desk has always counted in R, which is right: R is what the strategy
+   produces and it does not depend on how much anyone chose to stake. But "the
+   desk is at +14R" answers a different question from "what happened to my
+   thousand dollars", and the second question deserves a real answer rather
+   than a remembered one.
+
+   So: a stated starting balance, a stated risk per trade, and every settled
+   practice trade applied in the order it closed. Fixed fractional — each trade
+   risks the same percentage of the balance at the time it opens — which is the
+   only sizing rule that cannot quietly turn a positive expectancy into ruin.
+
+   The peak and the worst drawdown are kept because a balance alone flatters.
+   A run that reaches $2,000 through a 60% drawdown is not the same result as
+   one that reaches $2,000 in a straight line, and only one of them is
+   survivable by a person watching it happen.
+   ========================================================================= */
+function paperEquity(){
+  const start=+(DB.get("eq_start")||1000);
+  const riskPct=+(DB.get("eq_risk")||1);
+  const settled=PAPER.trades.filter(t=>!t.open&&typeof t.r==="number")
+                            .slice().sort((a,b)=>(a.closedAt||0)-(b.closedAt||0));
+  let eq=start,peak=start,mdd=0;
+  const curve=[start];
+  for(const t of settled){
+    eq+=eq*(riskPct/100)*t.r;
+    if(eq<0)eq=0;
+    peak=Math.max(peak,eq);
+    mdd=Math.max(mdd,peak>0?(peak-eq)/peak:0);
+    curve.push(eq);
+  }
+  return{start,riskPct,n:settled.length,equity:eq,peak,
+         pct:start?(eq/start-1)*100:0,mdd:mdd*100,curve};
+}
 function paperStats(){
   const open=PAPER.trades.filter(t=>t.open).length;
   return{open,closed:PAPER.closed,wins:PAPER.wins,net:+PAPER.net.toFixed(1),
-    hit:PAPER.closed?Math.round(PAPER.wins/PAPER.closed*100):0};
+    hit:PAPER.closed?Math.round(PAPER.wins/PAPER.closed*100):0,
+    eq:paperEquity()};
 }
 /* =========================================================================
    THE LEARNING ROOM'S ANSWER — asked before any signal goes out.
@@ -3385,6 +3422,23 @@ function renderReview(){
       ${P.closed?`<span class="chip">برد ${P.hit}%</span><span class="chip" style="border-color:${P.net>=0?"#2ecc71":"#e74c3c"}55;color:${P.net>=0?"#2ecc71":"#e74c3c"}">خالص ${P.net>0?"+":""}${P.net}R</span>`:""}
       <span class="chip">${CASES.count()} تجربه در حافظه</span>
     </div>
+    ${(()=>{const e=P.eq,up=e.equity>=e.start,col=up?"#2ecc71":"#e74c3c";
+      const money=v=>"$"+v.toLocaleString("en-US",{maximumFractionDigits:0});
+      return `<div style="border:1px solid rgba(140,160,190,.14);border-radius:10px;padding:9px 11px;margin-bottom:9px">
+      <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">
+        <span class="dim" style="font-size:11px">موجودی تمرین</span>
+        <b class="num" style="font-size:17px;color:${col}">${money(e.equity)}</b>
+        <span style="color:${col};font-size:12px">${e.pct>=0?"+":""}${e.pct.toFixed(1)}%</span>
+        <span class="dim" style="font-size:11px">از ${money(e.start)} · ریسک ${e.riskPct}٪ هر ترید · ${e.n} ترید بسته‌شده</span>
+      </div>
+      ${e.n?`<div class="dim" style="font-size:11px;margin-top:4px">
+        بیشترین موجودی ${money(e.peak)} · بدترین افت از قله <b style="color:${e.mdd>30?"#e74c3c":"#8b98ab"}">${e.mdd.toFixed(0)}٪</b>
+      </div>`:`<div class="dim" style="font-size:11px;margin-top:4px">
+        هنوز تریدی بسته نشده — این عدد وقتی معنی پیدا می‌کند که تمرین‌ها ته بگیرند.</div>`}
+      <div class="dim" style="font-size:10.5px;margin-top:5px;line-height:1.7">
+        این پول واقعی نیست و هرگز نبوده. عدد از R واقعیِ تریدهای بسته‌شدهٔ همین میز ساخته می‌شود،
+        با سایز ثابت‌درصدی — نه از حافظه و نه از حدس.</div>
+    </div>`;})()}
     ${PAPER.trades.length?`<div style="max-height:200px;overflow:auto">`+PAPER.trades.slice(0,20).map(t=>
       `<div style="display:flex;gap:10px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid rgba(140,160,190,.08)">
         <b>${t.asset}</b><span class="side ${t.dir}" style="font-size:10px">${t.dir}</span>
