@@ -1,0 +1,336 @@
+<title>دو استراتژی، اندازه‌گیری‌شده — ۳۱ جولای ۲۰۲۶</title>
+<style>
+  :root{
+    --ground:#0A0E14; --panel:#0F151E; --raised:#141C28;
+    --line:#1E2938; --line-soft:#182130;
+    --ink:#DCE5F0; --ink-mid:#8FA0B6; --ink-dim:#5E6E85;
+    --accent:#E0A458; --accent-soft:#3A2C1A;
+    --good:#3DD68C; --bad:#F0616D; --flat:#7C8BA1;
+    --good-bg:#0E2A1E; --bad-bg:#2A1116; --flat-bg:#19212C;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#F2F4F7; --panel:#FFFFFF; --raised:#F7F9FB;
+      --line:#D8DFE8; --line-soft:#E6EBF1;
+      --ink:#161D27; --ink-mid:#4C5B70; --ink-dim:#77879C;
+      --accent:#9A6415; --accent-soft:#F5E9D6;
+      --good:#12855A; --bad:#C3283A; --flat:#5C6B80;
+      --good-bg:#E4F5EC; --bad-bg:#FBE7EA; --flat-bg:#EDF1F5;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0A0E14; --panel:#0F151E; --raised:#141C28;
+    --line:#1E2938; --line-soft:#182130;
+    --ink:#DCE5F0; --ink-mid:#8FA0B6; --ink-dim:#5E6E85;
+    --accent:#E0A458; --accent-soft:#3A2C1A;
+    --good:#3DD68C; --bad:#F0616D; --flat:#7C8BA1;
+    --good-bg:#0E2A1E; --bad-bg:#2A1116; --flat-bg:#19212C;
+  }
+  :root[data-theme="light"]{
+    --ground:#F2F4F7; --panel:#FFFFFF; --raised:#F7F9FB;
+    --line:#D8DFE8; --line-soft:#E6EBF1;
+    --ink:#161D27; --ink-mid:#4C5B70; --ink-dim:#77879C;
+    --accent:#9A6415; --accent-soft:#F5E9D6;
+    --good:#12855A; --bad:#C3283A; --flat:#5C6B80;
+    --good-bg:#E4F5EC; --bad-bg:#FBE7EA; --flat-bg:#EDF1F5;
+  }
+
+  *{box-sizing:border-box}
+  html{direction:rtl}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Segoe UI","Noto Sans Arabic",Tahoma,"Iranian Sans",system-ui,sans-serif;
+    font-size:16px; line-height:1.85;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"SF Mono","Cascadia Mono",Consolas,"DejaVu Sans Mono",monospace;
+    font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate}
+  .wrap{max-width:min(1080px,92vw); margin:0 auto; padding:56px 0 88px}
+
+  header{border-bottom:1px solid var(--line); padding-bottom:26px; margin-bottom:44px}
+  .eyebrow{font-size:11.5px; letter-spacing:.22em; color:var(--accent);
+    text-transform:uppercase; margin:0 0 12px}
+  h1{font-size:clamp(28px,4.4vw,44px); line-height:1.28; margin:0 0 14px;
+    font-weight:650; text-wrap:balance; letter-spacing:-.01em}
+  .lede{font-size:17px; color:var(--ink-mid); margin:0; max-width:64ch}
+  .meta{margin-top:18px; font-size:12.5px; color:var(--ink-dim); display:flex;
+    gap:20px; flex-wrap:wrap}
+
+  section{margin-bottom:52px}
+  h2{font-size:12px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--ink-dim); font-weight:600; margin:0 0 20px;
+    padding-bottom:10px; border-bottom:1px solid var(--line-soft)}
+  h3{font-size:19px; margin:0 0 6px; font-weight:620}
+  p{margin:0 0 14px; max-width:68ch}
+  strong{font-weight:640; color:var(--ink)}
+
+  .verdicts{display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:18px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:4px;
+    padding:24px 26px; position:relative; overflow:hidden}
+  .card::before{content:""; position:absolute; inset-block:0; inset-inline-start:0;
+    width:3px; background:var(--edge,var(--flat))}
+  .card.good{--edge:var(--good)} .card.flat{--edge:var(--flat)}
+  .tag{display:inline-block; font-size:11px; letter-spacing:.1em; padding:3px 10px;
+    border-radius:2px; margin-bottom:14px; font-weight:600}
+  .tag.good{background:var(--good-bg); color:var(--good)}
+  .tag.flat{background:var(--flat-bg); color:var(--flat)}
+  .tag.bad{background:var(--bad-bg); color:var(--bad)}
+  .big{font-size:38px; font-weight:660; line-height:1.1; margin:10px 0 2px}
+  .big.good{color:var(--good)} .big.flat{color:var(--flat)}
+  .ci{font-size:13px; color:var(--ink-mid); margin-bottom:16px}
+  .rows{display:grid; gap:0; border-top:1px solid var(--line-soft); padding-top:12px}
+  .row{display:flex; justify-content:space-between; gap:14px; padding:5px 0;
+    font-size:13.5px; border-bottom:1px solid var(--line-soft)}
+  .row:last-child{border-bottom:0}
+  .row span:first-child{color:var(--ink-mid)}
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:4px;
+    background:var(--panel)}
+  th{text-align:right; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-dim); font-weight:600; padding:12px 16px;
+    border-bottom:1px solid var(--line); white-space:nowrap}
+  td{padding:11px 16px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  td.num{text-align:left}
+  .pos{color:var(--good)} .neg{color:var(--bad)} .nil{color:var(--flat)}
+
+  ol.ledger{list-style:none; counter-reset:c; padding:0; margin:0;
+    display:grid; gap:2px}
+  ol.ledger li{counter-increment:c; background:var(--panel);
+    border:1px solid var(--line); border-radius:4px; padding:20px 24px;
+    display:grid; grid-template-columns:auto 1fr; gap:0 20px; align-items:start}
+  ol.ledger li::before{content:counter(c,decimal); font-family:inherit;
+    font-size:13px; color:var(--accent); background:var(--accent-soft);
+    width:30px; height:30px; display:grid; place-items:center; border-radius:2px;
+    font-weight:660; grid-row:span 2}
+  ol.ledger h3{grid-column:2}
+  ol.ledger .body{grid-column:2; color:var(--ink-mid); font-size:14.5px}
+  ol.ledger .body p{margin:0 0 10px}
+  ol.ledger .body p:last-child{margin:0}
+
+  .swing{display:inline-flex; align-items:center; gap:10px; background:var(--raised);
+    border:1px solid var(--line); border-radius:3px; padding:7px 13px;
+    font-size:13.5px; margin-top:6px}
+  .swing .from{color:var(--bad); text-decoration:line-through; opacity:.75}
+  .swing .to{color:var(--ink); font-weight:640}
+  .swing .arr{color:var(--ink-dim)}
+
+  .note{border-inline-start:2px solid var(--accent); padding:2px 18px;
+    color:var(--ink-mid); font-size:14.5px; margin:22px 0}
+  .note strong{color:var(--ink)}
+
+  .links{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px}
+  a.link{display:block; background:var(--panel); border:1px solid var(--line);
+    border-radius:4px; padding:16px 18px; text-decoration:none; color:var(--ink);
+    transition:border-color .15s, background .15s}
+  a.link:hover,a.link:focus-visible{border-color:var(--accent); background:var(--raised)}
+  a.link:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  a.link .t{font-weight:620; font-size:15px; display:block; margin-bottom:3px}
+  a.link .d{font-size:12.5px; color:var(--ink-dim)}
+
+  footer{border-top:1px solid var(--line); padding-top:22px; margin-top:56px;
+    font-size:12.5px; color:var(--ink-dim)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">گزارش اندازه‌گیری · ۳۱ جولای ۲۰۲۶</p>
+  <h1>دو استراتژی، روی کندل واقعی، با شرط پر شدن سفارش</h1>
+  <p class="lede">
+    ۶۸ ارز، ۳۰ روز، تایم ۱۵ دقیقه. هر دو استراتژی روی همان ارزها و همان روزها.
+    هیچ تریدی حساب نشده مگر قیمت واقعاً از سطح ورود رد شده باشد.
+  </p>
+  <div class="meta">
+    <span class="mono">3,565 setup</span>
+    <span>۱۵ لانگ + ۱۵ شورت برای هر ارز و هر استراتژی</span>
+    <span>دامیننس بیت‌کوین در لحظهٔ هر ستاپ ثبت شده</span>
+  </div>
+</header>
+
+<section>
+  <h2>نتیجهٔ هر استراتژی، جدا</h2>
+  <div class="verdicts">
+
+    <div class="card flat">
+      <span class="tag flat">بازه صفر را در بر می‌گیرد</span>
+      <h3>استراتژی ۱ — IBS + پولبک</h3>
+      <p class="big flat mono">+0.011R</p>
+      <p class="ci mono">[−0.055, +0.075] · 1,995 setup · win 30.4%</p>
+      <div class="rows">
+        <div class="row"><span>لانگ</span><span class="mono pos">+0.094R · 33.0% · n=985</span></div>
+        <div class="row"><span>شورت</span><span class="mono neg">−0.070R · 27.8% · n=1010</span></div>
+        <div class="row"><span>استاپ خورد</span><span class="mono">1,277</span></div>
+        <div class="row"><span>به تارگت ۲ رسید</span><span class="mono">390</span></div>
+        <div class="row"><span>برگشت به ورود</span><span class="mono">212</span></div>
+      </div>
+      <p style="margin-top:16px;font-size:14px;color:var(--ink-mid)">
+        در این پنجرهٔ ۳۰ روزه <strong>لبهٔ قابل اندازه‌گیری ندارد</strong>. این یعنی شواهدی
+        از سود نیست — نه اینکه ثابت شده ضرر می‌دهد.
+      </p>
+    </div>
+
+    <div class="card good">
+      <span class="tag good">بازه کاملاً بالای صفر</span>
+      <h3>استراتژی ۲ — کانال + اردر بلاک</h3>
+      <p class="big good mono">+0.117R</p>
+      <p class="ci mono">[+0.032, +0.203] · 1,570 setup · win 26.1%</p>
+      <div class="rows">
+        <div class="row"><span>لانگ</span><span class="mono pos">+0.151R · 27.2% · n=805</span></div>
+        <div class="row"><span>شورت</span><span class="mono pos">+0.082R · 25.0% · n=765</span></div>
+        <div class="row"><span>استاپ خورد</span><span class="mono">944</span></div>
+        <div class="row"><span>به تارگت ۲ رسید</span><span class="mono">202</span></div>
+        <div class="row"><span>برگشت به ورود</span><span class="mono">119</span></div>
+      </div>
+      <p style="margin-top:16px;font-size:14px;color:var(--ink-mid)">
+        وین‌ریت پایین‌تر است ولی <strong>انتظار ریاضی بالاتر</strong> — بردها بزرگ‌ترند.
+        این تنها استراتژی‌ای است که بازه‌اش از صفر عبور می‌کند.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <strong>وین‌ریت ۲۶ تا ۳۰ درصد است، نه ۹۰ درصد.</strong>
+    هر دو استراتژی از جنس «بیشتر وقت‌ها استاپ، گاهی برد بزرگ» هستند. سود از
+    اندازهٔ بردها می‌آید نه از تعدادشان. با تارگت‌هایی که الان دارند به ۹۰٪ نمی‌رسند
+    و هیچ فیلتری هم نمی‌رساندشان — فیلتر تعیین می‌کند کدام ترید گرفته شود، نه اینکه
+    یک ترید چقدر بپردازد.
+  </div>
+</section>
+
+<section>
+  <h2>دو ایرادی که اعداد را متورم کرده بودند</h2>
+  <ol class="ledger">
+    <li>
+      <h3>ریسک و ریوارد از دو قیمت مختلف اندازه‌گیری می‌شد</h3>
+      <div class="body">
+        <p>
+          استراتژی ۱ فاصلهٔ استاپ را از <strong>قیمت لحظه‌ای</strong> می‌گرفت ولی ورود را
+          روی <strong>وسط اردر بلاک</strong> ثبت می‌کرد. هر وقت قیمت از باکس فاصله گرفته بود،
+          تارگتی که منتشر می‌شد فاصله از قیمتی بود که هیچ‌کس آنجا وارد نمی‌شد.
+        </p>
+        <div class="swing">
+          <span class="from mono">R:R 12.92</span>
+          <span class="arr">←</span>
+          <span class="to mono">R:R 1.48</span>
+          <span style="color:var(--ink-dim);font-size:12.5px">همان ترید، اندازه‌گیری درست</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <h3>تریدهایی که هرگز باز نشدند، به‌عنوان برنده حساب می‌شدند</h3>
+      <div class="body">
+        <p>
+          هر دو استراتژی می‌توانند ورود را روی لیمیت در اردر بلاک بگذارند. کاوشگر فرض
+          می‌کرد آن لیمیت <strong>همیشه پر می‌شود</strong>. ستاپ‌هایی که قیمت بدون برگشت از
+          آن‌ها فرار کرده بود — یعنی دقیقاً همان‌هایی که «درست از آب درمی‌آمدند» —
+          به‌عنوان برندهٔ کامل شمرده می‌شدند.
+        </p>
+        <div class="scroll" style="margin:14px 0 12px">
+          <table>
+            <thead><tr><th>نوع ورود</th><th class="num">تعداد</th><th class="num">برد</th><th class="num">انتظار</th></tr></thead>
+            <tbody>
+              <tr><td>ورود واقعی روی قیمت بازار</td><td class="num mono">549</td><td class="num mono">34.1%</td><td class="num mono">+0.103R</td></tr>
+              <tr><td>ورود <em>فرضی</em> روی لیمیت</td><td class="num mono">1,457</td><td class="num mono neg">58.8%</td><td class="num mono neg">+0.873R</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          نزدیک سه‌چهارم نمونهٔ استراتژی ۱، و ۸.۵ برابر انتظار ریاضی، از تریدهایی
+          می‌آمد که اتفاق نیفتاده بودند. حالا پر شدن اجباری است: فقط وقتی ترید باز
+          می‌شود که قیمت ظرف ۶ ساعت واقعاً از سطح ورود رد شود.
+        </p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="note">
+    <strong>عددی که قبل از این دو اصلاح گزارش می‌شد: استراتژی ۱ با ۵۲٪ برد و +۰.۶۶۲R.</strong>
+    آن عدد از تریدهایی ساخته شده بود که وجود نداشتند. هر دو بار دادهٔ آلوده پاک شد
+    (۳٬۴۶۳ و بعد ۳٬۵۷۹ تجربه) و کاوش از نو اجرا شد.
+  </div>
+</section>
+
+<section>
+  <h2>شرایطی که واقعاً روی نتیجه اثر داشتند</h2>
+  <p style="color:var(--ink-mid);font-size:14.5px">
+    هر شرط در برابر پایهٔ خودِ همان استراتژی سنجیده شده، با بازهٔ اطمینان ۹۵٪.
+    از ۲۳ شرط آزموده‌شده، فقط این چهار تا بازه‌شان از صفر عبور کرد.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>استراتژی</th><th>شرط</th><th class="num">تعداد</th><th class="num">برد</th><th class="num">اثر</th><th class="num">بازه ۹۵٪</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>کانال + اردر بلاک</td>
+          <td><strong>R:R بالای ۲.۵</strong></td>
+          <td class="num mono">142</td><td class="num mono">31.0%</td>
+          <td class="num mono pos">+0.757R</td><td class="num mono">[+0.332, +1.228]</td>
+        </tr>
+        <tr>
+          <td>کانال + اردر بلاک</td>
+          <td>لانگ همسو با بیت‌کوین</td>
+          <td class="num mono">288</td><td class="num mono">21.2%</td>
+          <td class="num mono neg">−0.278R</td><td class="num mono">[−0.479, −0.064]</td>
+        </tr>
+        <tr>
+          <td>کانال + اردر بلاک</td>
+          <td>شورت همسو با بیت‌کوین</td>
+          <td class="num mono">318</td><td class="num mono">19.5%</td>
+          <td class="num mono neg">−0.255R</td><td class="num mono">[−0.431, −0.077]</td>
+        </tr>
+        <tr>
+          <td>IBS + پولبک</td>
+          <td>شورت خلاف بیت‌کوین</td>
+          <td class="num mono">227</td><td class="num mono">23.3%</td>
+          <td class="num mono neg">−0.219R</td><td class="num mono">[−0.413, −0.023]</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <strong>مهم‌ترین یافته: R:R بالای ۲.۵ روی استراتژی ۲ اثر +۰.۷۵۷R دارد</strong> و بازه‌اش
+    کاملاً بالای صفر است. یعنی صبر کردن برای ستاپ‌هایی با تارگت دورتر، بیشترین
+    چیزی است که می‌شود روی آن حساب کرد.
+    <br><br>
+    و یک نکتهٔ خلاف انتظار: <strong>همسو بودن با جهت بیت‌کوین روی استراتژی ۲ منفی است</strong>،
+    هم برای لانگ هم برای شورت. این یک پنجرهٔ ۳۰ روزه است و باید روی بازهٔ دیگری
+    هم آزموده شود قبل از اینکه به گیت تبدیل شود.
+  </div>
+</section>
+
+<section>
+  <h2>آنچه ساخته شد</h2>
+  <div class="links">
+    <a class="link" href="https://auraliam18.github.io/.sognal/" target="_blank" rel="noopener">
+      <span class="t">پنل زنده</span>
+      <span class="d">در کروم یا ادج خودت باز کن — سیگنال‌های واقعی و اسکن از راه دور</span>
+    </a>
+    <a class="link" href="https://github.com/Auraliam18/.sognal/tree/claude/hamid-signal-agent-smc-dkot7v/brain" target="_blank" rel="noopener">
+      <span class="t">مغز — حافظهٔ دائمی</span>
+      <span class="d">تجربه‌ها، الگوها، اتاق رویداد، حافظهٔ هر اتاق</span>
+    </a>
+    <a class="link" href="https://github.com/Auraliam18/.sognal/actions/workflows/mine.yml" target="_blank" rel="noopener">
+      <span class="t">کاوش گذشته</span>
+      <span class="d">هر شب ۷۰ ارز، ۳۰ روز، هر دو استراتژی</span>
+    </a>
+    <a class="link" href="https://github.com/Auraliam18/.sognal/actions/workflows/live-scan.yml" target="_blank" rel="noopener">
+      <span class="t">پایش زنده</span>
+      <span class="d">هر ۱۰ دقیقه، ۱۰۰ ارز برتر ۴۸ ساعت، ۱۵م و ۵م</span>
+    </a>
+  </div>
+</section>
+
+<footer>
+  همهٔ اعداد از کندل واقعی بایننس، با شرط پر شدن سفارش. قابل تکرار با
+  <span class="mono">python3 claude-liam-signal/python/mine.py</span>.
+  <br>
+  عددی که راهی برای بازتولیدش نباشد گزارش نمی‌شود.
+</footer>
+
+</div>
