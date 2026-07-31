@@ -3151,7 +3151,25 @@ function relayHTML(){
       ${j.signals.length?"":"این یک نتیجهٔ عادی است، نه خرابی."}
       <div style="margin-top:6px" class="dim">${j.note||""}</div>
     </div></div>`;
-  return head+j.signals.slice(0,12).map(relayCard).join("");
+  /* When nothing has fired, the setups already inside the box are the whole
+     story — they are one candle close away, and a bare count hides them. */
+  const armed=(j.watch||[]).filter(s=>s.stage==="ARMED"||s.stage==="PULLBACK_1").slice(0,10);
+  const near=armed.length?`<div class="box" style="margin-top:10px;border-color:#f0a92e55">
+    <h3 style="margin:0 0 6px">نزدیک‌ترین‌ها به سیگنال</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:6px">
+      «آماده» یعنی قیمت داخل اردر بلاک است و فقط منتظر بسته شدن کندل بیرون از باکس.</div>
+    ${armed.map(s=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+        padding:5px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <b class="mono" style="min-width:104px">${s.sym}</b>
+      <span class="mono dim" style="min-width:34px">${s.tf}</span>
+      <span style="min-width:42px;color:${s.dir==="LONG"?"#2ecc71":"#e74c3c"}">${s.dir==="LONG"?"خرید":"فروش"}</span>
+      <span class="chip" style="${s.stage==="ARMED"?"border-color:#7a5a1e;color:#f0c675":""}">
+        ${s.stage==="ARMED"?"آماده":"پولبک اول"}</span>
+      <span class="dim">ورود ${fmt(s.entry)} · استاپ ${fmt(s.sl)} · تارگت ${fmt(s.tp1)}</span>
+      <span class="dim">R:R ${s.rr} · اعتماد ${s.conf}٪</span>
+      ${s.skip?`<span class="dim" style="flex-basis:100%;color:#8b98ab">مانع: ${s.skip}</span>`:""}
+    </div>`).join("")}</div>`:"";
+  return head+j.signals.slice(0,12).map(relayCard).join("")+near;
 }
 
 function renderWhy(){

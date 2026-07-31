@@ -112,9 +112,10 @@ def main():
         "symbols": len(syms), "series": len(jobs), "timeframes": tfs,
         "counts": counts,
         "context": usdt_dominance(),
-        "note": "5m outranks 15m because the real-candle backtest measured an edge "
-                "on 5m (+0.141R, interval clear) and none on 15m (+0.005R, spans zero). "
-                "Ranking only — nothing is filtered out by timeframe.",
+        "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی "
+                "روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی "
+                "۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — "
+                "هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
         "signals": signals,
         "watch": [s for s in setups if s["stage"] != "SIGNAL"][:60],
     }
