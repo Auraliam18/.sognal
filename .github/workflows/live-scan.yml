@@ -12,11 +12,10 @@
 # follows the real-candle backtest: 5m measured an edge, 15m did not.
 name: Live scan
 
-# NOTE: `schedule` only fires for workflows that exist on the repository's
-# DEFAULT branch. This file lives on the working branch, so its cron has never
-# run — every execution so far came from the push trigger below. Merging PR #1
-# puts it on main and the schedule starts working. Until then, "every ten
-# minutes" is not true and should not be described that way.
+# `schedule` only fires for workflows that exist on the repository's DEFAULT
+# branch. This file had lived only on the working branch, so its cron never ran
+# once — every execution came from the push trigger below. It is on main now,
+# which is what makes the schedule real.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -98,9 +97,18 @@ jobs:
             git push origin "HEAD:$BRANCH" && exit 0
             git fetch origin "$BRANCH" || true
             if ! git merge --no-edit "origin/$BRANCH"; then
-              git checkout --ours -- brain/rooms 2>/dev/null || true
+              # Resolve every generated path, not just rooms: staging brain/
+              # wholesale after a partial resolution once committed a file with
+              # its conflict markers still in it, which left the recall index
+              # unparseable and silently disabled learning.
+              git checkout --ours -- brain signals 2>/dev/null || true
               git add -A brain signals 2>/dev/null || git add -A brain || true
-              git -c core.editor=true commit --no-edit || { git merge --abort; exit 1; }
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            # Never publish a file carrying conflict markers.
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain signals; then
+              echo "refusing to push: conflict markers survived the merge"
+              exit 1
             fi
             sleep $((attempt * 3))
           done

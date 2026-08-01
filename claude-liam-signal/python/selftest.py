@@ -131,6 +131,22 @@ def brain_has_history():
     return n >= 500, f"{n} experiences stored"
 
 
+def no_conflict_markers():
+    """A file committed mid-merge is unparseable, and an unparseable recall index
+    disables learning without anything saying so. This is how that was found."""
+    bad = []
+    for d in (brain.BRAIN, ROOT / "signals"):
+        for f in d.rglob("*"):
+            if f.is_file() and f.suffix in (".json", ".jsonl"):
+                try:
+                    if any(l.startswith(("<<<<<<< ", ">>>>>>> ")) for l in
+                           f.read_text(errors="ignore").splitlines()):
+                        bad.append(str(f.relative_to(ROOT)))
+                except Exception:                    # noqa: BLE001 - unreadable is its own problem
+                    bad.append(str(f.relative_to(ROOT)) + " (unreadable)")
+    return (not bad), ("clean" if not bad else f"markers in {', '.join(bad[:3])}")
+
+
 def index_is_current():
     p = brain.LEARNING / "index.json"
     if not p.exists():
@@ -283,6 +299,7 @@ def main():
     print("\nMEMORY")
     check("brain stores and reads back", brain_writes_and_reads)
     check("history is large enough to learn from", brain_has_history)
+    check("no file carries merge conflict markers", no_conflict_markers)
     check("the recall index exists and is populated", index_is_current)
     check("recall answers, and refuses when thin", recall_answers_and_refuses)
     check("the events room is recording", events_room_records)
