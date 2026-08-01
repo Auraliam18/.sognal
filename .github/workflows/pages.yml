@@ -1,11 +1,12 @@
-# Publishes the panel to GitHub Pages. `configure-pages` with enablement turns
-# Pages on by itself, so this needs no click in repository settings.
+# Publishes the panel to GitHub Pages from the default branch, taking the
+# content from gh-pages. `configure-pages` with enablement turns Pages on
+# through the API, so this needs no click in repository settings.
 name: Deploy panel to Pages
 
 on:
-  push:
-    branches: [gh-pages]
   workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: read
@@ -14,7 +15,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
