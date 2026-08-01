@@ -12,6 +12,11 @@
 # follows the real-candle backtest: 5m measured an edge, 15m did not.
 name: Live scan
 
+# NOTE: `schedule` only fires for workflows that exist on the repository's
+# DEFAULT branch. This file lives on the working branch, so its cron has never
+# run — every execution so far came from the push trigger below. Merging PR #1
+# puts it on main and the schedule starts working. Until then, "every ten
+# minutes" is not true and should not be described that way.
 on:
   schedule:
     - cron: "*/10 * * * *"

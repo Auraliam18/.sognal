@@ -71,6 +71,13 @@ def top_by_48h(n):
     return [s for s, _ in ranked[:n]]
 
 
+def ctx_dir(setup):
+    """The market direction the mined history was keyed on. The live scan has no
+    per-setup dominance series, so this stays '?' and the lookup falls back to
+    the symbol record — which is the honest degradation, not a guess."""
+    return setup.get("dom_dir", "?")
+
+
 def usdt_dominance():
     """Context only — it never decides, it can only conflict with a direction."""
     try:
@@ -135,6 +142,38 @@ def main():
     setups.sort(key=lambda s: (STAGE_RANK.get(s["stage"], 0), TF_RANK.get(s["tf"], 0),
                                s["conf"] or 0, s["ev"] or 0), reverse=True)
 
+    # ── the learning room is asked before anything is called a signal ─────────
+    # Storing experience is not learning; using it is. Every setup is looked up
+    # against what this coin, this strategy and this direction have actually done
+    # before, and against setups of the same coarse shape. Where the record is
+    # clearly bad on a real sample the setup is held back rather than sent — and
+    # where the record is thin it says so and changes nothing, because a verdict
+    # built on four trades is not evidence.
+    idx = brain.build_index()
+    consulted = held = 0
+    for s in setups:
+        shape = brain.shape_key({
+            "strategy": s.get("strategy"), "dir": s.get("dir"), "tf": s.get("tf"),
+            "rr": s.get("rr"), "adx": s.get("adx"),
+            "dom_dir": (ctx_dir(s)),
+        })
+        rec = brain.recall(sym=s["sym"], strategy=s.get("strategy"),
+                           direction=s.get("dir"), shape=shape, idx=idx)
+        best = rec.get("symbol") or rec.get("shape")
+        s["learning"] = {
+            "verdict": rec["verdict"],
+            "n": best["n"] if best else 0,
+            "hit": best["hit"] if best else None,
+            "ev": best["ev"] if best else None,
+        }
+        consulted += 1
+        if s["stage"] == "SIGNAL" and rec["verdict"] == "bad":
+            s["stage"] = "ARMED"
+            s["skip"] = (f"اتاق یادگیری مخالف است — {best['n']} مورد مشابه، "
+                         f"برد {best['hit']}٪، انتظار {best['ev']:+.2f}R")
+            held += 1
+    print(f"learning room consulted on {consulted} setups, held back {held}", flush=True)
+
     counts = {k: sum(1 for s in setups if s["stage"] == k) for k in STAGE_RANK}
     signals = [s for s in setups if s["stage"] == "SIGNAL"]
 
@@ -183,6 +222,13 @@ def main():
         "counts": counts,
         "per_strategy": per_strategy,
         "alarms": alarms[:40],
+        "learning": {
+            "experiences": len(brain.read(brain.LEARNING / "experiences.jsonl")),
+            "heldBack": held,
+            "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت "
+                    "پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته "
+                    "می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند.",
+        },
         "context": ctx,
         "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی "
                 "روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی "
