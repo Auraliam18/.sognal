@@ -87,7 +87,12 @@ jobs:
         run: |
           { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
 
-      - name: Publish to the working branch
+      # Only a run that came from main writes to main. Pushing a change to the
+      # working branch triggers this workflow, and without this guard that run
+      # would check out main, scan, and commit to main — so a branch push
+      # silently moved the trunk, which is what made PR #3 conflict with itself.
+      - name: Publish to main
+        if: github.ref == 'refs/heads/main'
         env:
           BRANCH: main
         run: |
