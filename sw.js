@@ -1,7 +1,7 @@
 /* Hamid Signal Agent — service worker
    Caches the app shell so the panel opens instantly (even offline),
    while always going to the network for live market data and the cloud API. */
-const CACHE = "hsa-shell-v17.1";
+const CACHE = "hsa-shell-v19.0";
 const ASSETS = [
   "./",
   "./index.html",
@@ -42,20 +42,40 @@ self.addEventListener("fetch", (e) => {
   // file must never do is go stale.
   if (url.pathname.includes("/signals/")) return;
 
-  // App shell: cache-first, then network. Only a navigation may fall back to
-  // the cached page; a failed asset must fail, not silently become HTML.
+  const save = (resp) => {
+    if (resp && resp.ok && resp.type === "basic") {
+      const copy = resp.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+    }
+    return resp;
+  };
+
+  // The page itself: network first, cache only as a fallback.
+  //
+  // Cache-first was wrong here and it showed. A new deploy did not appear on the
+  // next visit — the old page came out of the cache while the new worker was
+  // still installing, and only the visit after that got the update. Measured:
+  // deploy, reload, still the old version; reload again, new version. Anyone
+  // opening the panel to check a change saw the change missing.
+  //
+  // Network-first costs one request the cache could have answered, and buys the
+  // guarantee that what is on screen is what was deployed. The cached copy still
+  // answers when the network does not, so it still opens offline.
+  if (req.mode === "navigate" || (req.destination === "document")) {
+    e.respondWith(
+      fetch(req)
+        .then(save)
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Everything else — the chart library, icons, the manifest — is versioned by
+  // the cache name and changes only on a deploy, so cache-first is right for it.
+  // A failed asset must fail rather than silently become HTML.
   e.respondWith(
     caches.match(req).then((hit) =>
-      hit ||
-      fetch(req)
-        .then((resp) => {
-          if (resp && resp.ok && resp.type === "basic") {
-            const copy = resp.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          }
-          return resp;
-        })
-        .catch(() => (req.mode === "navigate" ? caches.match("./index.html") : Response.error()))
+      hit || fetch(req).then(save).catch(() => Response.error())
     )
   );
 });

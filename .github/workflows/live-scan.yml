@@ -12,15 +12,22 @@
 # follows the real-candle backtest: 5m measured an edge, 15m did not.
 name: Live scan
 
-# `schedule` only fires for workflows that exist on the repository's DEFAULT
-# branch. This file had lived only on the working branch, so its cron never ran
-# once — every execution came from the push trigger below. It is on main now,
-# which is what makes the schedule real.
+# The cron was "*/10 * * * *" and GitHub never ran it — 63 minutes on the
+# default branch, six missed windows, zero scheduled runs while the two
+# lower-frequency workflows in this repo fired normally. Every `*/N` schedule in
+# the world fires on the same instants, so those windows are the most contended
+# ones there are, and a free account's job is what gets dropped.
+#
+# Two specific minutes, deliberately odd, avoid that pile-up. Half-hourly is
+# also honest about what a shared runner will actually deliver, and it costs
+# little now: the panel fetches its own candles direct from the exchange, so
+# this relay is the fallback for when nothing is open rather than the only way
+# data arrives.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "7,37 * * * *"
   push:
-    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    branches: [main, claude/hamid-signal-agent-smc-dkot7v]
     paths:
       - "claude-liam-signal/python/scan*"
       - ".github/workflows/live-scan.yml"
@@ -46,7 +53,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/hamid-signal-agent-smc-dkot7v
+          # main, not the working branch: the scan is normal operation and its
+          # output belongs on the trunk. Publishing to a side branch left main's
+          # signals/ and brain/ 49 minutes behind what the panel was serving,
+          # which is the kind of drift that makes a repository lie about itself.
+          ref: main
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
@@ -76,12 +87,23 @@ jobs:
         run: |
           { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
 
-      - name: Publish to the working branch
-        env:
-          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+      # Only a run that came from main writes to main. Pushing a change to the
+      # working branch triggers this workflow, and without this guard that run
+      # would check out main, scan, and commit to main — so a branch push
+      # silently moved the trunk, which is what made PR #3 conflict with itself.
+      # Its own step because more than one later step commits, and tying the
+      # identity to one of them meant a skipped step left the next one unable to
+      # commit at all. That is exactly how this broke.
+      - name: Git identity
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
+
+      - name: Publish to main
+        if: github.ref == 'refs/heads/main'
+        env:
+          BRANCH: main
+        run: |
           # brain/ as well as signals/: the scan writes the events room and each
           # room's state too. Staging only signals/ left those modifications
           # unstaged, and `git rebase` refuses to run with a dirty tree — which
@@ -118,6 +140,7 @@ jobs:
       # relative to itself, so the file has to be there too or the relay reads
       # a 404 and the panel stays blind for no reason.
       - name: Publish to the deployed panel
+        if: github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages
           git worktree add /tmp/ghp origin/gh-pages --detach
@@ -140,6 +163,7 @@ jobs:
       # the default branch, so the fix is to dispatch it there rather than to add
       # a push trigger here.
       - name: Rebuild the published panel
+        if: github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

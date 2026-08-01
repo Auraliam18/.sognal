@@ -16,7 +16,7 @@ on:
   schedule:
     - cron: "23 3 * * *"
   push:
-    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    branches: [main, claude/hamid-signal-agent-smc-dkot7v]
     paths:
       - "claude-liam-signal/python/mine*"
       - "claude-liam-signal/python/brain.py"
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/hamid-signal-agent-smc-dkot7v
+          ref: main
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
@@ -67,12 +67,19 @@ jobs:
         run: |
           { echo '```'; tail -n 80 mine-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
 
-      - name: Commit what was learned
-        env:
-          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+      # Its own step because more than one later step commits, and tying the
+      # identity to one of them meant a skipped step left the next one unable to
+      # commit at all. That is exactly how this broke.
+      - name: Git identity
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
+
+      - name: Commit what was learned
+        if: github.ref == 'refs/heads/main'
+        env:
+          BRANCH: main
+        run: |
           git add brain
           git diff --cached --quiet && { echo "nothing new"; exit 0; }
           git commit -q -m "Mined the past $(date -u '+%Y-%m-%d %H:%M') UTC

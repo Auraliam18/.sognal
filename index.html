@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v17.1 · اتاق یادگیری در مسیر سیگنال</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v19.0 · هشت منبع داده، بیت‌یونیکس اول</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -2066,6 +2066,209 @@ async function runBacktest(auto){
    indistinguishable from a quiet market. Try the configured base, then the
    known mirrors, remember whichever answers, and record every outcome so the
    panel can say plainly whether data is arriving. */
+/* =========================================================================
+   MARKET DATA SOURCES — because Binance is blocked where this panel is used.
+
+   The panel is used from Iran. Binance answers nothing there, and every earlier
+   version of this file assumed it would, so the panel opened to a red box and a
+   suggestion to find a VPN. That was the panel describing its own failure
+   rather than working, and it is what this replaces.
+
+   Eight exchanges, tried in order until one answers. Bitunix first because it
+   is the one that works from Iran; the rest are there so a single exchange
+   going down or blocking a region never takes the panel with it. Whichever
+   answers is remembered and tried first next time.
+
+   The shapes are not guesses. Every one below was probed for real 15m candles
+   and the reply recorded, because these APIs disagree in ways that produce a
+   chart that looks perfectly normal and is wrong:
+
+     kucoin   [time, open, CLOSE, HIGH, LOW, volume]   — close before high
+     gate     [time, VOLUME, close, high, low, open]   — volume in second place
+     okx, bybit, kucoin return newest-first; the rest oldest-first
+     kucoin, gate, lbank report seconds; the rest milliseconds
+
+   Read any of those the Binance way and the candles come out inverted or
+   scrambled with nothing on screen to say so. So each source declares its own
+   field order and its own time unit, and `norm` puts them all into one shape:
+   {t in ms, o, h, l, c, v}, oldest first.
+   ========================================================================= */
+const SOURCES=[
+  {
+    id:"bitunix", label:"Bitunix", base:"https://fapi.bitunix.com",
+    /* Rows come back as objects. Note the volume fields are named the other way
+       round from what they hold: quoteVol carries the base amount. Verified
+       against BTC — 98.2 at a price of 63,000 is coins, not dollars. */
+    kline:(s,iv,n)=>`/api/v1/futures/market/kline?symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
+    parse:rows=>rows.map(k=>({t:+k.time,o:+k.open,h:+k.high,l:+k.low,c:+k.close,
+      v:+(k.quoteVol||k.baseVol||0)})),
+    ticker:()=>`/api/v1/futures/market/tickers`,
+    parseTickers:rows=>rows.map(t=>({symbol:t.symbol,quoteVolume:+(t.quoteVol||t.baseVol||0),
+      priceChangePercent:+(t.priceChangePercent||t.change||0)*(Math.abs(+(t.change||0))<1?100:1),
+      lastPrice:+(t.lastPrice||t.last||t.markPrice||0)})),
+  },
+  {
+    id:"mexc", label:"MEXC", base:"https://api.mexc.com",
+    /* Binance-shaped, which makes it the safest fallback of the eight. */
+    kline:(s,iv,n)=>`/api/v3/klines?symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"60m","4h":"4h","1d":"1d"},
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
+    ticker:()=>`/api/v3/ticker/24hr`,
+    parseTickers:rows=>rows.map(t=>({symbol:t.symbol,quoteVolume:+t.quoteVolume,
+      priceChangePercent:+t.priceChangePercent,lastPrice:+t.lastPrice})),
+  },
+  {
+    id:"kucoin", label:"KuCoin", base:"https://api.kucoin.com",
+    sym:s=>s.replace(/USDT$/,"-USDT"),
+    unsym:s=>s.replace("-",""),
+    /* [time, open, CLOSE, HIGH, LOW, volume, turnover] — close sits where
+       Binance puts high. Newest first, and time in seconds. */
+    kline:(s,iv)=>`/api/v1/market/candles?type=${iv}&symbol=${s}`,
+    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"1hour","4h":"4hour","1d":"1day"},
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0]*1000,o:+k[1],c:+k[2],h:+k[3],l:+k[4],v:+k[5]})).reverse(),
+    ticker:()=>`/api/v1/market/allTickers`,
+    parseTickers:j=>(j.ticker||[]).filter(t=>/-USDT$/.test(t.symbol)).map(t=>({
+      symbol:t.symbol.replace("-",""),quoteVolume:+t.volValue,
+      priceChangePercent:+t.changeRate*100,lastPrice:+t.last})),
+    tickerEnvelope:j=>j.data,
+  },
+  {
+    id:"bybit", label:"Bybit", base:"https://api.bybit.com",
+    kline:(s,iv,n)=>`/v5/market/kline?category=spot&symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D"},
+    envelope:j=>j.result&&j.result.list,
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
+    ticker:()=>`/v5/market/tickers?category=spot`,
+    tickerEnvelope:j=>j.result&&j.result.list,
+    parseTickers:rows=>rows.filter(t=>/USDT$/.test(t.symbol)).map(t=>({
+      symbol:t.symbol,quoteVolume:+t.turnover24h,
+      priceChangePercent:+t.price24hPcnt*100,lastPrice:+t.lastPrice})),
+  },
+  {
+    id:"okx", label:"OKX", base:"https://www.okx.com",
+    sym:s=>s.replace(/USDT$/,"-USDT"),
+    kline:(s,iv,n)=>`/api/v5/market/candles?instId=${s}&bar=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1H","4h":"4H","1d":"1D"},
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
+    ticker:()=>`/api/v5/market/tickers?instType=SPOT`,
+    tickerEnvelope:j=>j.data,
+    parseTickers:rows=>rows.filter(t=>/-USDT$/.test(t.instId)).map(t=>({
+      symbol:t.instId.replace("-",""),quoteVolume:+t.volCcy24h,
+      priceChangePercent:t.open24h?((+t.last/+t.open24h-1)*100):0,lastPrice:+t.last})),
+  },
+  {
+    id:"bitget", label:"Bitget", base:"https://api.bitget.com",
+    kline:(s,iv,n)=>`/api/v2/spot/market/candles?symbol=${s}&granularity=${iv}&limit=${n}`,
+    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"1h","4h":"4h","1d":"1day"},
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
+    ticker:()=>`/api/v2/spot/market/tickers`,
+    tickerEnvelope:j=>j.data,
+    parseTickers:rows=>rows.filter(t=>/USDT$/.test(t.symbol)).map(t=>({
+      symbol:t.symbol,quoteVolume:+t.usdtVolume,
+      priceChangePercent:+t.change24h*100,lastPrice:+t.lastPr})),
+  },
+  {
+    id:"gate", label:"Gate.io", base:"https://api.gateio.ws",
+    sym:s=>s.replace(/USDT$/,"_USDT"),
+    /* [time, VOLUME, close, high, low, open] — the only one that puts volume
+       second and open last. Seconds, oldest first. */
+    kline:(s,iv,n)=>`/api/v4/spot/candlesticks?currency_pair=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
+    parse:rows=>rows.map(k=>({t:+k[0]*1000,v:+k[1],c:+k[2],h:+k[3],l:+k[4],o:+k[5]})),
+    ticker:()=>`/api/v4/spot/tickers`,
+    parseTickers:rows=>rows.filter(t=>/_USDT$/.test(t.currency_pair)).map(t=>({
+      symbol:t.currency_pair.replace("_",""),quoteVolume:+t.quote_volume,
+      priceChangePercent:+t.change_percentage,lastPrice:+t.last})),
+  },
+  {
+    id:"binance", label:"Binance", base:"https://api.binance.com",
+    kline:(s,iv,n)=>`/api/v3/klines?symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
+    ticker:()=>`/api/v3/ticker/24hr`,
+    parseTickers:rows=>rows.map(t=>({symbol:t.symbol,quoteVolume:+t.quoteVolume,
+      priceChangePercent:+t.priceChangePercent,lastPrice:+t.lastPrice})),
+  },
+];
+
+/* A source is only usable if what it returned is actually candles. A reply that
+   parses into rows of NaN, or that runs backwards, is worse than no reply —
+   it would be charted. */
+function sourceSane(cd){
+  if(!Array.isArray(cd)||cd.length<10)return false;
+  const bad=cd.filter(k=>!isFinite(k.t)||!isFinite(k.o)||!isFinite(k.h)||
+    !isFinite(k.l)||!isFinite(k.c)||k.h<k.l||k.o<=0||k.c<=0);
+  if(bad.length)return false;
+  return cd[0].t<cd[cd.length-1].t;              // oldest first, always
+}
+
+function sourceOrder(){
+  const ok=DB.get("source_ok");
+  const list=SOURCES.slice();
+  if(ok){const i=list.findIndex(s=>s.id===ok);if(i>0)list.unshift(list.splice(i,1)[0]);}
+  return list;
+}
+function sourceById(id){return SOURCES.find(s=>s.id===id)||SOURCES[0];}
+function currentSource(){return sourceById(DB.get("source_ok")||SOURCES[0].id);}
+
+async function srcJSON(src,path){
+  const r=await fetch(src.base+path,{cache:"no-store"});
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return r.json();
+}
+
+/* Candles from whichever exchange answers, in one shape. */
+async function fetchKlinesAny(sym,iv,limit){
+  limit=limit||(typeof S!=="undefined"&&S.kline_limit)||300;
+  let lastErr=null;
+  for(const src of sourceOrder()){
+    const mapped=src.ivMap[iv];
+    if(!mapped)continue;
+    try{
+      const s=src.sym?src.sym(sym):sym;
+      const j=await srcJSON(src,src.kline(s,mapped,limit));
+      const rows=src.envelope?src.envelope(j):(Array.isArray(j)?j:j.data);
+      if(!Array.isArray(rows)||!rows.length)throw new Error("no rows");
+      const cd=src.parse(rows);
+      if(!sourceSane(cd))throw new Error("reply did not look like candles");
+      if(DB.get("source_ok")!==src.id){
+        DB.set("source_ok",src.id);
+        opslog("sup",`دادهٔ بازار از ${src.label} گرفته می‌شود`,"sig");
+      }
+      diagNet(true);
+      return cd.slice(-limit);
+    }catch(e){lastErr=e;}
+  }
+  diagNet(false,lastErr&&lastErr.message);
+  throw lastErr||new Error("هیچ منبع دادهٔ بازاری در دسترس نیست");
+}
+
+async function fetchTickersAny(){
+  let lastErr=null;
+  for(const src of sourceOrder()){
+    if(!src.ticker)continue;
+    try{
+      const j=await srcJSON(src,src.ticker());
+      const rows=src.tickerEnvelope?src.tickerEnvelope(j):(Array.isArray(j)?j:j.data);
+      if(!rows)throw new Error("no rows");
+      const out=src.parseTickers(rows).filter(t=>t.symbol&&isFinite(t.lastPrice)&&t.lastPrice>0);
+      if(out.length<20)throw new Error("too few tickers");
+      if(DB.get("source_ok")!==src.id){
+        DB.set("source_ok",src.id);
+        opslog("sup",`فهرست بازار از ${src.label} گرفته می‌شود`,"sig");
+      }
+      diagNet(true);
+      return out;
+    }catch(e){lastErr=e;}
+  }
+  diagNet(false,lastErr&&lastErr.message);
+  throw lastErr||new Error("هیچ منبع دادهٔ بازاری در دسترس نیست");
+}
+
 const API_HOSTS=["https://fapi.binance.com","https://fapi1.binance.com","https://fapi2.binance.com","https://fapi3.binance.com"];
 function apiBases(){
   const pref=DB.get("api_ok")||CFG.apiBase;
@@ -2087,9 +2290,20 @@ async function jget(path){
   throw lastErr||new Error("no api host reachable");
 }
 function parseKlines(raw){return raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));}
-async function fetchKlines(sym,iv,limit=S.kline_limit){return parseKlines(await jget(`/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${limit}`));}
-async function fetchTickers(){return jget(`/fapi/v1/ticker/24hr`);}
-async function fetchFundingMap(){const a=await jget(`/fapi/v1/premiumIndex`);const m={};a.forEach(x=>m[x.symbol]=+x.lastFundingRate||0);return m;}
+/* Every candle in the panel comes through here, and it no longer assumes one
+   exchange. Binance is last in the list, not first, because where this is used
+   it answers nothing. */
+async function fetchKlines(sym,iv,limit=S.kline_limit){return fetchKlinesAny(sym,iv,limit);}
+async function fetchTickers(){return fetchTickersAny();}
+/* Funding exists only on the perpetuals venue. When the data is coming from a
+   spot source there is no funding to report, and an empty map is the truthful
+   answer — the engine treats a missing rate as neutral rather than as zero
+   pressure it invented. */
+async function fetchFundingMap(){
+  if(currentSource().id!=="binance"&&currentSource().id!=="bitunix")return{};
+  try{const a=await jget(`/fapi/v1/premiumIndex`);const m={};a.forEach(x=>m[x.symbol]=+x.lastFundingRate||0);return m;}
+  catch(e){return{};}
+}
 
 async function fetchMarketContext(){
   try{
@@ -2124,7 +2338,7 @@ const COMMODITY_KEEP=new Set(["XAU","XAUT","PAXG","GOLD","XAG","SILVER","SLV","O
 function isForexPair(asset){return FX_FIAT.has(asset)&&!COMMODITY_KEEP.has(asset);}
 async function buildUniverse(tickers){
   const rows=tickers.filter(t=>t.symbol.endsWith("USDT")&&!/(_|UPUSDT|DOWNUSDT|BULL|BEAR)/.test(t.symbol))
-    .map(t=>({binance_symbol:t.symbol,asset_symbol:t.symbol.replace("USDT",""),quoteVolume:+t.quoteVolume,change_24h_pct:+t.priceChangePercent,lastPrice:+t.lastPrice}))
+    .map(t=>({binance_symbol:t.symbol,asset_symbol:t.symbol.replace("USDT",""),quoteVolume:+t.quoteVolume||0,change_24h_pct:+t.priceChangePercent||0,lastPrice:+t.lastPrice}))
     .filter(a=>!isForexPair(a.asset_symbol));
   const commodities=rows.filter(a=>COMMODITY_KEEP.has(a.asset_symbol));
   const crypto=rows.filter(a=>!COMMODITY_KEEP.has(a.asset_symbol)).sort((a,b)=>b.quoteVolume-a.quoteVolume);
@@ -3131,7 +3345,7 @@ function diagRecord(rows){
 
    The panel's own live feed always wins when it has one. This is the fallback.
    ========================================================================= */
-const RELAY={data:null,at:0,err:null,tried:0};
+const RELAY={data:null,at:0,err:null,tried:0,only:"all"};
 function relayStale(){return !RELAY.data||Date.now()-RELAY.data.generated>25*60000;}
 async function relayFetch(){
   try{
@@ -3206,7 +3420,8 @@ function relayHTML(){
     </div></div>`;
   /* When nothing has fired, the setups already inside the box are the whole
      story — they are one candle close away, and a bare count hides them. */
-  const armed=(j.watch||[]).filter(s=>s.stage==="ARMED"||s.stage==="PULLBACK_1").slice(0,10);
+  const armed=(j.watch||[]).filter(s=>s.stage==="ARMED"||s.stage==="PULLBACK_1")
+    .filter(s=>RELAY.only==="all"||s.strategy===RELAY.only).slice(0,10);
   const near=armed.length?`<div class="box" style="margin-top:10px;border-color:#f0a92e55">
     <h3 style="margin:0 0 6px">نزدیک‌ترین‌ها به سیگنال</h3>
     <div class="dim" style="font-size:11px;margin-bottom:6px">
@@ -3222,7 +3437,39 @@ function relayHTML(){
       <span class="dim">R:R ${s.rr} · اعتماد ${s.conf}٪</span>
       ${s.skip?`<span class="dim" style="flex-basis:100%;color:#8b98ab">مانع: ${s.skip}</span>`:""}
     </div>`).join("")}</div>`:"";
-  return head+j.signals.slice(0,12).map(relayCard).join("")+near;
+  /* Two strategies, two desks. They are counted and shown apart because the
+     whole point of running both is to find out which one is carrying the
+     result — pooling them would hide exactly that. The measured expectancy of
+     each sits under its own tab so a signal is never read without it. */
+  const mine=j.signals.filter(s=>RELAY.only==="all"||s.strategy===RELAY.only);
+  const per=j.per_strategy||{};
+  const tab=(key,label)=>{
+    const on=RELAY.only===key;
+    const n=key==="all"?j.signals.length:(per[key]?per[key].signals:0);
+    return `<button type="button" onclick="RELAY.only=${JSON.stringify(key)};renderWhy()"
+      style="appearance:none;cursor:pointer;font:inherit;font-size:12.5px;padding:6px 14px;
+        border-radius:6px;border:1px solid ${on?"#2f7d5b":"rgba(140,160,190,.18)"};
+        background:${on?"#12241d":"transparent"};color:${on?"#8fe3bd":"#8b98ab"}">
+      ${label} <b>${n}</b></button>`;
+  };
+  const verdicts={
+    ibs:{n:1995,win:"30.4",ev:"+0.011",ci:"[-0.055, +0.075]",clears:false},
+    smc:{n:1570,win:"26.1",ev:"+0.117",ci:"[+0.032, +0.203]",clears:true}};
+  const v=verdicts[RELAY.only];
+  const measured=v?`<div class="dim" style="font-size:11.5px;margin-top:8px;line-height:1.8">
+      اندازه‌گیری روی ۶۸ ارز و ۳۰ روز کندل واقعی، با شرط پر شدن سفارش:
+      <b class="mono">${v.n}</b> ستاپ · برد <b>${v.win}٪</b> ·
+      انتظار <b style="color:${v.clears?"#2ecc71":"#8b98ab"}">${v.ev}R</b>
+      <span class="mono">${v.ci}</span>
+      ${v.clears?"— بازه بالای صفر":"— بازه صفر را در بر می‌گیرد، یعنی لبهٔ قابل اندازه‌گیری ندارد"}
+    </div>`:"";
+  const tabs=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px">
+      ${tab("all","هر دو")}${tab("smc","کانال + اردر بلاک")}${tab("ibs","IBS + پولبک")}
+    </div>${measured}`;
+
+  const none=mine.length?"":`<div class="dim" style="font-size:12.5px;padding:10px 2px">
+    این استراتژی در اسکن آخر سیگنالی نداد. عدد بالا می‌گوید چند ستاپ در مرحلهٔ آماده دارد.</div>`;
+  return head+tabs+none+mine.slice(0,12).map(relayCard).join("")+near;
 }
 
 function renderWhy(){
@@ -3239,10 +3486,12 @@ function diagHTML(){
   let verdict,detail,tone;
   if(dataDown){
     tone="#e74c3c";
-    verdict="داده‌ای از بایننس نمی‌رسد";
+    verdict="هیچ‌کدام از منابع بازار جواب ندادند";
     detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
-      اگر از ایران وصل می‌شوی، بایننس دسترسی را می‌بندد و پنل هیچ کندلی نمی‌گیرد.
-      راه‌حل: یا از VPN استفاده کن، یا در «تنظیمات» آدرس پایهٔ API را به یک میرر در دسترس تغییر بده.`;
+      پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و اولین جوابی که
+      واقعاً کندل باشد را برمی‌دارد. اینکه هیچ‌کدام جواب نداده یعنی یا اینترنت قطع است،
+      یا فایروال هر هشت‌تا را بسته. با VPN همه‌شان باز می‌شوند، ولی بدون VPN هم
+      بیت‌یونیکس معمولاً از ایران در دسترس است.`;
   }else if(!tot){
     tone="#f0a92e";
     verdict="هنوز اسکنی کامل نشده";
