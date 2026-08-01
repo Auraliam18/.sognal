@@ -91,13 +91,19 @@ jobs:
       # working branch triggers this workflow, and without this guard that run
       # would check out main, scan, and commit to main — so a branch push
       # silently moved the trunk, which is what made PR #3 conflict with itself.
+      # Its own step because more than one later step commits, and tying the
+      # identity to one of them meant a skipped step left the next one unable to
+      # commit at all. That is exactly how this broke.
+      - name: Git identity
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
       - name: Publish to main
         if: github.ref == 'refs/heads/main'
         env:
           BRANCH: main
         run: |
-          git config user.name "Claude"
-          git config user.email "noreply@anthropic.com"
           # brain/ as well as signals/: the scan writes the events room and each
           # room's state too. Staging only signals/ left those modifications
           # unstaged, and `git rebase` refuses to run with a dirty tree — which
@@ -134,6 +140,7 @@ jobs:
       # relative to itself, so the file has to be there too or the relay reads
       # a 404 and the panel stays blind for no reason.
       - name: Publish to the deployed panel
+        if: github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages
           git worktree add /tmp/ghp origin/gh-pages --detach
@@ -156,6 +163,7 @@ jobs:
       # the default branch, so the fix is to dispatch it there rather than to add
       # a push trigger here.
       - name: Rebuild the published panel
+        if: github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

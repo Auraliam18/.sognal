@@ -67,13 +67,19 @@ jobs:
         run: |
           { echo '```'; tail -n 80 mine-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
 
+      # Its own step because more than one later step commits, and tying the
+      # identity to one of them meant a skipped step left the next one unable to
+      # commit at all. That is exactly how this broke.
+      - name: Git identity
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
       - name: Commit what was learned
         if: github.ref == 'refs/heads/main'
         env:
           BRANCH: main
         run: |
-          git config user.name "Claude"
-          git config user.email "noreply@anthropic.com"
           git add brain
           git diff --cached --quiet && { echo "nothing new"; exit 0; }
           git commit -q -m "Mined the past $(date -u '+%Y-%m-%d %H:%M') UTC
