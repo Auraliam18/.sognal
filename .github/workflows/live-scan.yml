@@ -12,15 +12,22 @@
 # follows the real-candle backtest: 5m measured an edge, 15m did not.
 name: Live scan
 
-# `schedule` only fires for workflows that exist on the repository's DEFAULT
-# branch. This file had lived only on the working branch, so its cron never ran
-# once — every execution came from the push trigger below. It is on main now,
-# which is what makes the schedule real.
+# The cron was "*/10 * * * *" and GitHub never ran it — 63 minutes on the
+# default branch, six missed windows, zero scheduled runs while the two
+# lower-frequency workflows in this repo fired normally. Every `*/N` schedule in
+# the world fires on the same instants, so those windows are the most contended
+# ones there are, and a free account's job is what gets dropped.
+#
+# Two specific minutes, deliberately odd, avoid that pile-up. Half-hourly is
+# also honest about what a shared runner will actually deliver, and it costs
+# little now: the panel fetches its own candles direct from the exchange, so
+# this relay is the fallback for when nothing is open rather than the only way
+# data arrives.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "7,37 * * * *"
   push:
-    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    branches: [main, claude/hamid-signal-agent-smc-dkot7v]
     paths:
       - "claude-liam-signal/python/scan*"
       - ".github/workflows/live-scan.yml"
@@ -46,7 +53,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/hamid-signal-agent-smc-dkot7v
+          # main, not the working branch: the scan is normal operation and its
+          # output belongs on the trunk. Publishing to a side branch left main's
+          # signals/ and brain/ 49 minutes behind what the panel was serving,
+          # which is the kind of drift that makes a repository lie about itself.
+          ref: main
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
@@ -78,7 +89,7 @@ jobs:
 
       - name: Publish to the working branch
         env:
-          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+          BRANCH: main
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"

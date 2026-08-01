@@ -16,7 +16,7 @@ on:
   schedule:
     - cron: "23 3 * * *"
   push:
-    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    branches: [main, claude/hamid-signal-agent-smc-dkot7v]
     paths:
       - "claude-liam-signal/python/mine*"
       - "claude-liam-signal/python/brain.py"
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: claude/hamid-signal-agent-smc-dkot7v
+          ref: main
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
@@ -69,7 +69,7 @@ jobs:
 
       - name: Commit what was learned
         env:
-          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+          BRANCH: main
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
