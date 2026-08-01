@@ -1,0 +1,103 @@
+{
+  "name": "Signal — morning digest",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "23 7 * * *"}]}},
+      "id": "trigger",
+      "name": "Every morning 07:23",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-620, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/repos/Auraliam18/.sognal/contents/claude-liam-signal/cycles/latest.md?ref=claude/hamid-signal-agent-smc-dkot7v",
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "id": "cycle",
+      "name": "Last cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 220]
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/repos/Auraliam18/.sognal/contents/claude-liam-signal/cycles/search-latest.md?ref=claude/hamid-signal-agent-smc-dkot7v",
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "id": "search",
+      "name": "Overnight search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 380]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge",
+      "name": "Both reports",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [-180, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const dec = c => c ? Buffer.from(c, 'base64').toString('utf8') : '';\nconst all = $input.all().map(i => dec(i.json.content));\nconst cycle = all.find(t => t.startsWith('# Paper trading cycle')) || '';\nconst search = all.find(t => t.startsWith('# Parameter search')) || '';\n\nconst verdictOf = md => {\n  const i = md.indexOf('## Verdict');\n  const j = md.indexOf('## Action');\n  const at = i >= 0 ? i : j;\n  return at >= 0 ? md.slice(at).split('\\n').slice(2).join('\\n').trim() : '';\n};\nconst head = (cycle.match(/\\*\\*Overall:.+/) || [''])[0].replace(/\\*\\*/g, '');\n\nreturn [{ json: {\n  subject: `Signal — ${new Date().toISOString().slice(0, 10)}`,\n  body: [\n    'Overnight, in two lines.', '',\n    head || 'No cycle report found.', '',\n    'Cycle verdict:', verdictOf(cycle) || '—', '',\n    'Parameter search:', verdictOf(search) || '—', '',\n    'Panel: https://auraliam18.github.io/.sognal',\n    'Reports: github.com/Auraliam18/.sognal → claude-liam-signal/cycles',\n    '',\n    'These figures come from simulated markets. The real one appears once the',\n    'panel has run on live candles and settled its own positions.'\n  ].join('\\n')\n}}];"
+      },
+      "id": "compose",
+      "name": "Compose the digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [40, 300]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {"sendTo": "={{ $env.DIGEST_TO }}"}
+      },
+      "id": "gmail",
+      "name": "Draft, not send",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [280, 220],
+      "notesInFlow": true,
+      "notes": "A draft — sending from Hamid's account is his call"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_CHAT, text: '🌅 ' + $json.body }) }}",
+        "options": {}
+      },
+      "id": "tg",
+      "name": "Same to Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 380]
+    }
+  ],
+  "connections": {
+    "Every morning 07:23": {"main": [[
+      {"node": "Last cycle", "type": "main", "index": 0},
+      {"node": "Overnight search", "type": "main", "index": 0}
+    ]]},
+    "Last cycle": {"main": [[{"node": "Both reports", "type": "main", "index": 0}]]},
+    "Overnight search": {"main": [[{"node": "Both reports", "type": "main", "index": 1}]]},
+    "Both reports": {"main": [[{"node": "Compose the digest", "type": "main", "index": 0}]]},
+    "Compose the digest": {"main": [[
+      {"node": "Draft, not send", "type": "main", "index": 0},
+      {"node": "Same to Telegram", "type": "main", "index": 0}
+    ]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "pinData": {}
+}

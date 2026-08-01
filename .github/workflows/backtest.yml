@@ -1,0 +1,105 @@
+# Backtests both strategies on candles that really traded.
+#
+# This has to run here rather than on the laptop for two reasons: the runner has
+# the cores, and it can reach Binance, which some networks block outright. What
+# it produces is the one number the simulator cannot give — how the engine did on
+# the actual tape, on 15m and 5m, for the original strategy and the channel-rules
+# strategy side by side.
+name: Historical backtest
+
+on:
+  schedule:
+    - cron: "37 5 * * *"        # once a day, after the overnight parameter search
+  # Until this file reaches the default branch, the schedule cannot fire and
+  # neither can a manual dispatch — GitHub only offers those from the default
+  # branch. A push trigger scoped to the working branch runs it in the meantime.
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/**"
+      - ".github/workflows/backtest.yml"
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "How many of the most-traded pairs"
+        default: "60"
+      bars:
+        description: "Candles per series per timeframe"
+        default: "5000"
+      tf:
+        description: "Timeframes, comma separated"
+        default: "15m,5m"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run the backtest
+        run: |
+          python3 claude-liam-signal/python/backtest.py \
+            --symbols "${{ github.event.inputs.symbols || '60' }}" \
+            --bars "${{ github.event.inputs.bars || '5000' }}" \
+            --tf "${{ github.event.inputs.tf || '15m,5m' }}" \
+            | tee backtest-output.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '```'
+            tail -n 60 backtest-output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit the report
+        env:
+          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add claude-liam-signal/backtests
+          if git diff --cached --quiet; then
+            echo "nothing new"
+            exit 0
+          fi
+          git commit -m "Historical backtest on real candles $(date -u '+%Y-%m-%d %H:%M') UTC
+
+          Both strategies replayed through the shipped engine over real 15m and
+          5m klines. Expectancy and 95% bootstrap intervals per strategy, per
+          timeframe and per direction are in claude-liam-signal/backtests."
+          # The run takes minutes, and a session working on the same branch can
+          # land a commit in that window — which is exactly what sank the first
+          # run. Rebase onto whatever arrived and try again; the report is a new
+          # file each time, so there is nothing for a rebase to conflict with.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$BRANCH"; then
+              echo "pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected, rebasing onto $BRANCH (attempt $attempt)"
+            git fetch origin "$BRANCH" || true
+            git -c rebase.autoStash=true rebase "origin/$BRANCH" \
+              || { git rebase --abort 2>/dev/null; exit 1; }
+            sleep $((attempt * 3))
+          done
+          echo "could not push the report after five attempts"
+          exit 1

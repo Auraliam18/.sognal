@@ -1,0 +1,105 @@
+# Mines the past of the top coins with both strategies and stores what it learns.
+#
+# This is paper trading as it was actually asked for: go back through candles
+# that really traded, find every place either strategy fired, see what happened
+# next, and keep it — with enough of the surrounding conditions that the reason
+# can be found afterwards rather than invented at the time.
+#
+# Heavy, so it belongs here rather than on the laptop.
+name: Mine the past
+
+# `schedule` only fires for workflows that exist on the repository's DEFAULT
+# branch. This file had lived only on the working branch, so its cron never ran
+# once — every execution came from the push trigger below. It is on main now,
+# which is what makes the schedule real.
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/mine*"
+      - "claude-liam-signal/python/brain.py"
+      - ".github/workflows/mine.yml"
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "How many coins"
+        default: "70"
+      days:
+        description: "How many days back"
+        default: "30"
+      per_side:
+        description: "Setups per side per strategy per coin"
+        default: "15"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mine
+  cancel-in-progress: false
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/hamid-signal-agent-smc-dkot7v
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Mine
+        run: |
+          python3 claude-liam-signal/python/mine.py \
+            --symbols "${{ github.event.inputs.symbols || '70' }}" \
+            --days "${{ github.event.inputs.days || '30' }}" \
+            --per-side "${{ github.event.inputs.per_side || '15' }}" \
+            | tee mine-output.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; tail -n 80 mine-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit what was learned
+        env:
+          BRANCH: claude/hamid-signal-agent-smc-dkot7v
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Mined the past $(date -u '+%Y-%m-%d %H:%M') UTC
+
+          Both strategies over the same coins and the same days, with the market
+          context at each setup. Experiences, events and patterns are in brain/."
+          # Another run can land while this one works. Rebasing generated files
+          # conflicts for no good reason, so this merges instead: .gitattributes
+          # union-merges the append-only logs, and for the whole-file room state
+          # the copy this run just produced is the fresher one and wins.
+          for attempt in 1 2 3 4 5; do
+            git push origin "HEAD:$BRANCH" && exit 0
+            git fetch origin "$BRANCH" || true
+            if ! git merge --no-edit "origin/$BRANCH"; then
+              # Resolve every generated path, not just rooms: staging brain/
+              # wholesale after a partial resolution once committed a file with
+              # its conflict markers still in it, which left the recall index
+              # unparseable and silently disabled learning.
+              git checkout --ours -- brain signals 2>/dev/null || true
+              git add -A brain signals 2>/dev/null || git add -A brain || true
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            # Never publish a file carrying conflict markers.
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain signals; then
+              echo "refusing to push: conflict markers survived the merge"
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          exit 1

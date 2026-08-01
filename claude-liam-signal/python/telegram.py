@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Sends a signal to Telegram as a chart with the numbers written on it.
+
+The panel already sends signals from the browser when it is open and can reach
+the exchange. This is the other path: the scan runs on a GitHub runner every ten
+minutes whether anything is open or not, and this delivers what it finds.
+
+Two rules that matter more than the formatting.
+
+A signal is sent once. The scan re-runs every ten minutes and the same setup
+will still be there on the next pass, so without a memory of what has gone out
+the same trade would arrive six times an hour. `signals/sent.json` is that
+memory, keyed on symbol, timeframe, direction and the entry price rounded, and
+it forgets an entry after twelve hours so a genuinely new setup on the same pair
+can still arrive.
+
+Nothing is sent without credentials. No token means no delivery and a printed
+line saying so — never a silent success.
+
+    TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... python3 scan.py --telegram
+"""
+import json, os, time, urllib.error, urllib.request, uuid
+from pathlib import Path
+
+API = "https://api.telegram.org"
+SENT = Path(__file__).resolve().parent.parent.parent / "signals" / "sent.json"
+TTL_MS = 12 * 3600 * 1000
+
+
+def creds():
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    return (tok, chat) if tok and chat else (None, None)
+
+
+def _load_sent():
+    try:
+        d = json.loads(SENT.read_text())
+        now = time.time() * 1000
+        return {k: v for k, v in d.items() if now - v < TTL_MS}
+    except Exception:                                # noqa: BLE001 - a missing or torn file is an empty memory
+        return {}
+
+
+def _key(s):
+    return f"{s.get('strategy','?')}|{s['sym']}|{s['tf']}|{s['dir']}|{float(s['entry']):.10g}"
+
+
+def _post(token, method, fields, files=None):
+    """multipart/form-data by hand — sendPhoto needs it and stdlib has no helper."""
+    boundary = uuid.uuid4().hex
+    body = bytearray()
+    for k, v in fields.items():
+        body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n"
+                 f"{v}\r\n").encode()
+    for k, (name, blob) in (files or {}).items():
+        body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"; "
+                 f"filename=\"{name}\"\r\nContent-Type: image/png\r\n\r\n").encode()
+        body += blob + b"\r\n"
+    body += f"--{boundary}--\r\n".encode()
+    req = urllib.request.Request(
+        f"{API}/bot{token}/{method}", data=bytes(body),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urllib.request.urlopen(req, timeout=45) as r:
+        return json.load(r)
+
+
+def caption(s):
+    dir_fa = "🟢 خرید (LONG)" if s["dir"] == "LONG" else "🔴 فروش (SHORT)"
+    L = [f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
+    # Which strategy produced this. Two strategies run side by side and a signal
+    # that does not say which one it came from cannot be judged or learned from.
+    if s.get("strategyName"):
+        L.append(f"استراتژی: <b>{s['strategyName']}</b>")
+    L.append("")
+    L.append(f"ورود    <code>{s['entry']:.10g}</code>")
+    L.append(f"استاپ   <code>{s['sl']:.10g}</code>")
+    L.append(f"تارگت۱  <code>{s['tp1']:.10g}</code>")
+    if s.get("tp2") is not None:
+        L.append(f"تارگت۲  <code>{s['tp2']:.10g}</code>")
+    line = f"ریسک/ریوارد <b>{s['rr']}</b>"
+    if s.get("conf") is not None:
+        line += f" · اعتماد <b>{s['conf']}%</b>"
+    if s.get("ev") is not None:
+        line += f" · انتظار <b>{s['ev']:.2f}R</b>"
+    if s.get("quality") is not None:
+        line += f" · کیفیت <b>{s['quality']}</b>"
+    L += ["", line]
+    if s.get("ob"):
+        L.append(f"اردر بلاک <code>{s['ob']['low']:.10g} — {s['ob']['high']:.10g}</code>")
+    if s.get("channel"):
+        L.append(f"کانال {s['channel']['dir']} ({s['channel']['drift']}%)")
+    bits = []
+    if s.get("fvg"):
+        bits.append("FVG هم‌جهت ✓")
+    if s.get("level"):
+        bits.append(f"روی {'مقاومت' if s['level']['type']=='R' else 'حمایت'} "
+                    f"({s['level']['touches']} برخورد)")
+    if s.get("swept"):
+        bits.append(f"نقدینگی جمع شد ({s['swept']['n']} برخورد)")
+    if s.get("adx") is not None:
+        bits.append(f"ADX {s['adx']}")
+    if bits:
+        L.append(" · ".join(bits))
+    L += ["", "<i>اسکن از راه دور روی کندل واقعی — قبل از ورود خودت هم چارت را ببین.</i>",
+          "<i>وین‌ریت اندازه‌گیری‌شدهٔ این استراتژی روی کندل واقعی ۲۲.۷٪ با انتظار +۰.۰۶۹R "
+          "است: بردها بزرگ‌اند و بیشتر تریدها استاپ می‌خورند. سایز را ثابت نگه دار.</i>"]
+    return "\n".join(L)
+
+
+def send_signals(signals, render_chart, limit=8):
+    """render_chart(setup, path) -> path, or None when a chart cannot be drawn."""
+    token, chat = creds()
+    if not token:
+        print("telegram: no TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID — nothing sent", flush=True)
+        return 0
+    sent = _load_sent()
+    fresh = [s for s in signals if _key(s) not in sent][:limit]
+    if not fresh:
+        print(f"telegram: {len(signals)} signals, all already sent", flush=True)
+        return 0
+
+    ok = 0
+    tmp = Path(__file__).resolve().parent / ".charts"
+    tmp.mkdir(exist_ok=True)
+    for s in fresh:
+        png = None
+        try:
+            png = render_chart(s, str(tmp / f"{s['sym']}-{s['tf']}.png"))
+        except Exception as e:                        # noqa: BLE001 - a chart failure must not lose the signal
+            print(f"  chart failed for {s['sym']}: {e}", flush=True)
+        try:
+            if png:
+                with open(png, "rb") as f:
+                    blob = f.read()
+                _post(token, "sendPhoto",
+                      {"chat_id": chat, "caption": caption(s), "parse_mode": "HTML"},
+                      {"photo": (f"{s['sym']}.png", blob)})
+            else:
+                _post(token, "sendMessage",
+                      {"chat_id": chat, "text": caption(s), "parse_mode": "HTML",
+                       "disable_web_page_preview": "true"})
+            sent[_key(s)] = time.time() * 1000
+            ok += 1
+            print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
+        except urllib.error.HTTPError as e:
+            print(f"  telegram rejected {s['sym']}: {e.code} {e.read()[:200]}", flush=True)
+        except Exception as e:                        # noqa: BLE001 - one failure must not stop the rest
+            print(f"  telegram failed for {s['sym']}: {e}", flush=True)
+
+    SENT.parent.mkdir(parents=True, exist_ok=True)
+    SENT.write_text(json.dumps(sent, indent=1))
+    print(f"telegram: {ok} of {len(fresh)} new signals delivered", flush=True)
+    return ok

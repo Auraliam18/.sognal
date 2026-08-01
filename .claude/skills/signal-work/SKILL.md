@@ -1,0 +1,109 @@
+---
+name: signal-work
+description: Working rules for Hamid's trading panel. Load before changing the engine, reporting a number, tuning a threshold, reviewing paper-trading results, or answering "why is there no signal". Covers what to measure, what to refuse, and how to raise signal accuracy toward the 90% target without fooling ourselves.
+---
+
+# Working on the signal engine
+
+The goal is signals that land above 90%. Nothing below is a style preference —
+each rule exists because breaking it already cost days.
+
+## Measure first, and measure the right thing
+
+Never change a threshold on intuition. The tools are in `tests/`:
+
+```bash
+node tests/evaluate.js          # walk-forward over simulated markets
+node tests/diagnose.js          # where setups die, gate by gate
+node tests/cycle.js             # one full cycle, sharded across cores
+node tests/search.js            # parameter sweep, fitted and judged separately
+python3 claude-liam-signal/python/screener.py   # which symbols deserve attention now
+```
+
+Report expectancy, not win rate. A 98% win rate at 0.74R average is worse than
+44% at 1.89R, and the first version of this engine had exactly that profile
+because targets were the nearest prior swing.
+
+Always bootstrap a confidence interval. **A finding is only acted on once its
+interval clears zero.** This rule has caught two of my own wrong conclusions.
+
+## Sample size is not optional
+
+557 trades gave +0.25R. The same engine over 15,290 trades gave 0.00R. The
+first number was noise and I reported it as a result. Before claiming anything,
+check the sample is in the thousands, and shard across cores:
+
+```bash
+for i in 0 1 2 3; do node tests/worker.js $((1+i*150)) $((1+(i+1)*150)) > /tmp/w$i.json & done; wait
+```
+
+## Overfitting has a specific smell
+
+A configuration that wins in-sample and loses out-of-sample is fitting noise.
+`tests/search.js` fits on one set of markets and judges on another, ranks only
+on the held-out set, and refuses anything whose out-of-sample interval spans
+zero. Adopt a candidate only when:
+
+- the out-of-sample interval is entirely above zero,
+- the gain over what is shipped is worth taking (> 0.02R, not a rounding),
+- and neighbouring cells agree — a lone winning cell in a grid is luck.
+
+I once widened the freshness window to 200 bars on the strength of a trending
+tape I had written minutes earlier. The rigorous simulator put it at −0.16R
+with the whole interval below zero.
+
+## The simulator is a null test, not a market
+
+It has volatility clustering, fat tails and regime switching, and no order
+flow. A strategy that finds edge in it is reading its own noise. Zero there is
+the *correct* result for an honest engine. Say plainly which source a number
+comes from — simulated or live candles — every single time.
+
+## Two desks, different jobs
+
+**The practice desk** trades the live tape at real prices with no money and no
+signal. Its gates are loose on purpose: any structure with a real entry, stop
+and target. A strict desk yields a handful of outcomes a day and teaches the
+learning room nothing. Everything it settles feeds the confidence model and the
+case memory.
+
+**The signal desk** is strict, and before anything goes out the supervisor asks
+the learning room about *that coin, that direction, situations like this one*.
+Enough negative history vetoes it. Below a dozen trades, say the history is too
+thin rather than pretending.
+
+Raising accuracy means growing the practice sample, not tightening the signal
+gate until nothing fires. Zero signals is not 100%.
+
+## One change per cycle
+
+Applying several at once makes the next result unreadable — an improvement
+names no cause, a regression names nothing to undo. Each review grades the
+previous change against trades that closed since, keeps or reverts it, then
+makes at most one new change. A reverted change is quarantined; leaving it
+eligible produced an oscillation rather than a search.
+
+## What "no signal" actually means
+
+Check in this order, because I wasted days assuming the engine:
+
+1. Is data arriving? Binance geo-blocks some regions and an unreachable host
+   looks exactly like a quiet market. The panel says so in a red box.
+2. Is the panel deployed and open?
+3. Run `node tests/diagnose.js` — it counts where setups die. Last time nothing
+   in the decision layer was blocking anything; the engine signalled on 3.6% of
+   checks and the problem was that most of those signals should not have been
+   taken.
+
+## Reporting
+
+Every number needs a script that reproduces it. Corrections come first and
+plainly, with the measurement that overturned the old claim. Never soften a bad
+result — Hamid trades this himself and a flattering number is worse than none.
+
+## Standing tools
+
+Per `CLAUDE.md`: Actions carries all heavy compute, Notion the comparable
+record, Drive the archive, Gmail drafts only, Telegram live delivery, n8n
+orchestration. Use them without being asked. Never put the replay work on the
+laptop.
