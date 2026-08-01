@@ -1,0 +1,32 @@
+# Finds out which exchanges actually answer, and in what shape.
+#
+# Binance is blocked in Iran, which is where this panel is used. Choosing a
+# replacement from documentation is guesswork — field orders differ, some return
+# seconds and some milliseconds, and several return newest-first where Binance
+# returns oldest-first. Getting that wrong produces a chart that looks fine and
+# is reversed. So the adapter is written against observed responses.
+name: Probe data sources
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * *"      # daily, so a source going down is noticed
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Probe
+        run: python3 claude-liam-signal/python/probe_sources.py | tee probe.txt
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; cat probe.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
