@@ -7,10 +7,17 @@
 # is reversed. So the adapter is written against observed responses.
 name: Probe data sources
 
+# `workflow_dispatch` and `schedule` are only offered for workflows on the
+# default branch, so until this merges the push trigger is what runs it.
 on:
   workflow_dispatch:
   schedule:
     - cron: "41 4 * * *"      # daily, so a source going down is noticed
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/probe_sources.py"
+      - ".github/workflows/probe-sources.yml" 
 
 permissions:
   contents: write
@@ -21,7 +28,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with: { ref: main, fetch-depth: 1 }
+        with: { ref: claude/hamid-signal-agent-smc-dkot7v, fetch-depth: 1 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Probe
