@@ -25,14 +25,16 @@ TIMEOUT = 20
 # One 15m request for BTC/USDT from each. Several of these are commonly
 # reachable where Binance is not, which is the whole point of the list.
 SOURCES = [
-    # Venues Iranian traders actually reach come first — the point of this list
-    # is not completeness, it is finding something that answers from Tehran.
+    # Bitunix first: it is the one the panel reads from. The rest are here to
+    # prove there is somewhere to fall back to.
+    #
+    # The Iranian venues were probed here once and are deliberately gone. They
+    # answered, but they are thin local books whose prices lag the global tape,
+    # and this engine reads structure off the candles — an order block drawn on
+    # a shallow book is not the one the market is trading against. Reachable is
+    # not the same as worth reading.
     ("bitunix-futures", "https://fapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=10"),
     ("bitunix-openapi", "https://openapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=10"),
-    ("nobitex",         "https://api.nobitex.ir/market/udf/history?symbol=BTCUSDT&resolution=15&from=1785400000&to=1785600000"),
-    ("wallex",          "https://api.wallex.ir/v1/udf/history?symbol=BTCUSDT&resolution=15&from=1785400000&to=1785600000"),
-    ("tabdeal",         "https://api.tabdeal.org/r/plots/history/?symbol=BTCUSDT&resolution=15&from=1785400000&to=1785600000"),
-    ("ramzinex",        "https://publicapi.ramzinex.com/exchange/api/v1.0/exchange/pairs"),
     ("bingx",           "https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval=15m&limit=10"),
     ("bitmart",         "https://api-cloud.bitmart.com/spot/quotation/v3/klines?symbol=BTC_USDT&step=15&limit=10"),
     ("htx",             "https://api.huobi.pro/market/history/kline?symbol=btcusdt&period=15min&size=10"),

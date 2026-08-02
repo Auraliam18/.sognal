@@ -3,7 +3,7 @@
  * These APIs disagree about field order and about which way time runs, and
  * getting either wrong produces a chart that looks completely normal and is
  * wrong. KuCoin puts close where Binance puts high. Gate puts volume second and
- * open last. Four of the eight return newest-first. None of that is visible on
+ * open last. Half of the twelve return newest-first. None of that is visible on
  * screen, so it has to be caught here.
  *
  * The rows below are copied from the probe's own output — not from any
@@ -22,9 +22,7 @@ const html = readFileSync(ROOT + "index.html", "utf8");
 
 /* Lift SOURCES and its helpers straight out of the panel, so this tests what
    ships rather than a copy that can drift. */
-/* Start at parseUDF, not at SOURCES: the Iranian venues use it and slicing
-   below it left the table referring to a function that was not lifted. */
-const from = html.indexOf("function parseUDF(");
+const from = html.indexOf("const SOURCES=[");
 const to = html.indexOf("async function srcJSON");
 if (from < 0 || to < 0) { console.error("could not find SOURCES in index.html"); process.exit(1); }
 const src = html.slice(from, to);
@@ -44,13 +42,6 @@ const RECORDED = {
     { time: 1785664800000, open: "63239.1", high: "63253.7", low: "63230", close: "63249.8",
       quoteVol: "42.8512", baseVol: "2710134.33232" },
   ],
-  // Iranian venues speak TradingView UDF: parallel arrays, seconds, oldest first.
-  nobitex: { s: "ok", t: [1785664800, 1785665700], o: [63239.1, 63249.8],
-             h: [63253.7, 63260], l: [63230, 63240], c: [63249.8, 63255], v: [42.85, 40.1] },
-  wallex:  { s: "ok", t: [1785664800, 1785665700], o: [63239.1, 63249.8],
-             h: [63253.7, 63260], l: [63230, 63240], c: [63249.8, 63255], v: [42.85, 40.1] },
-  tabdeal: { s: "ok", t: [1785664800, 1785665700], o: [63239.1, 63249.8],
-             h: [63253.7, 63260], l: [63230, 63240], c: [63249.8, 63255], v: [42.85, 40.1] },
   mexc: [
     [1785656700000, "63548.41", "63548.41", "63497.75", "63509.48", "63.64265045", 1785657600000],
     [1785657600000, "63509.48", "63560.00", "63490.00", "63540.00", "51.11", 1785658500000],

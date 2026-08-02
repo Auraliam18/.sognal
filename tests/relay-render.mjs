@@ -14,7 +14,7 @@ const TYPES = { ".html":"text/html; charset=utf-8", ".js":"text/javascript; char
   ".json":"application/json", ".png":"image/png", ".webmanifest":"application/manifest+json" };
 const server = createServer(async (req,res)=>{
   const p = decodeURIComponent(req.url.split("?")[0]);
-  for (const base of [OVERLAY, ROOT]) {
+  for (const base of [OVERLAY, ROOT].filter(Boolean)) {
     const f = join(base, p === "/" ? "index.html" : p);
     try { const b = await readFile(f);
       res.writeHead(200,{ "content-type": TYPES[extname(f)]||"application/octet-stream" });

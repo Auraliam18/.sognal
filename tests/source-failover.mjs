@@ -1,6 +1,6 @@
 /* آیا پنل واقعاً از یک منبع به منبع بعدی می‌رود؟
  *
- * The whole point of eight sources is that no single one going down takes the
+ * The whole point of twelve sources is that no single one going down takes the
  * panel with it. That only holds if the fallback actually runs, so this blocks
  * them one at a time in the browser and checks the panel keeps getting candles
  * — and remembers which source finally answered.
@@ -29,9 +29,6 @@ function chrome(){ for(const d of readdirSync("/opt/pw-browsers"))
    not depend on any of them being up right now. */
 const REPLY = {
   "fapi.bitunix.com":         ()=>JSON.stringify({data:mk("bitunix")}),
-  "api.nobitex.ir":           ()=>JSON.stringify(mk("udf")),
-  "api.wallex.ir":            ()=>JSON.stringify(mk("udf")),
-  "api.tabdeal.org":          ()=>JSON.stringify(mk("udf")),
   "api.mexc.com":             ()=>JSON.stringify(mk("binance")),
   "open-api.bingx.com":       ()=>JSON.stringify({data:mk("bingx")}),
   "api-cloud.bitmart.com":    ()=>JSON.stringify({data:mk("bitmart")}),
@@ -45,12 +42,11 @@ const REPLY = {
   "api.binance.com":          ()=>JSON.stringify(mk("binance")),
 };
 function mk(kind){
-  const rows=[]; const udf={s:"ok",t:[],o:[],h:[],l:[],c:[],v:[]};
+  const rows=[];
   let t=1785500000000, p=63000;
   for(let i=0;i<60;i++){
     const o=p, c=p*(1+(i%7-3)*0.0004), h=Math.max(o,c)*1.0006, l=Math.min(o,c)*0.9994;
     if(kind==="bitunix") rows.push({time:t,open:""+o,high:""+h,low:""+l,close:""+c,quoteVol:"10",baseVol:"630000"});
-    else if(kind==="udf"){udf.t.push(t/1000);udf.o.push(o);udf.h.push(h);udf.l.push(l);udf.c.push(c);udf.v.push(10);}
     else if(kind==="kucoin")   rows.push([""+(t/1000),""+o,""+c,""+h,""+l,"10","630000"]);
     else if(kind==="okx")      rows.push([""+t,""+o,""+h,""+l,""+c,"10","630000"]);
     else if(kind==="bingx")    rows.push([t,o,h,l,c,10,t+899999]);
@@ -63,7 +59,6 @@ function mk(kind){
     else rows.push([t,""+o,""+h,""+l,""+c,"10",t+899999]);
     p=c; t+=900000;
   }
-  if(kind==="udf") return udf;
   // the ones that really return newest-first
   if(["kucoin","okx","bingx","htx","coinbase","bitunix"].includes(kind)) rows.reverse();
   return rows;
