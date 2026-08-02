@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v20.0 · ۱۵ منبع، صرافی‌های ایرانی هم</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v20.1 · ۱۲ منبع جهانی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -2087,20 +2087,15 @@ async function runBacktest(auto){
    even from a GitHub runner, while Bybit answers 403. Neither is a fallback any
    more; both stay last, where a dead source costs nothing.
 
-   The Iranian exchanges — Nobitex, Wallex, Tabdeal — are unreachable from the
-   runner and are kept anyway, deliberately. They are geo-restricted the other
-   way round: reachable from Iran, which is the only place that matters here.
-   They speak TradingView's UDF dialect, which returns parallel arrays rather
-   than rows, so they get their own reader.
+   The domestic Iranian exchanges were tried and are deliberately not here. They
+   are reachable from Iran, which was the appeal, but they are thin local books
+   whose prices lag the global market — and this engine reads structure off the
+   candles. An order block drawn on a shallow book that trades a few coins an
+   hour is not the order block the rest of the market is trading against, so a
+   signal built from it would be about a different market than the one being
+   traded. A source has to be deep and current to be worth reading, not merely
+   reachable.
    ========================================================================= */
-
-/* TradingView UDF: {s:"ok", t:[…], o:[…], h:[…], l:[…], c:[…], v:[…]} —
-   one array per field rather than one array per candle. */
-function parseUDF(j){
-  if(!j||j.s!=="ok"||!Array.isArray(j.t)||!j.t.length)return[];
-  return j.t.map((t,i)=>({t:t>1e12?+t:+t*1000,o:+j.o[i],h:+j.h[i],l:+j.l[i],
-    c:+j.c[i],v:+((j.v&&j.v[i])||0)}));
-}
 
 const SOURCES=[
   {
@@ -2118,29 +2113,6 @@ const SOURCES=[
       priceChangePercent:+(t.priceChangePercent||0)||(+(t.change||0))*100,
       lastPrice:+(t.lastPrice||t.last||t.markPrice||0)})),
   },
-  /* ── reachable from Iran, not from the runner: kept on purpose ──────────── */
-  {
-    id:"nobitex", label:"نوبیتکس", base:"https://api.nobitex.ir",
-    kline:(s,iv,n)=>`/market/udf/history?symbol=${s}&resolution=${iv}`+
-      `&from=${Math.floor(Date.now()/1000)-n*15*60*4}&to=${Math.floor(Date.now()/1000)}`,
-    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D"},
-    raw:true, parse:parseUDF,
-  },
-  {
-    id:"wallex", label:"والکس", base:"https://api.wallex.ir",
-    kline:(s,iv,n)=>`/v1/udf/history?symbol=${s}&resolution=${iv}`+
-      `&from=${Math.floor(Date.now()/1000)-n*15*60*4}&to=${Math.floor(Date.now()/1000)}`,
-    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D"},
-    raw:true, parse:parseUDF,
-  },
-  {
-    id:"tabdeal", label:"تبدیل", base:"https://api.tabdeal.org",
-    kline:(s,iv,n)=>`/r/plots/history/?symbol=${s}&resolution=${iv}`+
-      `&from=${Math.floor(Date.now()/1000)-n*15*60*4}&to=${Math.floor(Date.now()/1000)}`,
-    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D"},
-    raw:true, parse:parseUDF,
-  },
-  /* ── everything the probe saw answer, in order of how fast it answered ──── */
   {
     id:"mexc", label:"MEXC", base:"https://api.mexc.com",
     /* Binance-shaped and oldest-first, which makes it the safest fallback. */
@@ -2150,33 +2122,6 @@ const SOURCES=[
     ticker:()=>`/api/v3/ticker/24hr`,
     parseTickers:rows=>rows.map(t=>({symbol:t.symbol,quoteVolume:+t.quoteVolume,
       priceChangePercent:+t.priceChangePercent,lastPrice:+t.lastPrice})),
-  },
-  {
-    id:"bingx", label:"BingX", base:"https://open-api.bingx.com",
-    kline:(s,iv,n)=>`/openApi/spot/v2/market/kline?symbol=${s}&interval=${iv}&limit=${n}`,
-    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
-    sym:s=>s.replace(/USDT$/,"-USDT"),
-    envelope:j=>j.data,
-    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
-  },
-  {
-    id:"bitmart", label:"BitMart", base:"https://api-cloud.bitmart.com",
-    /* Oldest first, seconds. */
-    kline:(s,iv,n)=>`/spot/quotation/v3/klines?symbol=${s}&step=${iv}&limit=${n}`,
-    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"1440"},
-    sym:s=>s.replace(/USDT$/,"_USDT"),
-    envelope:j=>j.data,
-    parse:rows=>rows.map(k=>({t:+k[0]*1000,o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
-  },
-  {
-    id:"htx", label:"HTX", base:"https://api.huobi.pro",
-    /* Objects keyed `id` in seconds, newest first. */
-    kline:(s,iv,n)=>`/market/history/kline?symbol=${s}&period=${iv}&size=${n}`,
-    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"60min","4h":"4hour","1d":"1day"},
-    sym:s=>s.toLowerCase(),
-    envelope:j=>j.data,
-    parse:rows=>rows.map(k=>({t:+k.id*1000,o:+k.open,h:+k.high,l:+k.low,c:+k.close,
-      v:+(k.amount||k.vol||0)})).reverse(),
   },
   {
     id:"kucoin", label:"KuCoin", base:"https://api.kucoin.com",
@@ -2232,6 +2177,33 @@ const SOURCES=[
       priceChangePercent:+t.change_percentage,lastPrice:+t.last})),
   },
   {
+    id:"bingx", label:"BingX", base:"https://open-api.bingx.com",
+    kline:(s,iv,n)=>`/openApi/spot/v2/market/kline?symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
+    sym:s=>s.replace(/USDT$/,"-USDT"),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
+  },
+  {
+    id:"bitmart", label:"BitMart", base:"https://api-cloud.bitmart.com",
+    /* Oldest first, seconds. */
+    kline:(s,iv,n)=>`/spot/quotation/v3/klines?symbol=${s}&step=${iv}&limit=${n}`,
+    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"1440"},
+    sym:s=>s.replace(/USDT$/,"_USDT"),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0]*1000,o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
+  },
+  {
+    id:"htx", label:"HTX", base:"https://api.huobi.pro",
+    /* Objects keyed `id` in seconds, newest first. */
+    kline:(s,iv,n)=>`/market/history/kline?symbol=${s}&period=${iv}&size=${n}`,
+    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"60min","4h":"4hour","1d":"1day"},
+    sym:s=>s.toLowerCase(),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k.id*1000,o:+k.open,h:+k.high,l:+k.low,c:+k.close,
+      v:+(k.amount||k.vol||0)})).reverse(),
+  },
+  {
     id:"coinex", label:"CoinEx", base:"https://api.coinex.com",
     kline:(s,iv,n)=>`/v2/spot/kline?market=${s}&period=${iv}&limit=${n}`,
     ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"1hour","4h":"4hour","1d":"1day"},
@@ -2249,7 +2221,6 @@ const SOURCES=[
     ivMap:{"1m":"60","5m":"300","15m":"900","1h":"3600","4h":"21600","1d":"86400"},
     parse:rows=>rows.map(k=>({t:+k[0]*1000,l:+k[1],h:+k[2],o:+k[3],c:+k[4],v:+k[5]})).reverse(),
   },
-  /* ── last, because the probe found them closed ──────────────────────────── */
   {
     id:"binance", label:"Binance", base:"https://api.binance.com",
     /* 451 from a restricted location, which now includes GitHub's runners.
@@ -2299,12 +2270,9 @@ async function fetchKlinesAny(sym,iv,limit){
     try{
       const s=src.sym?src.sym(sym):sym;
       const j=await srcJSON(src,src.kline(s,mapped,limit));
-      /* UDF sources return parallel arrays, not rows, so they read the whole
-         payload rather than an array pulled out of it. */
-      const cd=src.raw?src.parse(j)
-        :(()=>{const rows=src.envelope?src.envelope(j):(Array.isArray(j)?j:j.data);
-               if(!Array.isArray(rows)||!rows.length)throw new Error("no rows");
-               return src.parse(rows);})();
+      const rows=src.envelope?src.envelope(j):(Array.isArray(j)?j:j.data);
+      if(!Array.isArray(rows)||!rows.length)throw new Error("no rows");
+      const cd=src.parse(rows);
       if(!sourceSane(cd))throw new Error("reply did not look like candles");
       if(DB.get("source_ok")!==src.id){
         DB.set("source_ok",src.id);
@@ -3561,8 +3529,8 @@ function diagHTML(){
     detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
       پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و
       اولین جوابی که واقعاً کندل باشد را برمی‌دارد. اینکه هیچ‌کدام از این ${SOURCES.length}
-      منبع جواب نداده یعنی احتمالاً اینترنت قطع است — چون سه‌تای اولشان صرافی‌های
-      ایرانی‌اند و از داخل ایران باز هستند.`;
+      منبع جواب نداده یعنی احتمالاً اینترنت یا مسیر خروجی قطع است، نه اینکه صرافی‌ها
+      پایین باشند — این ${SOURCES.length} صرافی هم‌زمان پایین نمی‌روند.`;
   }else if(!tot){
     tone="#f0a92e";
     verdict="هنوز اسکنی کامل نشده";
