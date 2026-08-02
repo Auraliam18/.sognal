@@ -289,12 +289,42 @@ def payroll_runs():
     return len(j["rooms"]) >= 8, f"{len(j['rooms'])} rooms scored, total {j['total']}"
 
 
+def source_parsers_agree():
+    """The Python venue adapters, checked against the recorded replies.
+
+    The panel's adapters and these are written separately and can drift apart.
+    Drift here is invisible from the outside: the scan still finishes, the panel
+    still draws candles, they are just not the right candles."""
+    p = subprocess.run([sys.executable, str(HERE / "test_sources.py")],
+                       capture_output=True, text=True, timeout=120)
+    tail = [l for l in p.stdout.strip().splitlines() if l.strip()][-1:]
+    return p.returncode == 0, (tail[0].strip() if tail else p.stderr.strip()[:120])
+
+
+def scan_is_not_binance_only():
+    """A single venue refusing must not stop the unattended jobs.
+
+    It already did once: a runner got HTTP 451 from api.binance.com and every
+    scheduled job that hour produced nothing."""
+    import backtest
+    src = (HERE / "backtest.py").read_text()
+    if "_elsewhere" not in src:
+        return False, "get() has no fallback off Binance"
+    n = len(__import__("sources").VENUES)
+    ok = callable(getattr(backtest, "_elsewhere", None)) and n >= 8
+    return ok, f"{n} venues behind get(), endTime paging still Binance-only"
+
+
 def main():
     print("\nENGINE")
     check("both strategies exported from the panel", engine_exports)
     check("both strategies produce setups", both_strategies_fire)
     check("a fill is required before a trade counts", fill_is_required)
     check("strategy 1 risk and reward share a price", rr_is_consistent)
+
+    print("\nDATA")
+    check("the python venue parsers are correct", source_parsers_agree)
+    check("the pipeline is not Binance-only", scan_is_not_binance_only)
 
     print("\nMEMORY")
     check("brain stores and reads back", brain_writes_and_reads)
