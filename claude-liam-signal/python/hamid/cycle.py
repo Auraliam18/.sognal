@@ -153,10 +153,20 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
     first["dominance"] = dom
     brain.room_log("market", f"خوانش بازار: {first.get('verdict')}", "read")
 
+    # Fetched in parallel. Serially this is a hundred-odd round trips, and one
+    # slow venue then decides how long the whole cycle takes — a run that
+    # normally finished in forty seconds was measured sitting for over ten
+    # minutes when a venue started rate-limiting.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        jobs = {sym: (pool.submit(candles, sym, "1h", limit_1h),
+                      pool.submit(candles, sym, "15m", limit_15m))
+                for sym in symbols}
+        fetched = {sym: (a.result(), b.result()) for sym, (a, b) in jobs.items()}
+
     reads, setups = [], []
     for sym in symbols:
-        c1h = candles(sym, "1h", limit_1h)
-        c15 = candles(sym, "15m", limit_15m)
+        c1h, c15 = fetched.get(sym, ([], []))
         if len(c1h) < 60 or len(c15) < 60:
             continue
         # 4H is built from 1H by taking every fourth bar's aggregate — the venues

@@ -34,7 +34,34 @@ import urllib.error
 import urllib.request
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; hamid-signal)"}
-TIMEOUT = 25
+TIMEOUT = 12          # a venue slower than this is not usable at this cadence
+
+# A venue that has just refused three times will refuse the fourth. Walking the
+# full list for every one of a hundred-odd requests turns one rate-limited
+# exchange into a cycle that takes minutes instead of seconds — which is exactly
+# what happened: a run that normally finishes in forty seconds sat for over ten.
+# So a failing venue is stood down briefly rather than asked again immediately.
+_STOOD_DOWN = {}
+_FAILS = {}
+STAND_DOWN_SECONDS = 300
+FAILS_BEFORE_STAND_DOWN = 3
+
+
+def _available(vid):
+    until = _STOOD_DOWN.get(vid, 0)
+    return time.time() >= until
+
+
+def _note_failure(vid):
+    _FAILS[vid] = _FAILS.get(vid, 0) + 1
+    if _FAILS[vid] >= FAILS_BEFORE_STAND_DOWN:
+        _STOOD_DOWN[vid] = time.time() + STAND_DOWN_SECONDS
+        _FAILS[vid] = 0
+
+
+def _note_success(vid):
+    _FAILS[vid] = 0
+    _STOOD_DOWN.pop(vid, None)
 
 
 def _json(url):
@@ -264,15 +291,19 @@ def used():
 def klines(sym, tf, limit, quiet=True):
     """Candles from the first venue that gives a full, sane series."""
     errs = []
-    for v in VENUES:
+    order = [v for v in VENUES if _available(v["id"])] or VENUES
+    for v in order:
         try:
             rows = v["parse"](_json(v["url"](sym, tf, limit)))[-limit:]
         except Exception as e:                       # noqa: BLE001 - next venue
             errs.append(f"{v['id']}: {type(e).__name__}")
+            _note_failure(v["id"])
             continue
         if not sane(rows, limit):
             errs.append(f"{v['id']}: {len(rows)} rows, rejected")
+            _note_failure(v["id"])
             continue
+        _note_success(v["id"])
         if _used["klines"] != v["id"]:
             _used["klines"] = v["id"]
             if not quiet:
