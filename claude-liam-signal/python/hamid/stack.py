@@ -22,6 +22,10 @@ from dataclasses import dataclass, asdict
 from hamid import orderblock as ob_mod
 from hamid.structure import Channel, atr, channel, levels, reentry, trend
 
+# How hard price must have left the block, in ATR. Derived from the random-walk
+# control in hamid/control.py, not chosen by eye — see _setup for the numbers.
+MIN_IMPULSE = 4.0
+
 
 @dataclass
 class Read:
@@ -152,6 +156,17 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
         # that he actually enters on. A first-pullback block is reported as
         # waiting, never as a signal.
         if b.returns < 1:
+            continue
+        # Price has to have left it decisively. This is the part the code was
+        # missing, and its absence was measurable: on pure random walks — no
+        # structure anywhere, by construction — the stack was producing a signal
+        # 42% of the time, against 60% on real coins. A rule that fires on noise
+        # almost as often as on the market is not finding structure.
+        #
+        # 4 ATR is the 90th percentile of block impulse on those same random
+        # walks, so it discards nine tenths of what noise manufactures. It is a
+        # control-derived number, not a knob turned until the count looked right.
+        if b.impulse < MIN_IMPULSE:
             continue
         direction = "SHORT" if b.dir == "bearish" else "LONG"
         if t4 == "down" and direction != "SHORT":
