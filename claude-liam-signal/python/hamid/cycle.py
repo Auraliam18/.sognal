@@ -352,6 +352,35 @@ def main():
     else:
         report.update(run_quiet())
 
+    # Paper book. Every signal is placed as a limit order and tracked to its
+    # stop or target, carrying the conditions that were true when it was opened.
+    # Judging it later against a re-derived context would attribute the outcome
+    # to conditions that arrived after the decision.
+    try:
+        from hamid import paper
+        ctx = {}
+        try:
+            ctx["fear"] = research.fear_greed()["value"]
+        except Exception:                            # noqa: BLE001 - optional context
+            pass
+        g = (report.get("market") or {}).get("dominance") or {}
+        ctx["usdt_dom"] = g.get("usdt_dominance")
+        ctx["btc_dom"] = g.get("btc_dominance")
+        ctx["mode"] = mode
+        opened = paper.open_from(
+            [x for x in report.get("setups", []) if not x.get("waiting")], ctx)
+        still, closed = paper.mark()
+        eq = paper._equity()
+        report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
+                           **eq}
+        print(f"دفتر کاغذی: {opened} سفارش جدید، {still} باز، {closed} بسته — "
+              f"${eq['balance']} ({eq['return_pct']:+.2f}٪) از {eq['trades']} معامله")
+        # Reasons are only recomputed when there is enough to say anything; the
+        # function refuses below twenty closed trades on its own.
+        paper.reasons(verbose=False)
+    except Exception as e:                           # noqa: BLE001 - the book is not the analysis
+        print(f"دفتر کاغذی: {type(e).__name__}: {e}")
+
     # Deliver. telegram.py refuses loudly and sends nothing without credentials,
     # so this is safe to call before Hamid has added the token.
     if mode == "active" and report.get("setups"):
