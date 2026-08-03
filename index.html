@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v20.1 · ۱۲ منبع جهانی</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.0 · روش حمید در پنل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3511,10 +3511,112 @@ function relayHTML(){
   return head+tabs+none+mine.slice(0,12).map(relayCard).join("")+near;
 }
 
+/* =========================================================================
+   روش خود حمید — خوانش ۴ساعته → ۱ساعته → ۱۵دقیقه
+   ------------------------------------------------------------------------
+   The cloud cycle (`hamid/cycle.py`) runs whether or not this panel is open
+   and writes signals/hamid-latest.json. Without this section that file
+   existed and nobody could read it: Hamid does not read code or JSON, and a
+   result he cannot see is not a result.
+
+   Shown separately from the relay on purpose. It is a different method with a
+   different measured record, and merging the two lists would let one method's
+   numbers stand in for the other's.
+   ========================================================================= */
+const HAMID={data:null,err:null,tried:0};
+async function hamidFetch(){
+  try{
+    const r=await fetch("./signals/hamid-latest.json?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(!j||!j.generated)throw new Error("فایل ناقص است");
+    HAMID.data=j;HAMID.err=null;
+    const n=(j.setups||[]).filter(x=>!x.waiting).length;
+    opslog("scan",`روش حمید: ${n} سیگنال · ${j.generatedText}`,n?"sig":"info");
+  }catch(e){HAMID.err=e.message||String(e);}
+  HAMID.tried++;
+}
+setInterval(hamidFetch,120000);setTimeout(hamidFetch,3000);
+
+function hamidCard(x){
+  const long=x.dir==="LONG";
+  const px=v=>v==null?"—":fmt(v);
+  const wide=(x.stop_pct!=null&&x.stop_pct>6);
+  return `<div class="box" style="margin-top:8px;border-color:${long?"#1e7d5a":"#7d1e3a"}">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b class="mono" style="font-size:14px">${x.symbol}</b>
+      <span class="chip" style="border-color:${long?"#2f7d5b":"#7d2f45"};color:${long?"#8fe3bd":"#e39fb0"}">
+        ${long?"خرید":"فروش"}</span>
+      <span class="chip">${x.waiting?"منتظر پولبک دوم":"پولبک دوم — آماده"}</span>
+      <span class="chip">۴ساعته ${x.trend_4h==="up"?"صعودی":x.trend_4h==="down"?"نزولی":"بی‌روند"}</span>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:7px;font-size:12.5px">
+      <span>ورود <b class="mono">${px(x.entry)}</b></span>
+      <span>استاپ <b class="mono">${px(x.sl)}</b></span>
+      <span>تارگت۱ <b class="mono">${px(x.tp1)}</b></span>
+      <span>تارگت۲ <b class="mono">${px(x.tp2)}</b></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.9">
+      اردر بلاک <span class="mono">${px(x.block&&x.block.low)} — ${px(x.block&&x.block.high)}</span>
+      · قیمت ${x.block?x.block.returns:0} بار برگشته · ضربه ${x.block?x.block.impulse:0}×
+      · سطح با ${x.on_level?x.on_level.reactions:0} واکنش
+      <div style="margin-top:4px;color:${wide?"#f0a92e":"inherit"}">
+        فاصلهٔ استاپ <b>${x.stop_pct==null?"—":x.stop_pct+"٪"}</b>${wide?" — باکس پهن است، حجم را کوچک بگیر":""}</div>
+      <div style="margin-top:3px" class="dim">${x.channel||""}</div>
+    </div></div>`;
+}
+
+function hamidHTML(){
+  const j=HAMID.data;
+  if(!j){
+    if(!HAMID.tried)return"";
+    return `<div class="box" style="margin-bottom:12px;border-color:#8b98ab55">
+      <h3 style="margin:0 0 4px">روش خود حمید</h3>
+      <div class="muted" style="font-size:12px;line-height:1.9">
+        هنوز فایلی نرسیده${HAMID.err?` — <span class="mono">${HAMID.err}</span>`:""}.
+        ورک‌فلوی «Hamid cycle» هر ساعت دو بار آن را می‌سازد.</div></div>`;
+  }
+  const mins=Math.round((Date.now()-j.generated)/60000);
+  const setups=j.setups||[];
+  const ready=setups.filter(x=>!x.waiting);
+  const wait=setups.filter(x=>x.waiting);
+  const quiet=j.mode!=="active";
+  const head=`<div class="box" style="margin-bottom:10px;border-color:${ready.length?"#1e7d5a":"#8b98ab55"}">
+    <h3 style="margin:0 0 4px">روش خود حمید — ۴ساعته → ۱ساعته → ۱۵دقیقه
+      <span class="dim" style="font-size:11px;font-weight:400">${mins} دقیقه پیش</span></h3>
+    <div style="font-size:13px;color:${ready.length?"#2ecc71":"#8b98ab"};font-weight:700">
+      ${quiet?"حالت آرام — امروز دنبال ورود نیستیم":
+        ready.length?`${ready.length} سیگنال`:"هیچ ستاپی از همهٔ شرط‌ها رد نشد"}</div>
+    <div class="muted" style="font-size:12px;margin-top:5px;line-height:1.9">
+      ${j.reads||0} ارز خوانده شد · ${wait.length} منتظر پولبک دوم${
+        j.held_back?` · ${j.held_back} تا به‌خاطر سهمیهٔ روز نگه داشته شد`:""}
+      <div style="margin-top:4px" class="dim">${j.why||""}</div>
+      ${j.market&&j.market.verdict?`<div style="margin-top:4px">${j.market.verdict}</div>`:""}
+    </div>
+    <!-- The measured record travels with the signals. Without it the panel
+         shows entries and targets and reads as a promise. -->
+    <div class="dim" style="font-size:11.5px;margin-top:7px;line-height:1.8;
+        border-top:1px solid rgba(140,160,190,.12);padding-top:6px">
+      اندازه‌گیری تا امروز: ۴۳ معاملهٔ واقعی، ۴۶٫۵٪ برد، +۰٫۱۸۴R —
+      <b>ولی بازهٔ اطمینان صفر را در بر می‌گیرد</b>، یعنی هنوز لبهٔ ثابت‌شده نیست.
+      نمونه هر روز بزرگ‌تر می‌شود. تا آن موقع سایز را کوچک نگه دار.</div>
+  </div>`;
+  if(quiet&&(j.watchlist||[]).length){
+    const w=j.watchlist.slice(0,8).map(m=>`<div style="display:flex;gap:10px;padding:4px 0;
+      border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <b class="mono" style="min-width:70px">${m.symbol}</b>
+      <span>${m.change_24h}٪ روز</span><span class="dim">گردش ${m.turnover}</span></div>`).join("");
+    return head+`<div class="box"><h3 style="margin:0 0 6px">تحت نظر برای پامپ</h3>
+      <div class="dim" style="font-size:11px;margin-bottom:4px">
+        گردش معاملاتی بالا نسبت به ارزش بازار. این تحلیل هولدر نیست — دادهٔ زنجیره‌ای رایگان نداریم.</div>${w}</div>`;
+  }
+  return head+ready.map(hamidCard).join("")+wait.slice(0,6).map(hamidCard).join("");
+}
+
 function renderWhy(){
   const el=$("#whyBox");if(!el)return;
   if(STATE.signals&&STATE.signals.length){el.innerHTML="";return;}
-  el.innerHTML=diagHTML()+relayHTML();
+  el.innerHTML=diagHTML()+hamidHTML()+relayHTML();
 }
 setInterval(renderWhy,5000);
 function diagHTML(){
