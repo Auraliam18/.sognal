@@ -102,9 +102,14 @@ def caption(s):
         bits.append(f"ADX {s['adx']}")
     if bits:
         L.append(" · ".join(bits))
-    L += ["", "<i>اسکن از راه دور روی کندل واقعی — قبل از ورود خودت هم چارت را ببین.</i>",
-          "<i>وین‌ریت اندازه‌گیری‌شدهٔ این استراتژی روی کندل واقعی ۲۲.۷٪ با انتظار +۰.۰۶۹R "
-          "است: بردها بزرگ‌اند و بیشتر تریدها استاپ می‌خورند. سایز را ثابت نگه دار.</i>"]
+    L += ["", "<i>اسکن از راه دور روی کندل واقعی — قبل از ورود خودت هم چارت را ببین.</i>"]
+    # Each strategy carries its own measured record. Attaching one strategy's
+    # win rate to another's signal would be worse than attaching none: it reads
+    # as evidence and is not. A signal that supplies no footer gets the figure
+    # measured for the original engine, which is the only one it can be.
+    L.append(s.get("footer") or
+             "<i>وین‌ریت اندازه‌گیری‌شدهٔ این استراتژی روی کندل واقعی ۲۲.۷٪ با انتظار +۰.۰۶۹R "
+             "است: بردها بزرگ‌اند و بیشتر تریدها استاپ می‌خورند. سایز را ثابت نگه دار.</i>")
     return "\n".join(L)
 
 
