@@ -190,8 +190,20 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
             i = len(c15m) - 1
             notes.append("تارگت کانالی هم فعال است")
 
+        # How much of the account a full stop actually costs, in percent of
+        # entry. Worth showing rather than burying: R:R is always 1.5 by
+        # construction, so it says nothing about size, and a 1H order block on a
+        # volatile alt can be wide enough that "stop just beyond the block" is a
+        # 14% move. Hamid did not say where in the box the limit sits — the
+        # middle is a compromise between filling often and filling well — so the
+        # number is reported and the choice stays his.
+        stop_pct = round(abs(sl - entry) / entry * 100, 2)
+        if stop_pct > 6:
+            notes.append(f"فاصلهٔ استاپ {stop_pct}٪ است — باکس اردر بلاک پهن است، "
+                         f"حجم را کوچک بگیر یا لیمیت را به لبهٔ باکس نزدیک‌تر کن")
         return {
             "dir": direction,
+            "stop_pct": stop_pct,
             "entry": round(entry, 8),
             "sl": round(sl, 8),
             "tp1": round(tp1, 8),
