@@ -52,6 +52,7 @@ from hamid.cycle import resample                              # noqa: E402
 
 ROOT = HERE.parent.parent.parent
 OUT = ROOT / "claude-liam-signal" / "backtests"
+LEDGER = ROOT / "brain" / "backtest" / "hamid-trades.jsonl"
 
 FILL_WINDOW = 24          # 6 hours of 15m bars for the limit to be touched
 HOLD_WINDOW = 96          # 24 hours before the position is closed at market
@@ -146,6 +147,48 @@ def walk(sym, c15, c1h, bars_needed=140):
     return trades
 
 
+def accumulate(trades):
+    """Keep every trade ever measured, so the sample grows instead of resetting.
+
+    The venues serve a thousand 15m candles, which is about ten days. One run
+    over 120 coins found 43 filled trades, and 43 is not enough to say anything —
+    every interval in that run spanned zero. Re-running daily on the same ten-day
+    window would just re-measure the same trades and produce the same
+    uninformative answer forever.
+
+    A trade is identified by symbol and entry time, so overlapping windows merge
+    rather than double-count. That deduplication is the whole point: without it a
+    daily run would inflate the sample by a factor of ten and shrink the interval
+    around a number that had not actually been measured any better.
+    """
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    seen, kept = set(), []
+    if LEDGER.exists():
+        for line in LEDGER.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                t = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = (t.get("sym"), t.get("t"))
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(t)
+    added = 0
+    for t in trades:
+        key = (t["sym"], t["t"])
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(t)
+        added += 1
+    kept.sort(key=lambda x: x.get("t") or 0)
+    LEDGER.write_text("\n".join(json.dumps(t, ensure_ascii=False) for t in kept) + "\n")
+    return kept, added
+
+
 def boot(vals, n=4000):
     """95% interval around the mean. Nothing is acted on until it clears zero."""
     if len(vals) < 20:
@@ -199,10 +242,16 @@ def main():
         for res in pool.map(one, syms):
             trades += res
 
-    print(f"\n{len(trades)} معاملهٔ پرشده در {time.time()-t0:.0f} ثانیه\n")
+    all_trades, added = accumulate(trades)
+    print(f"\n{len(trades)} معاملهٔ پرشده در {time.time()-t0:.0f} ثانیه "
+          f"({added} تای جدید)")
+    print(f"مجموع انباشته تا امروز: {len(all_trades)} معامله\n")
     print("نتیجه — کندل واقعی، با شرط پر شدن سفارش")
     print("─" * 92)
-    overall = report(trades, "همه")
+    overall = report(all_trades, "همه (انباشته)")
+    if len(all_trades) != len(trades):
+        report(trades, "فقط این اجرا")
+    trades = all_trades
     cuts = {
         "لانگ": [t for t in trades if t["dir"] == "LONG"],
         "شورت": [t for t in trades if t["dir"] == "SHORT"],
