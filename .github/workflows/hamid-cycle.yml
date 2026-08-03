@@ -63,6 +63,13 @@ jobs:
       - name: Run the cycle
         working-directory: claude-liam-signal/python
         env:
+          # Without these two the cycle computes signals and delivers them
+          # nowhere. telegram.py refuses loudly and sends nothing when they are
+          # empty, so the job is safe to run before they exist — but leaving
+          # them out of the workflow entirely meant adding the secrets would
+          # have changed nothing, silently.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
