@@ -13,12 +13,15 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "23 5,17 * * *"
-  push:
-    branches: [claude/hamid-signal-agent-smc-dkot7v]
-    paths:
-      - "claude-liam-signal/python/hamid/health.py"
-      - "claude-liam-signal/python/hamid/research.py"
-      - ".github/workflows/health.yml"
+  # راه‌انداز «push» عمداً برداشته شد.
+  #
+  # هر کامیت، سه‌چهار ورک‌فلوی سنگین را با هم روشن می‌کرد. آن‌ها همدیگر را کنسل
+  # می‌کردند و — مهم‌تر — زمان‌بند گیت‌هاب روی مخزنی که این‌قدر شلوغ باشد اجراهای
+  # کرون را می‌اندازد. اندازه‌گیری شد: بین ۲۳:۳۷ تا ۰۲:۰۶ هیچ اجرای زمان‌بندی‌شده‌ای
+  # انجام نشد، در حالی که همان ورک‌فلو قبلش ساعتی یک بار می‌آمد.
+  #
+  # وقتی لازم بود که کارها روی شاخه بودند و کرون از شاخهٔ غیر‌اصلی شلیک نمی‌کند.
+  # حالا همه روی main هستند. برای اجرای دستی، workflow_dispatch هست.
 
 permissions:
   contents: write
