@@ -92,62 +92,138 @@ class Level:
 def _reacted(cd, i, price, tol, bars=6, mult=3.0):
     """Did price actually turn here, or just pass through?
 
-    A line price walks straight through is not support. The test is that within
-    the next few bars price is at least `mult` tolerances away from the level,
-    and away on one side rather than oscillating across it — which is what
-    "واکنش نشان داد" means when you are looking at a chart.
+    A rejection has three parts, and the first version of this checked only the
+    third. That was not a small miss: measured on a pure random walk — no
+    structure of any kind — the old rule kept fourteen levels carrying about
+    twenty "reactions" each. It was counting price leaving the area, which price
+    always does, including when it blows straight through the line.
+
+    So all three now have to hold:
+
+      1. **Price came from somewhere.** It has to approach the level from one
+         side, not already be sitting on it.
+      2. **It did not close through.** If price ends up on the far side, the
+         level did not hold — that is a break, and calling a break a reaction is
+         how a chart fills up with lines that mean nothing.
+      3. **It pushed back.** The move away, on the side it came from, is at
+         least `mult` tolerances.
+
+    Together that is what «واکنش نشان داد» means when you are looking at a
+    chart, and unlike the old rule a random walk mostly fails it.
     """
     end = min(len(cd), i + bars + 1)
-    if end <= i + 1:
+    if end <= i + 1 or i < 1:
         return False
+    prev = cd[i - 1]["c"]
+    if abs(prev - price) < tol:
+        return False                     # no approach: already on the line
+    side = 1 if prev > price else -1
     after = cd[i + 1:end]
-    above = max(c["c"] for c in after) - price
-    below = price - min(c["c"] for c in after)
-    if above >= mult * tol and below < mult * tol:
-        return True                      # bounced up off it
-    if below >= mult * tol and above < mult * tol:
-        return True                      # rejected down off it
-    return False
+    if side > 0 and min(c["c"] for c in after) < price - tol:
+        return False                     # closed through, downwards
+    if side < 0 and max(c["c"] for c in after) > price + tol:
+        return False                     # closed through, upwards
+    away = (max(c["c"] for c in after) - price) if side > 0 \
+        else (price - min(c["c"] for c in after))
+    return away >= mult * tol
 
 
-def levels(cd, tol=None, min_reactions=2, keep=14):
+def _tally(cd, price, tol, born_i):
+    """Touches and reactions for any horizontal line, from `born_i` onward.
+
+    Used for real swing levels and for the random control lines alike, so the
+    two are counted by exactly the same rule and can be compared.
+    """
+    touches = reactions = 0
+    last = -99
+    flipped = False
+    for i in range(born_i + 3, len(cd)):
+        c = cd[i]
+        if not (c["l"] - tol <= price <= c["h"] + tol):
+            continue
+        if i - last < 3:
+            continue                     # one visit, not three touches
+        touches += 1
+        last = i
+        if _reacted(cd, i, price, tol):
+            reactions += 1
+            if cd[i - 1]["c"] > price:
+                flipped = True
+    return touches, reactions, flipped
+
+
+def _noise_floor(cd, tol, samples=28):
+    """How many reactions does a line in this series get *by chance*?
+
+    This is the part that turns Hamid's eye into a measurement, and it exists
+    because of a number. On a pure random walk — a series with no support or
+    resistance anywhere in it, by construction — the level rule was keeping
+    around forty lines carrying two or more reactions each, and even demanding
+    five reactions still kept eleven. Not because the rule was sloppy, but
+    because random walks mean-revert locally: over six hundred bars a horizontal
+    line drawn *anywhere* in the traversed range gets touched and pushed away
+    from many times. Any absolute threshold measures the length of the series
+    more than the quality of the level.
+
+    So the threshold is not absolute. Control lines are drawn at prices spread
+    through the same range, given the same birth indices, and counted by the
+    same rule. A real level has to beat what an arbitrary line in this very
+    series already achieves. Rates are per hundred remaining bars, because a
+    line drawn early has more chances to be hit than one drawn late.
+    """
+    lo = min(c["l"] for c in cd)
+    hi = max(c["h"] for c in cd)
+    if hi <= lo:
+        return 0.0
+    rates = []
+    n = len(cd)
+    for k in range(samples):
+        price = lo + (hi - lo) * ((k + 0.5) / samples)
+        born = int(n * 0.1) + (k * (n // 2)) // max(samples, 1)
+        born = min(born, n - 12)
+        if born < 0:
+            continue
+        _, r, _ = _tally(cd, price, tol, born)
+        rates.append(r / max(1, n - born) * 100)
+    if not rates:
+        return 0.0
+    rates.sort()
+    return rates[int(len(rates) * 0.80)]          # the 80th percentile of noise
+
+
+def levels(cd, tol=None, min_reactions=2, keep=8):
     """Draw every swing as a horizontal line, extend it forward, and count.
 
     This is the part Hamid does by eye and by memory: he draws the old highs and
     lows too, extends them, and two weeks later keeps the ones price kept
     respecting. Extending forward is the whole point — a level is only
     interesting because of what happened *after* it was drawn.
+
+    A level survives only if it clears both bars: at least `min_reactions`
+    rejections, and a reaction rate above what a random line in the same series
+    manages. See `_noise_floor` for why the second one is not optional.
     """
     if len(cd) < 20:
         return []
     tol = tol if tol is not None else max(atr(cd) * 0.25, cd[-1]["c"] * 0.0005)
+    floor = _noise_floor(cd, tol)
+    n = len(cd)
     out = []
     for s in swings(cd):
-        lv = Level(price=s.price, kind=s.kind, born_i=s.i, born_t=s.t)
-        # only bars after it was drawable count — see the note in swings()
-        for i in range(s.i + 3, len(cd)):
-            c = cd[i]
-            if c["l"] - tol <= lv.price <= c["h"] + tol:
-                if lv.last_touch_i >= 0 and i - lv.last_touch_i < 3:
-                    continue             # one visit, not three touches
-                lv.touches += 1
-                lv.last_touch_i = i
-                lv.touch_bars.append(i)
-                if _reacted(cd, i, lv.price, tol):
-                    lv.reactions += 1
-                    # «سقفی که کشیدم در ادامه به کف آن ارز تبدیل شد»
-                    approached_from_above = cd[i - 1]["c"] > lv.price
-                    if (lv.kind == "high" and approached_from_above) or \
-                       (lv.kind == "low" and not approached_from_above):
-                        lv.flipped = True
+        t, r, flip = _tally(cd, s.price, tol, s.i)
+        rate = r / max(1, n - s.i) * 100
+        if r < min_reactions or rate <= floor:
+            continue                     # «کمترین برخورد را داشتند — پاک می‌کنم»
+        lv = Level(price=s.price, kind=s.kind, born_i=s.i, born_t=s.t,
+                   touches=t, reactions=r)
+        # «سقفی که کشیدم در ادامه به کف آن ارز تبدیل شد»
+        lv.flipped = flip if s.kind == "high" else not flip
         out.append(lv)
 
-    # «سقف و کف‌هایی که کمترین برخورد را داشتند پاک می‌کنم»
-    kept = [l for l in out if l.reactions >= min_reactions]
-    kept.sort(key=lambda l: (-l.reactions, -l.touches))
+    out.sort(key=lambda l: (-l.reactions, -l.touches))
     # near-duplicates are the same line drawn twice; keep the better-tested one
     merged = []
-    for l in kept:
+    for l in out:
         if not any(abs(l.price / m.price - 1) < 0.0015 for m in merged):
             merged.append(l)
     return merged[:keep]

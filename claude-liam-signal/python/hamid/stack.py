@@ -98,11 +98,23 @@ def read(symbol, c4h, c1h, c15m):
                 fvgs=fvgs[:6], setup=setup, notes=notes)
 
 
-def _near_level(price, lvls, tol):
+def _level_in_block(block, lvls, tol):
+    """«اگر روی سقف یا کفی اردر بلاک باشد» — the block sits ON the level.
+
+    The first version asked whether the block was *near* a level, within twice
+    the 15m ATR. On sixty coins that let thirty-five through, because by then
+    the chart is carrying eight validated lines and almost any box is near one
+    of them. Near is not what he said. The line has to run through the box.
+
+    The tolerance that remains is small and exists only so a level a hair
+    outside the wick still counts — not to widen "on" into "around".
+    """
+    best = None
     for l in lvls:
-        if abs(price - l.price) <= tol:
-            return l
-    return None
+        if block.low - tol <= l.price <= block.high + tol:
+            if best is None or l.reactions > best.reactions:
+                best = l
+    return best
 
 
 def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
@@ -135,14 +147,18 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
     a15 = atr(c15m) or price * 0.003
 
     for b in blocks:
-        if not b.second_pullback and b.returns < 1:
+        # «منتظر پولبک دومش توی تایم ۱۵ دقیقه می‌مانم» — one return makes the
+        # block "تقریباً معتبر" and puts it on the watch list; it is the second
+        # that he actually enters on. A first-pullback block is reported as
+        # waiting, never as a signal.
+        if b.returns < 1:
             continue
         direction = "SHORT" if b.dir == "bearish" else "LONG"
         if t4 == "down" and direction != "SHORT":
             continue
         if t4 == "up" and direction != "LONG":
             continue
-        lvl = _near_level(b.mid, lvls, max(a15 * 2, b.mid * 0.002))
+        lvl = _level_in_block(b, lvls, a15 * 0.3)
         if lvl is None:
             continue                     # a block not sitting on a level is not his setup
 
