@@ -1,0 +1,116 @@
+# چرخهٔ روش حمید — در ابر، چه پنل باز باشد چه نباشد.
+#
+# Hamid asked for the analysis to keep running when the panel is closed, and for
+# one Python command to wake the rooms. `hamid.cycle` is that command; this is
+# the clock behind it.
+#
+# It interleaves with live-scan.yml (which runs at :07 and :37) so the two are
+# not competing for the same minute and the pipeline touches the market four
+# times an hour rather than two.
+#
+# The cycle decides for itself whether the day is active or quiet — measured
+# from Bitcoin's own ATR, not read off the calendar, because a Saturday during
+# a crash is not a quiet day. On a quiet day it reads the economic calendar and
+# screens for turnover instead of hunting entries, which is what Hamid asked
+# for: «در روزهای تعطیل … تقویم اقتصادی و خبرهای سیاسی مهم هستند».
+name: Hamid cycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto | active | quiet"
+        default: auto
+      symbols:
+        description: "how many coins"
+        default: "60"
+  schedule:
+    # Explicit minutes, not */30. A `*/N` cron lands in the most contended
+    # window on the runners and this pipeline has already watched one of them
+    # fail to fire for an hour straight.
+    - cron: "17,47 * * * *"
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/hamid/**"
+      - ".github/workflows/hamid-cycle.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hamid-cycle
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Method self-check
+        # The method's own tests run before it is allowed to produce a signal.
+        # These are cheap and they catch the failure mode that matters here: a
+        # level engine that is subtly wrong does not crash, it just draws lines
+        # somewhere else and keeps going.
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.selfcheck
+
+      - name: Run the cycle
+        working-directory: claude-liam-signal/python
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
+        run: |
+          python3 -m hamid.cycle \
+            --mode "${{ github.event.inputs.mode || 'auto' }}" \
+            --symbols "${{ github.event.inputs.symbols || '60' }}" \
+            | tee cycle.txt
+
+      - name: Summary
+        if: always()
+        working-directory: claude-liam-signal/python
+        run: |
+          { echo '```'; tail -60 cycle.txt 2>/dev/null || echo "no output"; echo '```'; } \
+            >> $GITHUB_STEP_SUMMARY
+
+      # Always runs, guard or no guard. A publish step that is skipped by an
+      # `if:` used to leave the next step without a git identity, which failed
+      # with `fatal: empty ident name` and exit 128.
+      - name: Git identity
+        if: always()
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
+      - name: Publish to main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git add signals brain
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Hamid cycle $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for attempt in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main || true
+            if ! git merge --no-edit origin/main; then
+              git checkout --ours -- brain signals 2>/dev/null || true
+              git add -A brain signals 2>/dev/null || git add -A brain || true
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            # Never publish a file carrying conflict markers. This has happened:
+            # a retry once committed brain/learning/index.json with the markers
+            # still in it, which left it unparseable and silently disabled
+            # learning for hours.
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain signals; then
+              echo "refusing to push: conflict markers survived the merge"
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          exit 1
