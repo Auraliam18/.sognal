@@ -1,0 +1,113 @@
+# ضربان — چرخه را خودش تکرار می‌کند، به کرون گیت‌هاب تکیه نمی‌کند.
+#
+# چرا این وجود دارد، با عدد:
+#
+#   کرون‌های این مخزن ۴ اجرا در ساعت می‌خواهند. اندازه‌گیری روی ۱۴ ساعت نشان داد
+#   گیت‌هاب فقط ۱ تا ۳ تا را می‌فرستد — یعنی همان موقع هم بیشتر از نیمی را
+#   می‌انداخت. بعد از ۲۳:۳۷ به‌کلی ایستاد: سه ساعت و نیم هیچ اجرای
+#   زمان‌بندی‌شده‌ای نیامد، در حالی که همهٔ ورک‌فلوها active بودند و اجرای دستی
+#   کار می‌کرد.
+#
+#   گیت‌هاب صریح می‌گوید رویداد schedule در ساعات شلوغ ممکن است به تأخیر بیفتد یا
+#   حذف شود. پس «هر نیم‌ساعت یک بار» با کرون یک آرزوست، نه یک تضمین.
+#
+# راه‌حل: یک اجرا که خودش داخلش حلقه می‌زند. یک بار روشن می‌شود و پنج ساعت و نیم
+# هر ۲۰ دقیقه چرخه را می‌چرخاند. حتی اگر گیت‌هاب بیشتر کرون‌ها را بیندازد، یک
+# شلیک موفق پنج ساعت پوشش می‌دهد.
+#
+# concurrency طوری تنظیم شده که همیشه حداکثر یکی در حال اجرا و یکی در صف باشد؛
+# گیت‌هاب اجرای در صفِ قدیمی‌تر را با جدید جایگزین می‌کند. پس تا وقتی هر پنج
+# ساعت و نیم دست‌کم یک کرون شلیک شود، پوشش قطع نمی‌شود.
+name: Heartbeat
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "چند دقیقه بچرخد"
+        default: "330"
+      every:
+        description: "فاصلهٔ هر چرخه به دقیقه"
+        default: "20"
+  schedule:
+    # هر دو ساعت تلاش می‌کند. حلقه ۵٫۵ ساعت طول می‌کشد، پس افتادن چند تای اول
+    # پوشش را قطع نمی‌کند — چیزی که یک کرون تنها نمی‌تواند تضمین کند.
+    - cron: "9 */2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+jobs:
+  beat:
+    runs-on: ubuntu-latest
+    # سقف گیت‌هاب ۳۶۰ دقیقه است؛ کمی زیرش می‌مانیم تا مرحلهٔ پایانی هم فرصت کند.
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Git identity
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
+      - name: چرخه، تا وقتی وقت هست
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
+        run: |
+          set +e   # یک چرخهٔ خراب نباید کل ضربان را بکشد
+          MINUTES="${{ github.event.inputs.minutes || '330' }}"
+          EVERY="${{ github.event.inputs.every || '20' }}"
+          END=$(( $(date +%s) + MINUTES * 60 ))
+          N=0
+          while [ "$(date +%s)" -lt "$END" ]; do
+            N=$((N + 1))
+            echo "───────── چرخهٔ $N — $(date -u '+%H:%M:%S UTC') ─────────"
+            python3 -m hamid.cycle --mode auto --symbols 60
+            echo "── انتشار"
+            cd "$GITHUB_WORKSPACE"
+            git add signals brain claude-liam-signal/backtests 2>/dev/null
+            if ! git diff --cached --quiet; then
+              git commit -q -m "ضربان $(date -u '+%Y-%m-%d %H:%M') UTC"
+              for a in 1 2 3; do
+                git push origin HEAD:main && break
+                git fetch origin main || true
+                if ! git merge --no-edit origin/main; then
+                  git checkout --ours -- brain signals 2>/dev/null || true
+                  git add -A brain signals 2>/dev/null || true
+                  git commit --no-edit || git merge --abort
+                fi
+                # هرگز فایلی با نشانهٔ تعارض منتشر نشود — این یک بار اتفاق افتاد و
+                # فهرست یادگیری را بی‌صدا از کار انداخت.
+                if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain signals; then
+                  echo "انتشار متوقف شد: نشانهٔ تعارض باقی مانده"
+                  break
+                fi
+                sleep $((a * 3))
+              done
+            else
+              echo "چیزی تغییر نکرد"
+            fi
+            cd claude-liam-signal/python
+            LEFT=$(( END - $(date +%s) ))
+            [ "$LEFT" -le $((EVERY * 60)) ] && break
+            echo "── $EVERY دقیقه صبر"
+            sleep $((EVERY * 60))
+          done
+          echo "ضربان تمام شد: $N چرخه"
+
+      - name: خلاصه
+        if: always()
+        run: echo "ضربان در $(date -u '+%H:%M UTC') تمام شد" >> $GITHUB_STEP_SUMMARY
