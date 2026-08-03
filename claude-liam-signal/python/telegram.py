@@ -33,6 +33,28 @@ def creds():
     return (tok, chat) if tok and chat else (None, None)
 
 
+def scrub(text):
+    """Remove the bot token from anything about to be printed.
+
+    urllib puts the request URL into its exception text, and the Telegram URL is
+    https://api.telegram.org/bot<TOKEN>/sendMessage — so a plain network failure
+    printed the full token. Inside GitHub Actions the registered secret gets
+    masked, which is why this was survivable; but the same code runs from a
+    laptop, from n8n, from anywhere, and there the token would land in the
+    output in the clear. Relying on someone else's masking for a secret we
+    already hold is not a safety property, it is luck.
+    """
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    out = str(text)
+    if tok:
+        out = out.replace(tok, "***")
+        # the numeric prefix alone identifies the bot, so hide bot<id>: too
+        head = tok.split(":")[0]
+        if head:
+            out = out.replace(f"bot{head}", "bot***")
+    return out
+
+
 def _load_sent():
     try:
         d = json.loads(SENT.read_text())
@@ -149,9 +171,9 @@ def send_signals(signals, render_chart, limit=8):
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
         except urllib.error.HTTPError as e:
-            print(f"  telegram rejected {s['sym']}: {e.code} {e.read()[:200]}", flush=True)
+            print(f"  telegram rejected {s['sym']}: {e.code} {scrub(e.read()[:200])}", flush=True)
         except Exception as e:                        # noqa: BLE001 - one failure must not stop the rest
-            print(f"  telegram failed for {s['sym']}: {e}", flush=True)
+            print(f"  telegram failed for {s['sym']}: {scrub(e)}", flush=True)
 
     SENT.parent.mkdir(parents=True, exist_ok=True)
     SENT.write_text(json.dumps(sent, indent=1))
