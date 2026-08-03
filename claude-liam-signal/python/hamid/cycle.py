@@ -289,10 +289,31 @@ def main():
         first, reads, setups = run_active(syms)
         report["market"] = first
         report["reads"] = len(reads)
-        report["setups"] = [{"symbol": s, **r.setup, "trend_4h": r.trend_4h,
-                             "channel": r.channel_note} for s, r in setups]
-        st["signals"] += len([s for s in report["setups"] if not s.get("waiting")])
-        print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ")
+        rows = [{"symbol": s, **r.setup, "trend_4h": r.trend_4h,
+                 "channel": r.channel_note} for s, r in setups]
+        ready = [x for x in rows if not x.get("waiting")]
+        waiting = [x for x in rows if x.get("waiting")]
+
+        # The target is fifteen a day, not fifteen a cycle. One cycle produced
+        # fifteen on its own; at forty-eight cycles a day that is seven hundred,
+        # which is not a signal service, it is a firehose. So the day's budget
+        # binds in both directions — pacing() already relaxes the floor when the
+        # day is behind, and this is the other half.
+        #
+        # Ranked by how well tested the block is and how hard price left it, so
+        # what survives a tight budget is the strongest of what was found rather
+        # than whichever coin happened to be scanned first.
+        ready.sort(key=lambda x: -(x["block"]["returns"] * x["block"]["impulse"]))
+        room = max(0, DAILY_TARGET - st["signals"])
+        per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
+        take = min(room, per_cycle, len(ready))
+        held = len(ready) - take
+        report["setups"] = ready[:take] + waiting
+        report["held_back"] = held
+        st["signals"] += take
+        print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ، "
+              f"{take} سیگنال فرستاده شد"
+              + (f"، {held} تای دیگر نگه داشته شد (سهمیهٔ روز)" if held else ""))
     else:
         report.update(run_quiet())
 
