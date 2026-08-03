@@ -1,0 +1,69 @@
+# آیا روش حمید سود می‌دهد؟
+#
+# The control measured selectivity: the method fires on 29% of real coins and 5%
+# of random walks, so it is finding something. This measures whether that
+# something is worth trading, which is a different question and the only one
+# that decides whether a daily signal count means anything.
+#
+# Runs on a schedule so the answer keeps up with the market rather than being a
+# thing that was true once in August.
+name: Hamid method backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "how many coins"
+        default: "25"
+      bars:
+        description: "15m candles per coin"
+        default: "1000"
+  schedule:
+    - cron: "41 3 * * *"
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/hamid/backtest.py"
+      - ".github/workflows/hamid-backtest.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Backtest
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 -m hamid.backtest \
+            --symbols "${{ github.event.inputs.symbols || '25' }}" \
+            --bars "${{ github.event.inputs.bars || '1000' }}" \
+            | tee bt.txt
+
+      - name: Summary
+        if: always()
+        working-directory: claude-liam-signal/python
+        run: |
+          { echo '```'; tail -40 bt.txt 2>/dev/null || echo "no output"; echo '```'; } \
+            >> $GITHUB_STEP_SUMMARY
+
+      - name: Git identity
+        if: always()
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
+      - name: Publish
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git add claude-liam-signal/backtests
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Hamid method backtest $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push origin HEAD:main || true

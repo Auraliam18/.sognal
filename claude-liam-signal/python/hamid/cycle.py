@@ -300,10 +300,18 @@ def main():
         # binds in both directions — pacing() already relaxes the floor when the
         # day is behind, and this is the other half.
         #
-        # Ranked by how well tested the block is and how hard price left it, so
-        # what survives a tight budget is the strongest of what was found rather
-        # than whichever coin happened to be scanned first.
-        ready.sort(key=lambda x: -(x["block"]["returns"] * x["block"]["impulse"]))
+        # Ranked by impulse alone. The first version multiplied impulse by the
+        # number of times price had returned to the block, on the assumption
+        # that more returns meant more validation. The backtest points the other
+        # way: blocks with three or more returns came back 35.7% and −0.075R
+        # against 46.5% and +0.184R overall. That reading is not acted on — its
+        # interval spans zero like everything else in that run — but a ranking I
+        # invented, with no evidence for it and weak evidence against, does not
+        # get to keep deciding which signals reach Hamid.
+        #
+        # Impulse stays because it is the one threshold here derived from a
+        # control rather than from intuition.
+        ready.sort(key=lambda x: -x["block"]["impulse"])
         room = max(0, DAILY_TARGET - st["signals"])
         per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
         take = min(room, per_cycle, len(ready))
