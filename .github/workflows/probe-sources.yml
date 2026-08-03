@@ -17,7 +17,8 @@ on:
     branches: [claude/hamid-signal-agent-smc-dkot7v]
     paths:
       - "claude-liam-signal/python/probe_sources.py"
-      - ".github/workflows/probe-sources.yml" 
+      - "claude-liam-signal/python/sources.py"
+      - ".github/workflows/probe-sources.yml"
 
 permissions:
   contents: write
@@ -27,13 +28,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Whichever ref triggered this. It used to be pinned to the working
+      # branch, so a scheduled run on main probed branch code and then committed
+      # the result to main as if main had produced it.
       - uses: actions/checkout@v4
-        with: { ref: claude/hamid-signal-agent-smc-dkot7v, fetch-depth: 1 }
+        with: { fetch-depth: 1 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Probe
         run: python3 claude-liam-signal/python/probe_sources.py | tee probe.txt
+      # The probe says what each venue returns. This says whether the adapter
+      # written against it actually works — from a machine that can reach them,
+      # which the development container cannot.
+      - name: Read real candles through the adapter
+        run: python3 claude-liam-signal/python/sources.py | tee -a probe.txt
+
+      - name: Check the parsers against the recorded replies
+        run: python3 claude-liam-signal/python/test_sources.py
+
       - name: Summary
         if: always()
         run: |
           { echo '```'; cat probe.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit the probe
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain/sources-probe.json
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Source probe $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push origin HEAD:main || true

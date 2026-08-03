@@ -1,0 +1,64 @@
+# آیا هر منبع بیرونی سالم است؟
+#
+# Hamid asked for every outside source to be checked. This runs the check
+# somewhere with a network — the development container reaches nothing but
+# GitHub — and writes the answer to brain/health.json so the rooms and the panel
+# can read it without asking every source again.
+#
+# Twice a day is deliberate. A source going down matters within hours, not
+# within minutes, and each check costs a request to somebody else's free tier.
+name: Source health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5,17 * * *"
+  push:
+    branches: [claude/hamid-signal-agent-smc-dkot7v]
+    paths:
+      - "claude-liam-signal/python/hamid/health.py"
+      - "claude-liam-signal/python/hamid/research.py"
+      - ".github/workflows/health.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Check every source
+        working-directory: claude-liam-signal/python
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+          CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
+        run: python3 -m hamid.health | tee health.txt
+
+      - name: Summary
+        if: always()
+        working-directory: claude-liam-signal/python
+        run: |
+          { echo '```'; cat health.txt 2>/dev/null || echo "no output"; echo '```'; } \
+            >> $GITHUB_STEP_SUMMARY
+
+      - name: Git identity
+        if: always()
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+
+      - name: Publish
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git add brain/health.json
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
+          git commit -q -m "Source health $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push origin HEAD:main || true

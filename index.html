@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v19.0 · هشت منبع داده، بیت‌یونیکس اول</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v20.1 · ۱۲ منبع جهانی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -2069,48 +2069,53 @@ async function runBacktest(auto){
 /* =========================================================================
    MARKET DATA SOURCES — because Binance is blocked where this panel is used.
 
-   The panel is used from Iran. Binance answers nothing there, and every earlier
-   version of this file assumed it would, so the panel opened to a red box and a
-   suggestion to find a VPN. That was the panel describing its own failure
-   rather than working, and it is what this replaces.
+   The panel is used from Iran. Every source below was probed for real 15m
+   candles and the reply recorded, because these APIs disagree in ways that
+   produce a chart that looks perfectly normal and is wrong: field orders
+   differ, some report seconds and some milliseconds, and most of them return
+   newest-first where Binance returns oldest-first.
 
-   Eight exchanges, tried in order until one answers. Bitunix first because it
-   is the one that works from Iran; the rest are there so a single exchange
-   going down or blocking a region never takes the panel with it. Whichever
-   answers is remembered and tried first next time.
+   The probe of 2 August found two things worth stating plainly.
 
-   The shapes are not guesses. Every one below was probed for real 15m candles
-   and the reply recorded, because these APIs disagree in ways that produce a
-   chart that looks perfectly normal and is wrong:
+   Bitunix returns newest-first, and the parser here did not reverse it. The
+   sanity check caught the reversed series and rejected it, so the source that
+   was meant to be first had in fact never been used — the panel had been
+   silently falling through to MEXC. Fixed, and it is why every parser now
+   declares its direction explicitly rather than inheriting a default.
 
-     kucoin   [time, open, CLOSE, HIGH, LOW, volume]   — close before high
-     gate     [time, VOLUME, close, high, low, open]   — volume in second place
-     okx, bybit, kucoin return newest-first; the rest oldest-first
-     kucoin, gate, lbank report seconds; the rest milliseconds
+   And Binance now answers 451 "Service unavailable from a restricted location"
+   even from a GitHub runner, while Bybit answers 403. Neither is a fallback any
+   more; both stay last, where a dead source costs nothing.
 
-   Read any of those the Binance way and the candles come out inverted or
-   scrambled with nothing on screen to say so. So each source declares its own
-   field order and its own time unit, and `norm` puts them all into one shape:
-   {t in ms, o, h, l, c, v}, oldest first.
+   The domestic Iranian exchanges were tried and are deliberately not here. They
+   are reachable from Iran, which was the appeal, but they are thin local books
+   whose prices lag the global market — and this engine reads structure off the
+   candles. An order block drawn on a shallow book that trades a few coins an
+   hour is not the order block the rest of the market is trading against, so a
+   signal built from it would be about a different market than the one being
+   traded. A source has to be deep and current to be worth reading, not merely
+   reachable.
    ========================================================================= */
+
 const SOURCES=[
   {
     id:"bitunix", label:"Bitunix", base:"https://fapi.bitunix.com",
-    /* Rows come back as objects. Note the volume fields are named the other way
-       round from what they hold: quoteVol carries the base amount. Verified
-       against BTC — 98.2 at a price of 63,000 is coins, not dollars. */
+    /* Objects, newest first, milliseconds. The volume fields are named the
+       other way round from what they hold — quoteVol carries the base amount,
+       checked against BTC: 42.8 at a price of 63,000 is coins, not dollars. */
     kline:(s,iv,n)=>`/api/v1/futures/market/kline?symbol=${s}&interval=${iv}&limit=${n}`,
     ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
     parse:rows=>rows.map(k=>({t:+k.time,o:+k.open,h:+k.high,l:+k.low,c:+k.close,
-      v:+(k.quoteVol||k.baseVol||0)})),
+      v:+(k.quoteVol||k.baseVol||0)})).reverse(),
     ticker:()=>`/api/v1/futures/market/tickers`,
-    parseTickers:rows=>rows.map(t=>({symbol:t.symbol,quoteVolume:+(t.quoteVol||t.baseVol||0),
-      priceChangePercent:+(t.priceChangePercent||t.change||0)*(Math.abs(+(t.change||0))<1?100:1),
+    parseTickers:rows=>rows.map(t=>({symbol:t.symbol,
+      quoteVolume:+(t.baseVol||t.quoteVol||0),
+      priceChangePercent:+(t.priceChangePercent||0)||(+(t.change||0))*100,
       lastPrice:+(t.lastPrice||t.last||t.markPrice||0)})),
   },
   {
     id:"mexc", label:"MEXC", base:"https://api.mexc.com",
-    /* Binance-shaped, which makes it the safest fallback of the eight. */
+    /* Binance-shaped and oldest-first, which makes it the safest fallback. */
     kline:(s,iv,n)=>`/api/v3/klines?symbol=${s}&interval=${iv}&limit=${n}`,
     ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"60m","4h":"4h","1d":"1d"},
     parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
@@ -2121,30 +2126,17 @@ const SOURCES=[
   {
     id:"kucoin", label:"KuCoin", base:"https://api.kucoin.com",
     sym:s=>s.replace(/USDT$/,"-USDT"),
-    unsym:s=>s.replace("-",""),
     /* [time, open, CLOSE, HIGH, LOW, volume, turnover] — close sits where
-       Binance puts high. Newest first, and time in seconds. */
+       Binance puts high. Newest first, seconds. */
     kline:(s,iv)=>`/api/v1/market/candles?type=${iv}&symbol=${s}`,
     ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"1hour","4h":"4hour","1d":"1day"},
     envelope:j=>j.data,
     parse:rows=>rows.map(k=>({t:+k[0]*1000,o:+k[1],c:+k[2],h:+k[3],l:+k[4],v:+k[5]})).reverse(),
     ticker:()=>`/api/v1/market/allTickers`,
+    tickerEnvelope:j=>j.data,
     parseTickers:j=>(j.ticker||[]).filter(t=>/-USDT$/.test(t.symbol)).map(t=>({
       symbol:t.symbol.replace("-",""),quoteVolume:+t.volValue,
       priceChangePercent:+t.changeRate*100,lastPrice:+t.last})),
-    tickerEnvelope:j=>j.data,
-  },
-  {
-    id:"bybit", label:"Bybit", base:"https://api.bybit.com",
-    kline:(s,iv,n)=>`/v5/market/kline?category=spot&symbol=${s}&interval=${iv}&limit=${n}`,
-    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D"},
-    envelope:j=>j.result&&j.result.list,
-    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
-    ticker:()=>`/v5/market/tickers?category=spot`,
-    tickerEnvelope:j=>j.result&&j.result.list,
-    parseTickers:rows=>rows.filter(t=>/USDT$/.test(t.symbol)).map(t=>({
-      symbol:t.symbol,quoteVolume:+t.turnover24h,
-      priceChangePercent:+t.price24hPcnt*100,lastPrice:+t.lastPrice})),
   },
   {
     id:"okx", label:"OKX", base:"https://www.okx.com",
@@ -2185,7 +2177,54 @@ const SOURCES=[
       priceChangePercent:+t.change_percentage,lastPrice:+t.last})),
   },
   {
+    id:"bingx", label:"BingX", base:"https://open-api.bingx.com",
+    kline:(s,iv,n)=>`/openApi/spot/v2/market/kline?symbol=${s}&interval=${iv}&limit=${n}`,
+    ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
+    sym:s=>s.replace(/USDT$/,"-USDT"),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})).reverse(),
+  },
+  {
+    id:"bitmart", label:"BitMart", base:"https://api-cloud.bitmart.com",
+    /* Oldest first, seconds. */
+    kline:(s,iv,n)=>`/spot/quotation/v3/klines?symbol=${s}&step=${iv}&limit=${n}`,
+    ivMap:{"1m":"1","5m":"5","15m":"15","1h":"60","4h":"240","1d":"1440"},
+    sym:s=>s.replace(/USDT$/,"_USDT"),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k[0]*1000,o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
+  },
+  {
+    id:"htx", label:"HTX", base:"https://api.huobi.pro",
+    /* Objects keyed `id` in seconds, newest first. */
+    kline:(s,iv,n)=>`/market/history/kline?symbol=${s}&period=${iv}&size=${n}`,
+    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"60min","4h":"4hour","1d":"1day"},
+    sym:s=>s.toLowerCase(),
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k.id*1000,o:+k.open,h:+k.high,l:+k.low,c:+k.close,
+      v:+(k.amount||k.vol||0)})).reverse(),
+  },
+  {
+    id:"coinex", label:"CoinEx", base:"https://api.coinex.com",
+    kline:(s,iv,n)=>`/v2/spot/kline?market=${s}&period=${iv}&limit=${n}`,
+    ivMap:{"1m":"1min","5m":"5min","15m":"15min","1h":"1hour","4h":"4hour","1d":"1day"},
+    envelope:j=>j.data,
+    parse:rows=>rows.map(k=>({t:+k.created_at,o:+k.open,h:+k.high,l:+k.low,
+      c:+k.close,v:+(k.volume||0)})),
+  },
+  {
+    id:"coinbase", label:"Coinbase", base:"https://api.exchange.coinbase.com",
+    /* [time, low, high, open, close, volume] — low and high before open, and
+       USD rather than USDT, which is close enough for structure. Newest first,
+       seconds. */
+    sym:s=>s.replace(/USDT$/,"-USD"),
+    kline:(s,iv)=>`/products/${s}/candles?granularity=${iv}`,
+    ivMap:{"1m":"60","5m":"300","15m":"900","1h":"3600","4h":"21600","1d":"86400"},
+    parse:rows=>rows.map(k=>({t:+k[0]*1000,l:+k[1],h:+k[2],o:+k[3],c:+k[4],v:+k[5]})).reverse(),
+  },
+  {
     id:"binance", label:"Binance", base:"https://api.binance.com",
+    /* 451 from a restricted location, which now includes GitHub's runners.
+       Kept only for anyone opening the panel from somewhere it still answers. */
     kline:(s,iv,n)=>`/api/v3/klines?symbol=${s}&interval=${iv}&limit=${n}`,
     ivMap:{"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d"},
     parse:rows=>rows.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]})),
@@ -2196,8 +2235,8 @@ const SOURCES=[
 ];
 
 /* A source is only usable if what it returned is actually candles. A reply that
-   parses into rows of NaN, or that runs backwards, is worse than no reply —
-   it would be charted. */
+   parses into rows of NaN, or that runs backwards, is worse than no reply — it
+   would be charted. This is what caught Bitunix being read newest-first. */
 function sourceSane(cd){
   if(!Array.isArray(cd)||cd.length<10)return false;
   const bad=cd.filter(k=>!isFinite(k.t)||!isFinite(k.o)||!isFinite(k.h)||
@@ -3488,10 +3527,10 @@ function diagHTML(){
     tone="#e74c3c";
     verdict="هیچ‌کدام از منابع بازار جواب ندادند";
     detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
-      پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و اولین جوابی که
-      واقعاً کندل باشد را برمی‌دارد. اینکه هیچ‌کدام جواب نداده یعنی یا اینترنت قطع است،
-      یا فایروال هر هشت‌تا را بسته. با VPN همه‌شان باز می‌شوند، ولی بدون VPN هم
-      بیت‌یونیکس معمولاً از ایران در دسترس است.`;
+      پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و
+      اولین جوابی که واقعاً کندل باشد را برمی‌دارد. اینکه هیچ‌کدام از این ${SOURCES.length}
+      منبع جواب نداده یعنی احتمالاً اینترنت یا مسیر خروجی قطع است، نه اینکه صرافی‌ها
+      پایین باشند — این ${SOURCES.length} صرافی هم‌زمان پایین نمی‌روند.`;
   }else if(!tot){
     tone="#f0a92e";
     verdict="هنوز اسکنی کامل نشده";

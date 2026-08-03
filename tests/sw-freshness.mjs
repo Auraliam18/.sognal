@@ -6,7 +6,20 @@ import { createServer } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
-const DIR = process.argv[2];
+import { mkdtempSync, copyFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+/* This test edits index.html and sw.js to simulate a deploy, so it must never
+   be pointed at the repository itself. Given no directory it makes its own
+   throwaway copy — running it plainly should not be able to damage the panel. */
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const DIR = process.argv[2] || (() => {
+  const d = mkdtempSync(join(tmpdir(), "sw-fresh-"));
+  for (const f of ["index.html","sw.js","manifest.webmanifest","lightweight-charts.js"])
+    { try { copyFileSync(join(ROOT,f), join(d,f)); } catch {} }
+  return d;
+})();
 const T = { ".html":"text/html; charset=utf-8", ".js":"text/javascript; charset=utf-8",
   ".json":"application/json", ".png":"image/png", ".webmanifest":"application/manifest+json" };
 const server = createServer(async (req,res)=>{
@@ -32,7 +45,7 @@ console.log("بازدید اول :", (first.v||"").trim(), "| سرویس‌ور�
 
 // حالا دیپلوی جدید را شبیه‌سازی می‌کنیم
 let html = await readFile(join(DIR,"index.html"),"utf8");
-await writeFile(join(DIR,"index.html"), html.replace("cycle v18.1","cycle v99-NEW"));
+await writeFile(join(DIR,"index.html"), html.replace(/cycle v[0-9.]+/, "cycle v99-NEW"));
 let sw = await readFile(join(DIR,"sw.js"),"utf8");
 await writeFile(join(DIR,"sw.js"), sw.replace(/hsa-shell-v[0-9.]+/,"hsa-shell-v99"));
 

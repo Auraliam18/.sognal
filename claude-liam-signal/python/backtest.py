@@ -34,9 +34,51 @@ STABLE = ("USDCUSDT", "FDUSDUSDT", "TUSDUSDT", "BUSDUSDT", "EURUSDT", "DAIUSDT",
 MS = {"5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 
 
+def _elsewhere(path):
+    """Same request, asked of somewhere that is not Binance.
+
+    The panel stopped depending on one venue some time ago. This side had not,
+    and it is the side that runs unattended: when a runner got HTTP 451 from
+    api.binance.com, every scheduled job that hour produced nothing at all. So
+    when all three Binance hosts refuse, the two requests that matter — candles
+    and 24h volume — are asked of the other nine venues instead, and come back
+    in Binance's own shape so nothing downstream can tell the difference.
+
+    Only those two paths are covered. Anything else raises, rather than quietly
+    returning something that looks like an answer.
+    """
+    from urllib.parse import parse_qs, urlparse
+    import sources
+
+    u = urlparse(path)
+    q = {k: v[0] for k, v in parse_qs(u.query).items()}
+    if "endTime" in q or "startTime" in q:
+        # Deep history is paginated by walking endTime backwards. The other
+        # venues each spell that cursor differently, and one that ignores it
+        # returns the newest page every time — the loop would then collect the
+        # same thousand candles over and over and call it five years of history,
+        # without erroring. Refusing is the only honest answer until each venue's
+        # cursor is implemented and tested. The live scan does not use endTime,
+        # so the job that runs unattended every half hour is covered; the deep
+        # backtest, which is run deliberately, is not.
+        raise RuntimeError("paged history has no fallback yet — endTime is Binance-only")
+    if u.path.endswith("/klines") and "symbol" in q:
+        return sources.klines(q["symbol"], q.get("interval", "15m"),
+                              int(q.get("limit", 500)), quiet=False)
+    if u.path.endswith("/ticker/24hr"):
+        return sources.tickers(quiet=False)
+    raise RuntimeError(f"no non-Binance route for {path}")
+
+
 def get(path, tries=4, futures=False):
     """Spot by default. `futures=True` reaches the perpetuals host, which is
-    where BTCDOMUSDT lives — real BTC dominance rather than a proxy for it."""
+    where BTCDOMUSDT lives — real BTC dominance rather than a proxy for it.
+
+    Binance first, because it is the shape everything downstream expects and the
+    one the caches were filled from. But no longer Binance only — see
+    `_elsewhere`. Futures has no fallback: BTCDOMUSDT exists nowhere else, and
+    substituting a different instrument would answer a different question.
+    """
     hosts = FUTURES_HOSTS if futures else HOSTS
     last = None
     for attempt in range(tries):
@@ -48,6 +90,11 @@ def get(path, tries=4, futures=False):
         except Exception as e:                       # noqa: BLE001 - any failure is retryable
             last = e
             time.sleep(1.5 * (attempt + 1))
+    if not futures:
+        try:
+            return _elsewhere(path)
+        except Exception as e:                       # noqa: BLE001 - report both failures
+            raise RuntimeError(f"{path}: binance said {last}; elsewhere said {e}") from e
     raise RuntimeError(f"{path}: {last}")
 
 

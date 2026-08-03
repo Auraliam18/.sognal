@@ -29,6 +29,7 @@ ROOT = HERE.parent.parent
 OUT = ROOT / "signals"
 sys.path.insert(0, str(HERE))
 from backtest import get, top_symbols, MS          # same fetching, same retries
+import sources                                      # the venue that actually served
 import brain                                        # permanent memory
 
 BARS = 420                                          # engine sees 400 after the open one goes
@@ -41,6 +42,20 @@ def klines_now(sym, tf, bars=BARS):
     rows = get(f"/api/v3/klines?symbol={sym}&interval={tf}&limit={bars}")
     return [{"t": k[0], "o": float(k[1]), "h": float(k[2]), "l": float(k[3]),
              "c": float(k[4]), "v": float(k[5])} for k in rows]
+
+
+def _source_label():
+    """Say which venue the numbers came from, not which one was asked first.
+
+    This line is printed on the panel. It read "real Binance candles" whether or
+    not Binance had served them, which is the kind of caption that is true until
+    the day it silently is not."""
+    u = sources.used()
+    where = u.get("klines")
+    if where is None:
+        return "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب"
+    label = next((v["label"] for v in sources.VENUES if v["id"] == where), where)
+    return f"کندل واقعی {label}، اسکن‌شده روی رانر گیت‌هاب"
 
 
 def top_by_48h(n):
@@ -119,7 +134,7 @@ def main():
                 failed += 1
     print(f"  {len(jobs)} series fetched, {failed} failed", flush=True)
     if not jobs:
-        sys.exit("no candles — Binance unreachable from here")
+        sys.exit("no candles — every venue refused, not just Binance")
 
     tmp = HERE / ".scan-tmp"
     tmp.mkdir(exist_ok=True)
@@ -217,7 +232,7 @@ def main():
     report = {
         "generated": int(time.time() * 1000),
         "generatedText": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
-        "source": "real Binance candles, scanned on a GitHub runner",
+        "source": _source_label(),
         "symbols": len(syms), "series": len(jobs), "timeframes": tfs,
         "counts": counts,
         "per_strategy": per_strategy,

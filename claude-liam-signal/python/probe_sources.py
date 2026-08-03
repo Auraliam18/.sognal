@@ -25,10 +25,24 @@ TIMEOUT = 20
 # One 15m request for BTC/USDT from each. Several of these are commonly
 # reachable where Binance is not, which is the whole point of the list.
 SOURCES = [
+    # Bitunix first: it is the one the panel reads from. The rest are here to
+    # prove there is somewhere to fall back to.
+    #
+    # The Iranian venues were probed here once and are deliberately gone. They
+    # answered, but they are thin local books whose prices lag the global tape,
+    # and this engine reads structure off the candles — an order block drawn on
+    # a shallow book is not the one the market is trading against. Reachable is
+    # not the same as worth reading.
     ("bitunix-futures", "https://fapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=10"),
-    ("bitunix-open-f",  "https://openapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=10"),
-    ("bitunix-spot",    "https://openapi.bitunix.com/api/spot/v1/market/kline?symbol=BTCUSDT&interval=15min&limit=10"),
-    ("bitunix-spot2",   "https://api.bitunix.com/api/spot/v1/market/kline?symbol=BTCUSDT&interval=15min&limit=10"),
+    ("bitunix-openapi", "https://openapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=10"),
+    ("bingx",           "https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=BTC-USDT&interval=15m&limit=10"),
+    ("bitmart",         "https://api-cloud.bitmart.com/spot/quotation/v3/klines?symbol=BTC_USDT&step=15&limit=10"),
+    ("htx",             "https://api.huobi.pro/market/history/kline?symbol=btcusdt&period=15min&size=10"),
+    ("phemex",          "https://api.phemex.com/exchange/public/md/v2/kline?symbol=sBTCUSDT&resolution=900&limit=10"),
+    ("weex",            "https://api-spot.weex.com/api/v2/market/candles?symbol=BTCUSDT&granularity=900&limit=10"),
+    ("cryptocompare",   "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USDT&limit=10&aggregate=15"),
+    ("coinbase",        "https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=900"),
+    ("kraken",          "https://api.kraken.com/0/public/OHLC?pair=XBTUSDT&interval=15"),
     ("kucoin",          "https://api.kucoin.com/api/v1/market/candles?type=15min&symbol=BTC-USDT"),
     ("okx",             "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=15m&limit=10"),
     ("bybit",           "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=15&limit=10"),
