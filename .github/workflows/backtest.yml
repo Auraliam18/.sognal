@@ -13,11 +13,15 @@ on:
   # The push trigger stays alongside the schedule: it is what runs this while a
   # change is still on the working branch, and it is how the first real-candle
   # numbers were produced before any of these reached main.
-  push:
-    branches: [main, claude/hamid-signal-agent-smc-dkot7v]
-    paths:
-      - "claude-liam-signal/python/**"
-      - ".github/workflows/backtest.yml"
+  # راه‌انداز «push» عمداً برداشته شد.
+  #
+  # هر کامیت، سه‌چهار ورک‌فلوی سنگین را با هم روشن می‌کرد. آن‌ها همدیگر را کنسل
+  # می‌کردند و — مهم‌تر — زمان‌بند گیت‌هاب روی مخزنی که این‌قدر شلوغ باشد اجراهای
+  # کرون را می‌اندازد. اندازه‌گیری شد: بین ۲۳:۳۷ تا ۰۲:۰۶ هیچ اجرای زمان‌بندی‌شده‌ای
+  # انجام نشد، در حالی که همان ورک‌فلو قبلش ساعتی یک بار می‌آمد.
+  #
+  # وقتی لازم بود که کارها روی شاخه بودند و کرون از شاخهٔ غیر‌اصلی شلیک نمی‌کند.
+  # حالا همه روی main هستند. برای اجرای دستی، workflow_dispatch هست.
   workflow_dispatch:
     inputs:
       symbols:
