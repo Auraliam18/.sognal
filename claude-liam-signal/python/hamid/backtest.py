@@ -55,7 +55,10 @@ OUT = ROOT / "claude-liam-signal" / "backtests"
 
 FILL_WINDOW = 24          # 6 hours of 15m bars for the limit to be touched
 HOLD_WINDOW = 96          # 24 hours before the position is closed at market
-STEP = 4                  # evaluate once an hour, not every 15 minutes
+STEP = 2                  # every half hour. `busy_until` already prevents the
+                          # same idea being counted twice, so a finer step finds
+                          # setups a coarse one stepped straight over rather than
+                          # duplicating the ones it found.
 
 
 def rows_to_candles(rows):
@@ -107,8 +110,12 @@ def simulate(c15, i, setup):
     return ((out - entry) if long else (entry - out)) / risk
 
 
-def walk(sym, c15, c1h, bars_needed=260):
-    """Replay the symbol, producing one trade per idea rather than per bar."""
+def walk(sym, c15, c1h, bars_needed=140):
+    # 140, not 260. The binding constraint is the 1H history checked below —
+    # levels() needs about thirty bars and the 15m series is only used for trend
+    # and ATR — so a larger 15m warm-up was discarding evaluable bars for
+    # nothing, and with only ten days of 15m available that is most of the
+    # sample.
     trades = []
     busy_until = -1
     for i in range(bars_needed, len(c15) - FILL_WINDOW - 2, STEP):
