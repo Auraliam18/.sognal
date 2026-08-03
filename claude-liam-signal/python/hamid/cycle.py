@@ -246,6 +246,33 @@ def run_quiet():
 
 # ── the cycle ──────────────────────────────────────────────────────────────
 
+def _for_telegram(x):
+    """Hamid's setup in the shape telegram.py already knows.
+
+    The footer is set explicitly rather than left to default. The default states
+    22.7% and +0.069R, which is the original engine's measured record — quoting
+    it on a signal from this method would read as evidence for something it has
+    never been measured on. What this method has actually measured is 43 trades
+    at 46.5% and +0.184R with the interval spanning zero, and the message says
+    exactly that, including that it is not yet an edge.
+    """
+    return {
+        "sym": x["symbol"], "tf": "15m", "dir": x["dir"],
+        "entry": float(x["entry"]), "sl": float(x["sl"]),
+        "tp1": float(x["tp1"]), "tp2": float(x.get("tp2") or 0) or None,
+        "rr": x["rr"],
+        "strategy": "hamid", "strategyName": "روش خود حمید (۴ساعته → ۱ساعته → ۱۵دقیقه)",
+        "ob": {"low": x["block"]["low"], "high": x["block"]["high"]},
+        "level": {"type": "R" if x["dir"] == "SHORT" else "S",
+                  "touches": x["on_level"]["touches"]},
+        "footer": (f"<i>فاصلهٔ استاپ {x.get('stop_pct')}٪. "
+                   f"{x.get('why','')}</i>\n"
+                   "<i>این روش تا الان روی ۴۳ معاملهٔ واقعی ۴۶٫۵٪ برد و +۰٫۱۸۴R داده، "
+                   "ولی بازهٔ اطمینان صفر را در بر می‌گیرد — یعنی هنوز لبهٔ ثابت‌شده "
+                   "نیست. سایز را کوچک نگه دار.</i>"),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default="auto", choices=["auto", "active", "quiet"])
@@ -324,6 +351,18 @@ def main():
               + (f"، {held} تای دیگر نگه داشته شد (سهمیهٔ روز)" if held else ""))
     else:
         report.update(run_quiet())
+
+    # Deliver. telegram.py refuses loudly and sends nothing without credentials,
+    # so this is safe to call before Hamid has added the token.
+    if mode == "active" and report.get("setups"):
+        try:
+            import telegram
+            sent = telegram.send_signals(
+                [_for_telegram(x) for x in report["setups"] if not x.get("waiting")],
+                lambda setup, path: None)          # text only; charts need candles
+            report["telegram"] = sent
+        except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
+            print(f"تلگرام: {type(e).__name__}: {e}")
 
     st["modes"][mode] = st["modes"].get(mode, 0) + 1
     if not a.dry:
