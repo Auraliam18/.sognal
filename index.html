@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.0 · روش حمید در پنل</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.1 · انتشار روی پنل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3630,9 +3630,11 @@ function diagHTML(){
     verdict="هیچ‌کدام از منابع بازار جواب ندادند";
     detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
       پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و
-      اولین جوابی که واقعاً کندل باشد را برمی‌دارد. اینکه هیچ‌کدام از این ${SOURCES.length}
-      منبع جواب نداده یعنی احتمالاً اینترنت یا مسیر خروجی قطع است، نه اینکه صرافی‌ها
-      پایین باشند — این ${SOURCES.length} صرافی هم‌زمان پایین نمی‌روند.`;
+      اولین جوابی که واقعاً کندل باشد را برمی‌دارد. هر ${SOURCES.length} تا صرافی
+      جهانی‌اند، پس از داخل ایران معمولاً هیچ‌کدام باز نمی‌شوند — این حالت
+      <b>عادی است، نه خرابی</b>. به همین دلیل تحلیل روی سرور گیت‌هاب انجام می‌شود
+      و نتیجه‌اش پایین همین صفحه می‌آید؛ پنل برای دیدن سیگنال نیازی ندارد خودش به
+      صرافی وصل شود. اگر بخش‌های پایین تازه‌اند، همه‌چیز سالم است.`;
   }else if(!tot){
     tone="#f0a92e";
     verdict="هنوز اسکنی کامل نشده";
