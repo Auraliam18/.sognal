@@ -23,7 +23,7 @@ on:
         default: auto
       symbols:
         description: "how many coins"
-        default: "60"
+        default: "100"
   schedule:
     # Explicit minutes, not */30. A `*/N` cron lands in the most contended
     # window on the runners and this pipeline has already watched one of them
@@ -81,7 +81,7 @@ jobs:
         run: |
           python3 -m hamid.cycle \
             --mode "${{ github.event.inputs.mode || 'auto' }}" \
-            --symbols "${{ github.event.inputs.symbols || '60' }}" \
+            --symbols "${{ github.event.inputs.symbols || '100' }}" \
             | tee cycle.txt
 
       - name: Summary

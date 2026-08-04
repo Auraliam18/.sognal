@@ -110,6 +110,7 @@ def open_from(setups, context):
                 "flipped": (s.get("on_level") or {}).get("flipped"),
                 "stop_pct": s.get("stop_pct"),
                 "dir": s["dir"],
+                "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),
                 **context,
             },
         })
@@ -200,20 +201,36 @@ def mark():
 
 def _equity():
     """Fixed-fractional balance from the closed book. Expired orders contribute
-    nothing, because they were never trades."""
-    bal, peak, dd = START_BALANCE, START_BALANCE, 0.0
-    n = 0
-    for t in _read(CLOSED):
-        if t.get("R") is None:
-            continue
-        bal += bal * RISK_FRACTION * t["R"]
-        peak = max(peak, bal)
-        dd = max(dd, (peak - bal) / peak)
-        n += 1
-    j = {"balance": round(bal, 2), "start": START_BALANCE, "trades": n,
-         "return_pct": round((bal / START_BALANCE - 1) * 100, 2),
-         "max_drawdown_pct": round(dd * 100, 2),
-         "risk_per_trade_pct": RISK_FRACTION * 100,
+    nothing, because they were never trades.
+
+    Two lines, kept apart on purpose. The book now also records first-pullback
+    entries as experiments so the learning loop can measure Hamid's own rule
+    («منتظر پولبک دومش می‌مانم») instead of assuming it — but those were never
+    signalled to him, and mixing them into the headline balance would make the
+    signalled strategy's record unreadable. `balance` is the signalled trades
+    only; the experiments get their own line.
+    """
+    def run_book(trades):
+        bal, peak, dd, n, wins = START_BALANCE, START_BALANCE, 0.0, 0, 0
+        for t in trades:
+            if t.get("R") is None:
+                continue
+            bal += bal * RISK_FRACTION * t["R"]
+            peak = max(peak, bal)
+            dd = max(dd, (peak - bal) / peak)
+            n += 1
+            wins += 1 if t["R"] > 0 else 0
+        return {"balance": round(bal, 2), "trades": n,
+                "win_pct": round(wins / n * 100, 1) if n else None,
+                "return_pct": round((bal / START_BALANCE - 1) * 100, 2),
+                "max_drawdown_pct": round(dd * 100, 2)}
+
+    closed = _read(CLOSED)
+    signalled = [t for t in closed if (t.get("why") or {}).get("stage") != "first"]
+    experiments = [t for t in closed if (t.get("why") or {}).get("stage") == "first"]
+    j = {**run_book(signalled),
+         "start": START_BALANCE, "risk_per_trade_pct": RISK_FRACTION * 100,
+         "experiments_first_pullback": run_book(experiments),
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
     EQUITY.write_text(json.dumps(j, ensure_ascii=False, indent=1))
@@ -237,6 +254,10 @@ def _boot_diff(a, b, n=3000, alpha=0.05):
 
 CONDITIONS = [
     ("لانگ بود", lambda w: w.get("dir") == "LONG"),
+    # قانون خود حمید، بالاخره قابل اندازه‌گیری: آیا صبر برای پولبک دوم واقعاً
+    # نتیجه را بهتر می‌کند؟ تا حالا فرض بود؛ حالا هر دو مرحله در دفتر ثبت
+    # می‌شوند و این شرط جوابش را با داده می‌دهد.
+    ("پولبک دوم بود", lambda w: w.get("stage") == "second"),
     ("روند ۴ساعته صعودی", lambda w: w.get("trend_4h") == "up"),
     ("ضربهٔ بلاک ≥ ۶", lambda w: (w.get("impulse") or 0) >= 6),
     ("ضربهٔ بلاک ≥ ۱۰", lambda w: (w.get("impulse") or 0) >= 10),

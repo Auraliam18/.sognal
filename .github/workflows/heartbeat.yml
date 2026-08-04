@@ -80,7 +80,7 @@ jobs:
             DEEP=""
             [ $((N % 6)) -eq 1 ] && DEEP="--deep"
             python3 -m hamid.intel $DEEP --quiet || true
-            python3 -m hamid.cycle --mode auto --symbols 60
+            python3 -m hamid.cycle --mode auto --symbols 100
             echo "── انتشار"
             cd "$GITHUB_WORKSPACE"
             git add signals brain claude-liam-signal/backtests 2>/dev/null
