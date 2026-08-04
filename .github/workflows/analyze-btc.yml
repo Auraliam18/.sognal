@@ -1,0 +1,37 @@
+# تحلیل کامل بیت‌کوین با روش حمید — روی رانر، چون کانتینر توسعه به هیچ صرافی
+# نمی‌رسد. خروجی در brain/analysis-btc.json منتشر می‌شود.
+name: Analyze BTC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: تحلیل
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.analyze_btc | tail -5
+      - name: Git identity
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+      - name: انتشار
+        run: |
+          git add brain/analysis-btc.json brain
+          git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }
+          git commit -q -m "تحلیل بیت‌کوین $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for a in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main && git merge --no-edit origin/main || true
+            sleep $((a * 3))
+          done
+          exit 1
