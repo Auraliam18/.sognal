@@ -100,6 +100,25 @@ jobs:
             else
               echo "چیزی تغییر نکرد"
             fi
+            # و روی خود پنل. پنل از gh-pages می‌خواند، نه از main — بدون این،
+            # چرخه می‌چرخید و حمید یک فایل کهنه می‌دید.
+            git fetch origin gh-pages -q || true
+            rm -rf /tmp/ghp
+            if git worktree add /tmp/ghp origin/gh-pages --detach -q 2>/dev/null; then
+              mkdir -p /tmp/ghp/signals
+              cp signals/hamid-latest.json /tmp/ghp/signals/ 2>/dev/null || true
+              ( cd /tmp/ghp
+                git add signals
+                if ! git diff --cached --quiet; then
+                  git commit -q -m "ضربان $(date -u '+%H:%M') UTC"
+                  for a in 1 2 3; do
+                    git push origin HEAD:gh-pages -q && break
+                    git fetch origin gh-pages -q || true
+                    git rebase origin/gh-pages -q || { git rebase --abort; break; }
+                  done
+                fi )
+              git worktree remove /tmp/ghp --force 2>/dev/null || true
+            fi
             cd claude-liam-signal/python
             LEFT=$(( END - $(date +%s) ))
             [ "$LEFT" -le $((EVERY * 60)) ] && break
