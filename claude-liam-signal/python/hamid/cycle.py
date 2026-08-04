@@ -359,6 +359,11 @@ def main():
         held = len(ready) - take
         report["setups"] = ready[:take] + waiting
         report["held_back"] = held
+        # سهمیه فقط برای نمایش و تلگرام است. دفتر کاغذی همهٔ آماده‌ها را
+        # می‌گیرد: یادگیری به معاملهٔ بسته نیاز دارد و با ۲ سیگنال در چرخه،
+        # رسیدن به ۲۰ معامله (کف نتیجه‌گیری) هفته‌ها طول می‌کشید. ثبت کاغذی
+        # هزینه‌ای ندارد و هیچ پیامی برای حمید نمی‌سازد.
+        report["paper_candidates"] = ready + [x for x in waiting]
         st["signals"] += take
         print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ، "
               f"{take} سیگنال فرستاده شد"
@@ -388,8 +393,11 @@ def main():
         cal = (world.get("calendar") or {}).get("next_48h") or []
         ctx["news_soon"] = len([e for e in cal if 0 <= e.get("in_hours", 99) <= 6])
         ctx["hot_news"] = len((world.get("news") or {}).get("hot") or [])
-        opened = paper.open_from(
-            [x for x in report.get("setups", []) if not x.get("waiting")], ctx)
+        cands = report.get("paper_candidates") or \
+            [x for x in report.get("setups", []) if not x.get("waiting")]
+        for c in cands:
+            c["stage_tag"] = "second" if not c.get("waiting") else "first"
+        opened = paper.open_from(cands, ctx)
         still, closed = paper.mark()
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
