@@ -142,6 +142,31 @@ def c_brain_writing():
     return ("ok" if n else "warn"), f"{n} رویداد امروز"
 
 
+def c_rooms_scored():
+    """امتیازدهی اتاق‌ها (payroll) باید تازه باشد — این همان «راندمان اتاق‌ها»ست.
+
+    این بررسی به این دلیل وجود دارد که دقیقاً همین از کار افتاد و هیچ‌کس
+    نفهمید: ورک‌فلوی paper-cycle به شاخه‌ای پین بود که بعد از هر ادغام PR پاک
+    می‌شود، checkout دو روز شکست می‌خورد، و آخرین امتیاز اتاق‌ها مال دو روز
+    قبل بود — در حالی که همهٔ چیزهای دیگر سبز بودند.
+    """
+    p = ROOT / "brain" / "rooms" / "payroll.json"
+    if not p.exists():
+        return "down", "payroll.json وجود ندارد — اتاق‌ها هیچ‌وقت امتیاز نگرفته‌اند"
+    j = json.loads(p.read_text())
+    at = j.get("at")
+    if not at:
+        return "warn", "payroll زمان ندارد"
+    age_h = (time.time() * 1000 - at) / 3600_000
+    n = len(j.get("rooms") or [])
+    detail = f"{n} اتاق · {age_h:.0f} ساعت پیش · مجموع {j.get('total')}"
+    if age_h > 26:
+        return "down", f"کهنه است — {detail} (زمان‌بندی هر ۲ ساعت است)"
+    if age_h > 6:
+        return "warn", f"دیر شده — {detail}"
+    return "ok", detail
+
+
 def c_telegram_ready():
     import os
     tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -159,6 +184,7 @@ CHECKS = [
     ("هماهنگی پنل با آخرین چرخه", c_pages_matches_main),
     ("دفتر ترید کاغذی", c_paper_moving),
     ("اتاق‌ها در حال نوشتن", c_brain_writing),
+    ("راندمان اتاق‌ها (payroll)", c_rooms_scored),
     ("آمادگی تلگرام", c_telegram_ready),
 ]
 
