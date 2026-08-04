@@ -98,7 +98,17 @@ def c_pages_matches_main():
 
     اختلاف یعنی مرحلهٔ انتشار روی gh-pages شکسته — همان خرابی‌ای که یک بار
     اتفاق افتاد و هیچ ورک‌فلویی قرمز نشد.
+
+    این بررسی فقط **بعد از** مرحلهٔ انتشار معنی دارد. وقتی دیده‌بان داخل خود
+    چرخه اجرا شود، هنوز چیزی منتشر نشده و پنل طبیعتاً یک چرخه عقب است — همان
+    اولین اجرای واقعی ۸۳ دقیقه اختلاف گزارش کرد در حالی که انتشار سالم بود.
+    یک هشدار دروغ در هر چرخه یعنی حمید بعد از یک روز دیگر هیچ هشداری را
+    نمی‌خواند، و آن وقت هشدار واقعی هم گم می‌شود. پس بدون AFTER_PUBLISH اصلاً
+    این بررسی انجام نمی‌شود.
     """
+    import os
+    if not os.environ.get("WATCHDOG_AFTER_PUBLISH"):
+        return "skip", "قبل از مرحلهٔ انتشار اجرا شده — این بررسی اینجا معنی ندارد"
     local = ROOT / "signals" / "hamid-latest.json"
     if not local.exists():
         return "warn", "نسخهٔ محلی نیست (بیرون از رانر اجرا شده)"
@@ -169,7 +179,7 @@ def run(alert=False, quiet=False):
     if not quiet:
         print("\nدیده‌بان پنل\n" + "═" * 72)
         for r in rows:
-            mark = {"ok": "✓", "warn": "!", "down": "✗"}[r["status"]]
+            mark = {"ok": "✓", "warn": "!", "down": "✗", "skip": "–"}[r["status"]]
             print(f"  {mark}  {r['name']:<30} {r['detail']}")
         print("═" * 72)
         n_ok = sum(1 for r in rows if r["status"] == "ok")

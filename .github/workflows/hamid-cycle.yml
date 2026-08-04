@@ -147,3 +147,15 @@ jobs:
             sleep $((a * 3))
           done
           exit 1
+
+      # دیده‌بان، این بار بعد از انتشار — تنها جایی که مقایسهٔ پنل با آخرین
+      # چرخه معنی دارد. همین‌جاست که اگر انتشار روی gh-pages بشکند، فوراً
+      # معلوم می‌شود، نه یک روز و نیم بعد.
+      - name: دیده‌بان پس از انتشار
+        if: always() && github.ref == 'refs/heads/main'
+        working-directory: claude-liam-signal/python
+        env:
+          WATCHDOG_AFTER_PUBLISH: "1"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 -m hamid.watchdog --alert
