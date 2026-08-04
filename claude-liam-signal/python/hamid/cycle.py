@@ -349,6 +349,8 @@ def main():
         try:
             from hamid import paper as _paper
             rj = json.loads((_paper.BOOK / "reasons.json").read_text())
+            if rj.get("book") != str(_paper.CLOSED):
+                raise FileNotFoundError("reasons از دفتر واقعی نیامده — نادیده گرفته شد")
             conds = {c[0]: c[1] for c in
                      [(x["condition"], x) for x in rj.get("confirmed") or []]}
             if conds:

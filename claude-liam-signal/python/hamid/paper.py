@@ -337,6 +337,9 @@ def reasons(verbose=True):
     (BOOK / "reasons.json").write_text(json.dumps({
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "n_trades": len(trades),
+        # امضا: مسیر دفتری که این قوانین از آن آمده. چرخه فقط فایلی را اعمال
+        # می‌کند که از دفتر واقعی آمده باشد — دفاعِ دوم بعد از ایزوله شدن تست.
+        "book": str(CLOSED),
         "confirmed": out,
     }, ensure_ascii=False, indent=1))
     return out
