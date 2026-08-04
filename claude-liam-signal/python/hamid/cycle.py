@@ -341,6 +341,40 @@ def main():
         # binds in both directions — pacing() already relaxes the floor when the
         # day is behind, and this is the other half.
         #
+        # یادگیری روی رتبه‌بندی. فقط قوانینی که بعد از تصحیح بونفرونی از صفر
+        # رد شده‌اند اعمال می‌شوند — رتبه‌بندی، نه گیت، تا یک قانونِ هنوز-جوان
+        # نتواند سیگنالی را کاملاً خفه کند. تا وقتی هیچ قانونی تأیید نشده،
+        # این بلوک هیچ اثری ندارد و گزارش صادقانه همین را می‌گوید.
+        learned = []
+        try:
+            from hamid import paper as _paper
+            rj = json.loads((_paper.BOOK / "reasons.json").read_text())
+            conds = {c[0]: c[1] for c in
+                     [(x["condition"], x) for x in rj.get("confirmed") or []]}
+            if conds:
+                cond_fns = dict((n, f) for n, f in _paper.CONDITIONS)
+                def learn_score(x):
+                    w = {"trend_4h": x.get("trend_4h"), "dir": x["dir"],
+                         "impulse": x["block"]["impulse"], "returns": x["block"]["returns"],
+                         "reactions": x["on_level"]["reactions"],
+                         "stop_pct": x.get("stop_pct"),
+                         "stage": "second" if not x.get("waiting") else "first"}
+                    sc = 0.0
+                    for name, r in conds.items():
+                        fn = cond_fns.get(name)
+                        if fn and fn(w):
+                            sc += r["diff"]          # مثبت جایزه، منفی جریمه
+                    return sc
+                for x in ready:
+                    x["learn_score"] = round(learn_score(x), 3)
+                learned = [{"rule": n, "diff": round(r["diff"], 3),
+                            "n": r["n_with"]} for n, r in conds.items()]
+        except FileNotFoundError:
+            pass
+        except Exception as e:                       # noqa: BLE001 - یادگیری چرخه را نمی‌کشد
+            print(f"یادگیری در رتبه‌بندی: {type(e).__name__}: {e}")
+        report["learning_rules"] = learned or "هنوز هیچ قانونی از تصحیح آماری رد نشده"
+
         # Ranked by impulse alone. The first version multiplied impulse by the
         # number of times price had returned to the block, on the assumption
         # that more returns meant more validation. The backtest points the other
@@ -352,7 +386,7 @@ def main():
         #
         # Impulse stays because it is the one threshold here derived from a
         # control rather than from intuition.
-        ready.sort(key=lambda x: -x["block"]["impulse"])
+        ready.sort(key=lambda x: (-(x.get("learn_score") or 0), -x["block"]["impulse"]))
         room = max(0, DAILY_TARGET - st["signals"])
         per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
         take = min(room, per_cycle, len(ready))

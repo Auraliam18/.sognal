@@ -331,6 +331,14 @@ def reasons(verbose=True):
                   "بعضی بردند — و ادعای دانستنش بدتر از ندانستن است.")
     for r in out:
         brain.save_pattern(f"hamid-reason-{r['condition']}", r)
+    # خروجی کامل در فایل، تا چرخه بتواند بخواند و روی رتبه‌بندی اعمال کند.
+    # فقط تأییدشده‌ها عمل می‌شوند — قانون ثابت پروژه: یافته تا بازه‌اش از صفر
+    # رد نشده، عمل نمی‌شود. بقیه فقط برای شفافیت ثبت می‌شوند.
+    (BOOK / "reasons.json").write_text(json.dumps({
+        "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "n_trades": len(trades),
+        "confirmed": out,
+    }, ensure_ascii=False, indent=1))
     return out
 
 

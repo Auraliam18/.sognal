@@ -150,11 +150,36 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
     price = c15m[-1]["c"]
     a15 = atr(c15m) or price * 0.003
 
+    def m15_touches(b):
+        """پولبک‌های ۱۵ دقیقه‌ای به باکس، در همین ملاقات.
+
+        نسخهٔ اول این تابع وجود نداشت و جایش دو برگشتِ جدا روی بلاک ۱ساعته
+        خواسته می‌شد. آن خوانشِ غلطِ روش حمید بود — او گفت «منتظر پولبک دومش
+        توی تایم ۱۵ دقیقه می‌مانم»، یعنی بلاکِ ۱ساعته با یک برگشت معتبر است و
+        پولبک دوم در ۱۵ دقیقه اتفاق می‌افتد. نتیجهٔ خوانش غلط اندازه‌گیری شد:
+        ۹۳ ارز، چرخه پشت چرخه، صفر سیگنال — چون ضربهٔ ≥۴ بلاکِ تازه می‌خواهد و
+        دو برگشتِ ۱ساعته بلاکِ کهنه، و اشتراکشان تقریباً خالی است. بک‌تست هم
+        همان را گفت: بلاک‌های پربرگشت بدتر بودند (۳۵٫۷٪ در برابر ۴۶٫۵٪).
+
+        لمس = هم‌پوشانی کندل ۱۵د با باکس؛ لمس جدید فقط بعد از اینکه قیمت
+        دست‌کم دو کندل کامل بیرون باکس بوده باشد — وگرنه یک ملاقاتِ کشدار
+        چند لمس شمرده می‌شود.
+        """
+        tol = a15 * 0.2
+        touches, outside = 0, 2          # شروعِ بیرون فرض می‌شود
+        for c in c15m[-48:]:
+            in_zone = c["l"] <= b.high + tol and c["h"] >= b.low - tol
+            if in_zone:
+                if outside >= 2:
+                    touches += 1
+                outside = 0
+            else:
+                outside += 1
+        return touches
+
     for b in blocks:
-        # «منتظر پولبک دومش توی تایم ۱۵ دقیقه می‌مانم» — one return makes the
-        # block "تقریباً معتبر" and puts it on the watch list; it is the second
-        # that he actually enters on. A first-pullback block is reported as
-        # waiting, never as a signal.
+        # «اگر قیمت به آن برگشته، تقریباً معتبر است» — یک برگشتِ ۱ساعته شرط
+        # اعتبار است؛ پولبک دوم روی ۱۵ دقیقه شمرده می‌شود، پایین‌تر.
         if b.returns < 1:
             continue
         # Price has to have left it decisively. This is the part the code was
@@ -201,8 +226,11 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
         if stop_pct > 6:
             notes.append(f"فاصلهٔ استاپ {stop_pct}٪ است — باکس اردر بلاک پهن است، "
                          f"حجم را کوچک بگیر یا لیمیت را به لبهٔ باکس نزدیک‌تر کن")
+        t15n = m15_touches(b)
+        second_15m = t15n >= 2
         return {
             "dir": direction,
+            "m15_touches": t15n,
             "stop_pct": stop_pct,
             "entry": round(entry, 8),
             "sl": round(sl, 8),
@@ -211,8 +239,8 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
             "rr": round(abs(tp1 - entry) / risk, 2),
             "block": _ob(b),
             "on_level": _lv(lvl),
-            "stage": "پولبک دوم" if b.second_pullback else "پولبک اول",
-            "waiting": not b.second_pullback,
+            "stage": "پولبک دوم (۱۵د)" if second_15m else "پولبک اول",
+            "waiting": not second_15m,
             "why": (f"روند ۴ساعته {t4}؛ اردر بلاک روی سطحی با "
                     f"{lvl.reactions} واکنش؛ استاپ بالای هانت نقدینگی"),
         }
