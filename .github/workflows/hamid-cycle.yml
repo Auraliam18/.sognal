@@ -125,3 +125,25 @@ jobs:
             sleep $((attempt * 3))
           done
           exit 1
+
+      # پنل از gh-pages سرو می‌شود و فایل را نسبت به خودش می‌خواند. بدون این
+      # مرحله، چرخه فقط روی main منتشر می‌شد و پنل حمید یک فایل ۳۹ ساعته
+      # می‌دید — یعنی همهٔ این کار به دست کسی که باید ببیندش نمی‌رسید.
+      - name: انتشار روی پنل
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git fetch origin gh-pages
+          rm -rf /tmp/ghp && git worktree add /tmp/ghp origin/gh-pages --detach
+          mkdir -p /tmp/ghp/signals
+          cp signals/hamid-latest.json /tmp/ghp/signals/ 2>/dev/null || true
+          cd /tmp/ghp
+          git add signals
+          git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }
+          git commit -q -m "چرخهٔ حمید $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for a in 1 2 3 4 5; do
+            git push origin HEAD:gh-pages && exit 0
+            git fetch origin gh-pages || true
+            git rebase origin/gh-pages || { git rebase --abort; exit 1; }
+            sleep $((a * 3))
+          done
+          exit 1
