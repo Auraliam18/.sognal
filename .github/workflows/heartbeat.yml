@@ -125,6 +125,8 @@ jobs:
               git worktree remove /tmp/ghp --force 2>/dev/null || true
             fi
             cd claude-liam-signal/python
+            # بعد از انتشار: حالا مقایسهٔ پنل با آخرین چرخه معنی دارد
+            WATCHDOG_AFTER_PUBLISH=1 python3 -m hamid.watchdog --alert --quiet || true
             LEFT=$(( END - $(date +%s) ))
             [ "$LEFT" -le $((EVERY * 60)) ] && break
             echo "── $EVERY دقیقه صبر"
