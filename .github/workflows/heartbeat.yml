@@ -75,6 +75,11 @@ jobs:
           while [ "$(date +%s)" -lt "$END" ]; do
             N=$((N + 1))
             echo "───────── چرخهٔ $N — $(date -u '+%H:%M:%S UTC') ─────────"
+            # جستجوی وب فقط هر ششمین چرخه (تقریباً هر دو ساعت) — سهمیهٔ ماهانه
+            # با هر بیست دقیقه یک بار، سه روزه تمام می‌شد.
+            DEEP=""
+            [ $((N % 6)) -eq 1 ] && DEEP="--deep"
+            python3 -m hamid.intel $DEEP --quiet || true
             python3 -m hamid.cycle --mode auto --symbols 60
             echo "── انتشار"
             cd "$GITHUB_WORKSPACE"
@@ -120,6 +125,8 @@ jobs:
               git worktree remove /tmp/ghp --force 2>/dev/null || true
             fi
             cd claude-liam-signal/python
+            # بعد از انتشار: حالا مقایسهٔ پنل با آخرین چرخه معنی دارد
+            WATCHDOG_AFTER_PUBLISH=1 python3 -m hamid.watchdog --alert --quiet || true
             LEFT=$(( END - $(date +%s) ))
             [ "$LEFT" -le $((EVERY * 60)) ] && break
             echo "── $EVERY دقیقه صبر"

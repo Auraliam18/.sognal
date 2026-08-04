@@ -290,6 +290,17 @@ def main():
     for r in ROOMS:
         brain.room_log(r, "بیدارباش چرخه", "wake")
 
+    # اطلاعات جهانی، قبل از هر تصمیمی. تا حالا چرخه فقط کندل می‌خواند؛ حمید
+    # درست پرسید که چرا. حالا هر چرخه ترس و طمع، دامیننس، فاندینگ، پوزیشن باز،
+    # تقویم اقتصادی، اخبار و ترندها را می‌گیرد و هرکدام به اتاق خودش می‌رود.
+    world = {}
+    try:
+        from hamid import intel
+        world = intel.gather(quiet=True)
+        print(f"اطلاعات جهانی: {world.get('verdict')}")
+    except Exception as e:                           # noqa: BLE001 - اطلاعات جانبی، نه تحلیل
+        print(f"اطلاعات جهانی نیامد: {type(e).__name__}: {e}")
+
     # what kind of day
     try:
         btc15 = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
@@ -303,7 +314,10 @@ def main():
 
     report = {"generated": int(time.time() * 1000),
               "generatedText": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-              "mode": mode, "why": why, "pacing": pace}
+              "mode": mode, "why": why, "pacing": pace,
+              "world": {k: world.get(k) for k in
+                        ("verdict", "fear_greed", "dominance", "funding",
+                         "calendar", "news", "trending") if k in world}}
 
     if mode == "active":
         try:
@@ -367,6 +381,13 @@ def main():
         ctx["usdt_dom"] = g.get("usdt_dominance")
         ctx["btc_dom"] = g.get("btc_dominance")
         ctx["mode"] = mode
+        # همان چیزی که موقع باز کردن معامله در دنیا می‌گذشت — بعداً حلقهٔ
+        # یادگیری از روی همین قضاوت می‌کند که چه چیزی واقعاً مهم بوده.
+        fnd = (world.get("funding") or {})
+        ctx["funding"] = fnd.get("BTC")
+        cal = (world.get("calendar") or {}).get("next_48h") or []
+        ctx["news_soon"] = len([e for e in cal if 0 <= e.get("in_hours", 99) <= 6])
+        ctx["hot_news"] = len((world.get("news") or {}).get("hot") or [])
         opened = paper.open_from(
             [x for x in report.get("setups", []) if not x.get("waiting")], ctx)
         still, closed = paper.mark()
@@ -392,6 +413,21 @@ def main():
             report["telegram"] = sent
         except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
             print(f"تلگرام: {type(e).__name__}: {e}")
+
+    # دیده‌بان پنل — هر چرخه، نه روزی دو بار. آن باگ ۳۹ ساعته دقیقاً به این
+    # دلیل زنده ماند که هیچ‌کس همان جایی را نگاه نمی‌کرد که حمید نگاه می‌کند.
+    try:
+        from hamid import watchdog
+        bad = watchdog.run(alert=True, quiet=True)
+        report["watchdog"] = {"ok": not bad,
+                              "problems": [{"name": n, "detail": d} for n, d in bad]}
+        if bad:
+            print(f"دیده‌بان: {len(bad)} خرابی — " +
+                  "، ".join(n for n, _ in bad))
+        else:
+            print("دیده‌بان: پنل سالم است")
+    except Exception as e:                           # noqa: BLE001
+        print(f"دیده‌بان اجرا نشد: {type(e).__name__}: {e}")
 
     st["modes"][mode] = st["modes"].get(mode, 0) + 1
     if not a.dry:
