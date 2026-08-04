@@ -1,0 +1,200 @@
+# تست زندهٔ تلگرام — سیگنال واقعی + چارت واقعی، به چت خود حمید.
+#
+# دو مشکل را با هم حل می‌کند:
+#
+# ۱. **شناسهٔ چت اشتباه بود.** حمید 8961585057 را داده بود که شناسهٔ خود ربات
+#    است (ابتدای توکن قبلی)، نه شناسهٔ چت او. ربات نمی‌تواند به خودش پیام
+#    بدهد. این ورک‌فلو از getUpdates شناسهٔ واقعی هر کسی را که به ربات پیام
+#    داده پیدا می‌کند و می‌گوید کدام را در Secrets بگذارد.
+#
+# ۲. **مخزن عمومی است و Secrets هنوز خالی.** توکن نه در فایل جا می‌شود نه در
+#    کد. ورودیِ workflow_dispatch در لاگ چاپ نمی‌شود، پس تا وقتی حمید Secrets
+#    را بگذارد، توکن را موقتاً از ورودی می‌گیریم. اگر Secret موجود باشد، همان
+#    برنده است و ورودی لازم نیست.
+#
+# بعد از تأیید، حمید همین توکن و chat id پیداشده را در Secrets می‌گذارد و
+# چرخه‌ها خودکار می‌فرستند.
+name: Telegram live test
+
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: "توکن ربات (اگر Secret خالی است)"
+        required: false
+      chat_id:
+        description: "شناسهٔ چت (خالی بگذار تا خودش پیدا کند)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: matplotlib برای چارت
+        run: pip -q install matplotlib
+
+      - name: سیگنال + چارت
+        env:
+          TOKEN_SECRET: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_SECRET: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TOKEN_INPUT: ${{ github.event.inputs.token }}
+          CHAT_INPUT: ${{ github.event.inputs.chat_id }}
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 - <<'PY'
+          import io, json, os, sys, time, urllib.request, urllib.error
+
+          tok = (os.environ.get("TOKEN_SECRET") or os.environ.get("TOKEN_INPUT") or "").strip()
+          chat = (os.environ.get("CHAT_SECRET") or os.environ.get("CHAT_INPUT") or "").strip()
+          if not tok:
+              print("نه Secret هست نه ورودی — توکن را در فرم Run workflow بده")
+              sys.exit(1)
+
+          API = f"https://api.telegram.org/bot{tok}"
+
+          def call(method, payload=None, files=None):
+              if files:
+                  # multipart دستی — sendPhoto لازمش دارد
+                  boundary = f"----hsb{int(time.time()*1000)}"
+                  body = b""
+                  for k, v in (payload or {}).items():
+                      body += (f"--{boundary}\r\nContent-Disposition: form-data; "
+                               f'name="{k}"\r\n\r\n{v}\r\n').encode()
+                  for k, (fn, data) in files.items():
+                      body += (f"--{boundary}\r\nContent-Disposition: form-data; "
+                               f'name="{k}"; filename="{fn}"\r\n'
+                               f"Content-Type: image/png\r\n\r\n").encode() + data + b"\r\n"
+                  body += f"--{boundary}--\r\n".encode()
+                  req = urllib.request.Request(f"{API}/{method}", data=body, method="POST",
+                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+              else:
+                  data = json.dumps(payload).encode() if payload else None
+                  req = urllib.request.Request(f"{API}/{method}", data=data,
+                      method="POST" if data else "GET",
+                      headers={"Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return True, json.load(r)
+              except urllib.error.HTTPError as e:
+                  try: return False, json.loads(e.read())
+                  except Exception: return False, {"description": f"HTTP {e.code}"}
+              except Exception as e:
+                  return False, {"description": type(e).__name__}
+
+          # ۱ — توکن معتبر است؟
+          ok, j = call("getMe")
+          if not ok:
+              print(f"✗ توکن رد شد: {j.get('description')}")
+              sys.exit(1)
+          bot = j["result"]["username"]
+          print(f"✓ ربات: @{bot}")
+
+          # ۲ — شناسهٔ چت. اگر داده نشده، از پیام‌هایی که به ربات رسیده پیدا کن.
+          #     8961585057 شناسهٔ خود ربات قبلی بود؛ اگر همان آمده، نادیده‌اش بگیر.
+          if chat == tok.split(":")[0] or chat == "8961585057":
+              print(f"! شناسهٔ {chat} شناسهٔ خود ربات است، نه چت — دنبال شناسهٔ واقعی می‌گردم")
+              chat = ""
+          if not chat:
+              ok, j = call("getUpdates")
+              seen = {}
+              for u in (j.get("result") or []):
+                  m = u.get("message") or u.get("edited_message") or {}
+                  c = (m.get("chat") or {})
+                  if c.get("id"):
+                      seen[c["id"]] = c.get("first_name") or c.get("title") or c.get("username") or "?"
+              if not seen:
+                  print("✗ هیچ پیامی به ربات نرسیده، پس شناسهٔ چت پیدا نمی‌شود.")
+                  print(f"  در تلگرام به @{bot} پیام بده (Start)، بعد این را دوباره اجرا کن.")
+                  sys.exit(1)
+              chat = str(list(seen)[-1])
+              print(f"✓ شناسهٔ چت پیدا شد: {chat} ({seen[int(chat)]})")
+              print(f"  ⚠ همین عدد را به‌عنوان TELEGRAM_CHAT_ID در Secrets بگذار")
+
+          # ۳ — یک ستاپ واقعی از آخرین چرخه، وگرنه بیت‌کوین زنده
+          sig = None
+          try:
+              d = json.load(open("../../signals/hamid-latest.json"))
+              ready = [x for x in (d.get("setups") or [])]
+              if ready: sig = ready[0]
+          except Exception:
+              pass
+
+          import sources
+          sym = (sig or {}).get("symbol", "BTCUSDT")
+          rows = sources.klines(sym, "15m", 96)
+          candles = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4]} for k in rows]
+          last = candles[-1]["c"]
+          print(f"✓ {len(candles)} کندل {sym} از {sources.used()['klines']}")
+
+          # ۴ — چارت
+          import matplotlib
+          matplotlib.use("Agg")
+          import matplotlib.pyplot as plt
+          from matplotlib.patches import Rectangle
+          fig, ax = plt.subplots(figsize=(11, 6), facecolor="#0d1117")
+          ax.set_facecolor("#0d1117")
+          w = (candles[1]["t"] - candles[0]["t"]) * 0.7
+          for c in candles:
+              up = c["c"] >= c["o"]
+              col = "#2ecc71" if up else "#e74c3c"
+              ax.plot([c["t"], c["t"]], [c["l"], c["h"]], color=col, lw=0.8)
+              ax.add_patch(Rectangle((c["t"] - w/2, min(c["o"], c["c"])), w,
+                           max(abs(c["c"] - c["o"]), last*1e-6), color=col))
+          if sig:
+              for price, col, lbl in ((sig["entry"], "#f0a92e", "ENTRY"),
+                                      (sig["sl"], "#e74c3c", "SL"),
+                                      (sig["tp1"], "#2ecc71", "TP1")):
+                  ax.axhline(price, color=col, lw=1, ls="--")
+                  ax.text(candles[-1]["t"], price, f" {lbl}", color=col, va="center", fontsize=9)
+              b = sig.get("block") or {}
+              if b:
+                  ax.axhspan(b["low"], b["high"], color="#f0a92e", alpha=0.15)
+          ax.set_title(f"{sym} 15m — Hamid Method (live test)", color="#e6edf3")
+          ax.tick_params(colors="#8b98ab", labelsize=8)
+          for s in ax.spines.values(): s.set_color("#30363d")
+          ax.get_xaxis().set_visible(False)
+          buf = io.BytesIO()
+          plt.savefig(buf, format="png", dpi=110, bbox_inches="tight", facecolor="#0d1117")
+          png = buf.getvalue()
+          print(f"✓ چارت ساخته شد ({len(png)//1024}KB)")
+
+          # ۵ — پیام
+          if sig:
+              d_fa = "🟢 خرید (LONG)" if sig["dir"] == "LONG" else "🔴 فروش (SHORT)"
+              stage = "پولبک دوم — آماده" if not sig.get("waiting") else "منتظر پولبک دوم"
+              cap = (f"<b>{d_fa} — {sig['symbol']}</b>  <code>15m</code>\n"
+                     f"استراتژی: <b>روش خود حمید (۴س → ۱س → ۱۵د)</b> · {stage}\n\n"
+                     f"ورود    <code>{sig['entry']}</code>\n"
+                     f"استاپ   <code>{sig['sl']}</code>\n"
+                     f"تارگت۱  <code>{sig['tp1']}</code>\n"
+                     f"تارگت۲  <code>{sig.get('tp2') or '—'}</code>\n\n"
+                     f"فاصلهٔ استاپ {sig.get('stop_pct')}٪ · R:R {sig.get('rr')}\n\n"
+                     "<i>این تست زنده است — مسیر توکن، چت و چارت را ثابت می‌کند. "
+                     "رکورد این روش تا امروز: ۴۳ معامله، ۴۶٫۵٪ برد، +۰٫۱۸۴R، "
+                     "بازهٔ اطمینان هنوز صفر را در بر می‌گیرد. سایز کوچک.</i>")
+          else:
+              cap = (f"<b>تست زندهٔ اتصال — {sym}</b>\n\n"
+                     f"قیمت الان <code>{last}</code>\n"
+                     "در آخرین چرخه ستاپی نبود، پس این چارت خالی از سیگنال است.\n\n"
+                     "<i>مسیر توکن + چت + چارت کار می‌کند. سیگنال بعدی که چرخه "
+                     "پیدا کند، همین‌جا با همین شکل می‌آید.</i>")
+
+          ok, j = call("sendPhoto", {"chat_id": chat, "caption": cap, "parse_mode": "HTML"},
+                       files={"photo": (f"{sym}.png", png)})
+          if ok:
+              print(f"✓✓ عکس + سیگنال فرستاده شد به {chat} — تلگرامت را ببین")
+          else:
+              print(f"✗ ارسال نشد: {j.get('description')}")
+              d = (j.get("description") or "").lower()
+              if "chat not found" in d:
+                  print(f"  به @{bot} هنوز پیام نداده‌ای — Start را بزن و دوباره اجرا کن")
+              sys.exit(1)
+          PY
