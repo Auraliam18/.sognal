@@ -1,0 +1,111 @@
+# آیا تلگرام واقعاً کار می‌کند؟ — تست انتها به انتها، یک پیام.
+#
+# «کد آماده است» ادعاست. تنها چیزی که ثابتش می‌کند، رسیدن یک پیام است.
+#
+# سه چیز باید هم‌زمان درست باشد و هر کدام جدا خراب می‌شود:
+#   ۱. TELEGRAM_BOT_TOKEN در Secrets باشد
+#   ۲. TELEGRAM_CHAT_ID در Secrets باشد
+#   ۳. حمید خودش قبلاً به ربات Start زده باشد — ربات تلگرام حق ندارد به کسی که
+#      با او شروع نکرده پیام بدهد، و این خطا دقیقاً مثل «توکن غلط» به نظر می‌رسد
+#
+# این ورک‌فلو هر سه را از هم جدا می‌کند و می‌گوید کدامش مشکل دارد. مقدار هیچ
+# کلیدی چاپ نمی‌شود — فقط اینکه خالی هست یا نه.
+name: Check Telegram
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: تست
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.error, urllib.request
+
+          tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+          def line(ok, text):
+              print(f"  {'✓' if ok else '✗'} {text}")
+
+          print("\nتست تلگرام\n" + "─" * 56)
+          line(bool(tok), f"TELEGRAM_BOT_TOKEN تنظیم شده ({len(tok)} کاراکتر)"
+                          if tok else "TELEGRAM_BOT_TOKEN تنظیم نشده")
+          line(bool(chat), f"TELEGRAM_CHAT_ID تنظیم شده ({chat})"
+                           if chat else "TELEGRAM_CHAT_ID تنظیم نشده")
+          if not (tok and chat):
+              print("\nتا وقتی هر دو تنظیم نشوند هیچ سیگنالی نمی‌رسد.")
+              print("Settings → Secrets and variables → Actions → New repository secret")
+              sys.exit(1)
+
+          def call(method, payload=None):
+              url = f"https://api.telegram.org/bot{tok}/{method}"
+              data = json.dumps(payload).encode() if payload else None
+              req = urllib.request.Request(
+                  url, data=data, method="POST" if data else "GET",
+                  headers={"Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return True, json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:
+                      return False, json.loads(e.read())
+                  except Exception:                     # noqa: BLE001
+                      return False, {"description": f"HTTP {e.code}"}
+              except Exception as e:                    # noqa: BLE001
+                  return False, {"description": type(e).__name__}
+
+          # ۱. آیا خود توکن معتبر است؟
+          ok, j = call("getMe")
+          if not ok:
+              line(False, f"توکن رد شد: {j.get('description')}")
+              print("\nتوکن اشتباه است یا باطل شده. از @BotFather یکی نو بگیر.")
+              sys.exit(1)
+          bot = j["result"]
+          line(True, f"ربات شناخته شد: @{bot['username']}")
+
+          # ۲. آیا می‌شود به این چت پیام داد؟
+          ok, j = call("sendMessage", {
+              "chat_id": chat,
+              "parse_mode": "HTML",
+              "text": ("<b>تست اتصال — ایورا لیام سیگنال</b>\n\n"
+                       "اگر این پیام را می‌بینی، مسیر کامل کار می‌کند:\n"
+                       "توکن ✓ · شناسهٔ چت ✓ · اجازهٔ ارسال ✓\n\n"
+                       "<i>سیگنال‌های واقعی از همین مسیر می‌آیند.</i>"),
+          })
+          if ok:
+              line(True, "پیام تست فرستاده شد — تلگرامت را نگاه کن")
+              print("\nمسیر کامل سالم است. سیگنال‌ها از همین‌جا می‌آیند.")
+              sys.exit(0)
+
+          d = (j.get("description") or "").lower()
+          line(False, f"ارسال نشد: {j.get('description')}")
+          print()
+          if "chat not found" in d:
+              print(f"شناسهٔ چت {chat} پیدا نشد، یا هنوز به @{bot['username']} "
+                    "پیام نداده‌ای.")
+              print("در تلگرام ربات را باز کن، Start را بزن، یک پیام بفرست، "
+                    "بعد این تست را دوباره اجرا کن.")
+          elif "blocked" in d or "deactivated" in d:
+              print(f"ربات @{bot['username']} بلاک شده. در تلگرام آنبلاکش کن.")
+          elif "bot can't initiate" in d or "can't initiate conversation" in d:
+              print(f"ربات اجازهٔ شروع گفت‌وگو ندارد. اول تو به "
+                    f"@{bot['username']} پیام بده.")
+          else:
+              print("این پیام خطا را برایم بفرست تا دقیق ببینم چیست.")
+          sys.exit(1)
+          PY
