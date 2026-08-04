@@ -422,6 +422,24 @@ def main():
         except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
             print(f"تلگرام: {type(e).__name__}: {e}")
 
+    # امتیازدهی اتاق‌ها — راندمان هر اتاق بر اساس شواهد داخل brain/. تا حالا
+    # هیچ ورک‌فلویی این را اجرا نمی‌کرد؛ تنها جای اجرایش داخل selftest بود،
+    # یعنی «حقوق اتاق‌ها» فقط وقتی تازه می‌شد که کسی دستی تست می‌گرفت. حالا هر
+    # چرخه اجرا می‌شود و دیده‌بان هم تازگی‌اش را جدا چک می‌کند.
+    try:
+        import subprocess as _sp
+        r_pay = _sp.run([sys.executable, str(HERE.parent / "payroll.py")],
+                        capture_output=True, text=True, timeout=120)
+        if r_pay.returncode == 0:
+            pj = json.loads((ROOT / "brain" / "rooms" / "payroll.json").read_text())
+            report["payroll"] = {"rooms": len(pj.get("rooms") or []),
+                                 "total": pj.get("total")}
+            print(f"راندمان اتاق‌ها: {report['payroll']['rooms']} اتاق امتیاز گرفت")
+        else:
+            print(f"payroll شکست خورد: {r_pay.stderr[-200:]}")
+    except Exception as e:                           # noqa: BLE001 - امتیازدهی چرخه را نمی‌کشد
+        print(f"payroll: {type(e).__name__}: {e}")
+
     # دیده‌بان پنل — هر چرخه، نه روزی دو بار. آن باگ ۳۹ ساعته دقیقاً به این
     # دلیل زنده ماند که هیچ‌کس همان جایی را نگاه نمی‌کرد که حمید نگاه می‌کند.
     try:
