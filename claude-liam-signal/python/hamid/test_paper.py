@@ -58,14 +58,20 @@ def with_book(trades, fn):
     """Run against a throwaway book so the real one is never touched."""
     import tempfile
     d = Path(tempfile.mkdtemp())
-    old_closed, old_open, old_eq = paper.CLOSED, paper.OPEN, paper.EQUITY
-    paper.CLOSED, paper.OPEN, paper.EQUITY = d / "c.jsonl", d / "o.jsonl", d / "e.json"
+    old = paper.CLOSED, paper.OPEN, paper.EQUITY, paper.BOOK
+    # BOOK هم منحرف می‌شود. نسخهٔ قبلی فقط سه فایل اول را عوض می‌کرد و
+    # reasons() که در BOOK می‌نویسد، «قوانین تأییدشده»ی ساختگیِ تست را در
+    # brain واقعی نوشت — و چرخهٔ واقعی همان‌ها را در رتبه‌بندی اعمال کرد.
+    # دقیقاً همان مسموم شدنی که کل این معماری برای جلوگیری از آن ساخته شده،
+    # این بار از در پشتیِ خود تست.
+    paper.CLOSED, paper.OPEN, paper.EQUITY, paper.BOOK = \
+        d / "c.jsonl", d / "o.jsonl", d / "e.json", d
     for t in trades:
         paper._append(paper.CLOSED, t)
     try:
         return fn()
     finally:
-        paper.CLOSED, paper.OPEN, paper.EQUITY = old_closed, old_open, old_eq
+        paper.CLOSED, paper.OPEN, paper.EQUITY, paper.BOOK = old
 
 
 def t_noise_finds_nothing():
