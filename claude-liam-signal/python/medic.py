@@ -47,7 +47,8 @@ def age_min(j):
 
 
 def examine():
-    finds, sick = [], False
+    """برمی‌گرداند: (خراب؟، یافته‌ها، ورک‌فلوهایی که باید بیدار شوند)."""
+    finds, sick, wake = [], False, []
 
     try:
         st, body = fetch(f"{PAGES}/signals/hamid-latest.json")
@@ -56,15 +57,18 @@ def examine():
         setups, paper, reads = j.get("setups"), j.get("paper"), j.get("reads", 0)
         if a is None or a > HAMID_MAX_MIN:
             sick = True
+            wake.append("heartbeat.yml")
             finds.append(f"خط تولید سیگنال کهنه است — آخرین چرخه {round(a) if a else '؟'} دقیقه پیش (آستانه {HAMID_MAX_MIN})")
         elif not isinstance(setups, list) or not isinstance(paper, dict) or reads < 10:
             sick = True
+            wake.append("heartbeat.yml")
             finds.append(f"فایل چرخه شکل درست ندارد (reads={reads}) — چرخه می‌دود ولی چیزی که پنل لازم دارد نمی‌سازد")
         else:
             ready = sum(1 for s in setups if not s.get("waiting"))
             finds.append(f"چرخه سالم: {round(a)} دقیقه پیش، {reads} ارز، {ready} سیگنال آماده، {len(setups) - ready} منتظر، دفتر {paper.get('balance')}$")
     except Exception as e:                            # noqa: BLE001 - unreachable is itself the finding
         sick = True
+        wake.append("heartbeat.yml")
         finds.append(f"hamid-latest.json در دسترس نیست: {type(e).__name__}")
 
     try:
@@ -73,11 +77,13 @@ def examine():
         a = age_min(j)
         if a is None or a > SCAN_MAX_MIN:
             sick = True
+            wake.append("live-scan.yml")
             finds.append(f"اسکن استراتژی‌های قبلی کهنه است — {round(a) if a else '؟'} دقیقه (آستانه {SCAN_MAX_MIN})")
         else:
             finds.append(f"اسکن قبلی سالم: {round(a)} دقیقه پیش، {len(j.get('signals', []))} سیگنال")
     except Exception as e:                            # noqa: BLE001
         sick = True
+        wake.append("live-scan.yml")
         finds.append(f"latest.json در دسترس نیست: {type(e).__name__}")
 
     try:
@@ -96,16 +102,16 @@ def examine():
     else:
         finds.append("تلگرام وصل نیست — دو Secret هنوز ثبت نشده (سیگنال فقط روی پنل می‌ماند)")
 
-    return sick, finds
+    return sick, finds, wake
 
 
-def revive():
-    """ضربان را با همان API که دکمهٔ Run workflow می‌زند بیدار می‌کند."""
+def revive(workflow):
+    """همان کاری که دکمهٔ Run workflow می‌کند — برای هر خطی که خوابیده."""
     tok = os.environ.get("GITHUB_TOKEN")
     if not tok or os.environ.get("REVIVE") != "1":
         return "درمان غیرفعال است (REVIVE=1 و GITHUB_TOKEN لازم دارد)"
     req = urllib.request.Request(
-        "https://api.github.com/repos/Auraliam18/.sognal/actions/workflows/heartbeat.yml/dispatches",
+        f"https://api.github.com/repos/Auraliam18/.sognal/actions/workflows/{workflow}/dispatches",
         data=json.dumps({"ref": "main"}).encode(),
         headers={"Authorization": f"Bearer {tok}",
                  "Accept": "application/vnd.github+json",
@@ -113,14 +119,14 @@ def revive():
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=25) as r:
-            return f"ضربان دوباره روشن شد (HTTP {r.status})"
+            return f"{workflow} دوباره روشن شد (HTTP {r.status})"
     except Exception as e:                            # noqa: BLE001 - the failure text is the report
-        return f"روشن کردن ضربان شکست خورد: {type(e).__name__}"
+        return f"روشن کردن {workflow} شکست خورد: {type(e).__name__}"
 
 
 def main():
-    sick, finds = examine()
-    treated = revive() if sick else None
+    sick, finds, wake = examine()
+    treated = "؛ ".join(revive(w) for w in dict.fromkeys(wake)) or None
     state = {"at": int(time.time() * 1000),
              "atText": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
              "sick": sick, "findings": finds, "treated": treated}
