@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.2 · دفتر کاغذی در پنل</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.3 · منبع همیشه‌متصل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3642,20 +3642,34 @@ function renderWhy(){
 setInterval(renderWhy,5000);
 function diagHTML(){
   const n=DIAG.net,age=n.lastOk?Math.round((Date.now()-n.lastOk)/1000):null;
-  const dataDown=(!n.lastOk&&n.fail>0)||(age!=null&&age>420);
+  /* «قطع بودن» فقط یعنی مرورگرِ همین دستگاه به صرافی‌ها نمی‌رسد. منبع اصلی پنل
+     فایل‌های منتشرشده از سرور است — تا وقتی آن‌ها تازه‌اند، هیچ‌چیز خراب نیست. */
+  const blind=(!n.lastOk&&n.fail>0)||(age!=null&&age>420);
+  const cloudAt=Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0);
+  const cloudMin=cloudAt?Math.round((Date.now()-cloudAt)/60000):null;
+  const cloudFresh=cloudMin!=null&&cloudMin<=90;
+  const dataDown=blind&&!cloudFresh&&(HAMID.tried>0||RELAY.tried>0);
   const st=DIAG.stages,tot=Object.values(st).reduce((a,b)=>a+b,0);
   const gates=Object.entries(DIAG.gates).sort((a,b)=>b[1]-a[1]).slice(0,5);
   let verdict,detail,tone;
-  if(dataDown){
+  if(blind&&cloudFresh){
+    tone="#2ecc71";
+    verdict="ارتباط برقرار است — داده از سرور ابری می‌رسد";
+    detail=`مرورگر این دستگاه به صرافی‌های جهانی دسترسی مستقیم ندارد که از داخل
+      ایران کاملاً عادی است و هیچ اثری روی کار پنل ندارد. منبع اصلی، فایل تحلیلی
+      است که سرور ابری هر ۲۰ دقیقه از ۱۰ صرافی جهانی می‌سازد و همین‌جا منتشر
+      می‌کند — آخرین چرخه <b>${cloudMin} دقیقه پیش</b> رسیده. پنل هر ۲ دقیقه
+      نسخهٔ تازه را می‌خواند؛ این همان منبعِ همیشه‌متصل است و سیگنال‌ها و دفتر
+      کاغذی پایین همین صفحه از آن تغذیه می‌شوند.`;
+  }else if(dataDown){
     tone="#e74c3c";
-    verdict="هیچ‌کدام از منابع بازار جواب ندادند";
-    detail=`${n.fail} درخواست ناموفق${n.lastErr?` — آخرین خطا: <span class="mono">${n.lastErr}</span>`:""}.
-      پنل به ترتیب ${SOURCES.map(x=>x.label).join("، ")} را امتحان می‌کند و
-      اولین جوابی که واقعاً کندل باشد را برمی‌دارد. هر ${SOURCES.length} تا صرافی
-      جهانی‌اند، پس از داخل ایران معمولاً هیچ‌کدام باز نمی‌شوند — این حالت
-      <b>عادی است، نه خرابی</b>. به همین دلیل تحلیل روی سرور گیت‌هاب انجام می‌شود
-      و نتیجه‌اش پایین همین صفحه می‌آید؛ پنل برای دیدن سیگنال نیازی ندارد خودش به
-      صرافی وصل شود. اگر بخش‌های پایین تازه‌اند، همه‌چیز سالم است.`;
+    verdict="چرخهٔ سرور عقب افتاده — داده تازه نمی‌رسد";
+    detail=`${cloudMin!=null?`آخرین فایل سرور ${cloudMin} دقیقه پیش ساخته شده (آستانه ۹۰ دقیقه)`:
+      "هنوز هیچ فایلی از سرور نرسیده"}${HAMID.err?` — <span class="mono">${HAMID.err}</span>`:""}
+      و مرورگر هم دسترسی مستقیم به صرافی ندارد، پس فعلاً هیچ دادهٔ تازه‌ای در کار
+      نیست. معمولاً یعنی ورک‌فلوی Heartbeat در گیت‌هاب خوابیده — برگهٔ Actions
+      مخزن را باز کن و Heartbeat را دستی اجرا کن؛ دیده‌بان هم اگر تلگرام وصل
+      باشد همین را هشدار می‌دهد.`;
   }else if(!tot){
     tone="#f0a92e";
     verdict="هنوز اسکنی کامل نشده";
@@ -3675,11 +3689,12 @@ function diagHTML(){
     detail=parts.join(" · ")+(gates.length?`<div style="margin-top:6px">بیشترین مانع: ${gates.map(([g,c])=>`${g} (${c})`).join(" · ")}</div>`:"");
   }
   return `<div class="box" style="margin-bottom:12px;border-color:${tone}55">
-    <h3 style="margin:0 0 4px">چرا سیگنالی نیست؟ <span class="dim" style="font-size:11px;font-weight:400">${DIAG.at?fmtTime(new Date(DIAG.at)):"—"}</span></h3>
+    <h3 style="margin:0 0 4px">${blind&&cloudFresh?"وضعیت اتصال":"چرا سیگنالی نیست؟"} <span class="dim" style="font-size:11px;font-weight:400">${DIAG.at?fmtTime(new Date(DIAG.at)):"—"}</span></h3>
     <div style="font-size:13px;color:${tone};font-weight:700">${verdict}</div>
     <div class="muted" style="font-size:12px;margin-top:5px;line-height:1.9">${detail}</div>
     <div class="dim" style="font-size:11px;margin-top:6px">
-      داده: ${n.ok} موفق / ${n.fail} ناموفق${age!=null?` · آخرین دریافت ${age}s پیش`:""} ·
+      مستقیم: ${n.ok} موفق / ${n.fail} ناموفق${age!=null?` · آخرین دریافت ${age}s پیش`:""} ·
+      سرور ابری: ${cloudMin!=null?`${cloudMin} دقیقه پیش`:"هنوز نرسیده"} ·
       استریم: ${WATCHER.ws?"متصل":"قطع"} · ${WATCHER.evals} ارزیابی کندل
     </div></div>`;
 }
