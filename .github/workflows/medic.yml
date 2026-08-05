@@ -1,0 +1,88 @@
+# ایجنت نگهبان — هر ۱۵ دقیقه پنل را از بیرون معاینه می‌کند و ضربان خوابیده را
+# خودش بیدار می‌کند.
+#
+# چرا جدا از ضربان: ضربان خودش بیمار محتمل است — نگهبانی که داخل بیمار زندگی
+# کند با او می‌میرد. این ورک‌فلو سبک است (زیر یک دقیقه)، هیچ وابستگی به کد
+# چرخه ندارد، و فقط همان فایل‌هایی را می‌خواند که مرورگر حمید می‌خواند.
+#
+# کرون گیت‌هاب بعضی شلیک‌ها را می‌اندازد (اندازه‌گیری شده در heartbeat.yml).
+# برای نگهبان این قابل تحمل است: از ۴ شلیک ساعت اگر یکی هم برسد، خرابی حداکثر
+# یک ساعت بی‌درمان می‌ماند نه دو روز. لایهٔ بیرونی (n8n) و مرور دوره‌ای کلود
+# بقیهٔ پوشش‌اند.
+name: Medic
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+  actions: write        # برای بیدار کردن ضربان با workflow_dispatch
+
+concurrency:
+  group: medic
+  cancel-in-progress: true
+
+jobs:
+  examine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: معاینه و در صورت نیاز درمان
+        id: medic
+        env:
+          REVIVE: "1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set +e
+          python3 claude-liam-signal/python/medic.py
+          echo "sick=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: ثبت وضعیت، فقط اگر عوض شده
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          if ! git diff --quiet -- brain/medic.json 2>/dev/null; then
+            git add brain/medic.json
+            git commit -m "نگهبان: وضعیت عوض شد $(date -u '+%Y-%m-%d %H:%M UTC')"
+            # ضربان هم به main پوش می‌کند؛ چند بار تلاش با ریبیس، بعد رها کن —
+            # وضعیت در اجرای بعدی دوباره نوشته می‌شود، گم نمی‌شود.
+            for i in 1 2 3; do
+              git push origin HEAD:main && break
+              git pull --rebase origin main || true
+              sleep $((i*3))
+            done
+          fi
+
+      - name: هشدار تلگرام در خرابی
+        if: steps.medic.outputs.sick != '0'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
+          python3 - <<'EOF'
+          import json, os, urllib.request
+          try:
+              st = json.loads(open("brain/medic.json").read())
+          except Exception:
+              st = {"findings": ["فایل وضعیت خوانده نشد"]}
+          text = "⚕️ نگهبان پنل:\n" + "\n".join(st.get("findings", []))
+          if st.get("treated"): text += "\n" + st["treated"]
+          req = urllib.request.Request(
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage",
+              data=json.dumps({"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": text}).encode(),
+              headers={"Content-Type": "application/json"}, method="POST")
+          try:
+              urllib.request.urlopen(req, timeout=20)
+          except Exception:
+              pass  # هشدارِ نرسیده نباید نگهبان را قرمز کند
+          EOF
