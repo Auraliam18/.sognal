@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.1 · انتشار روی پنل</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.2 · دفتر کاغذی در پنل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3593,6 +3593,27 @@ function hamidHTML(){
       <div style="margin-top:4px" class="dim">${j.why||""}</div>
       ${j.market&&j.market.verdict?`<div style="margin-top:4px">${j.market.verdict}</div>`:""}
     </div>
+    ${!j.paper?"":`<div style="margin-top:8px;padding:8px 10px;border:1px solid rgba(140,160,190,.18);
+        border-radius:8px;background:rgba(30,125,90,.06)">
+      <div style="font-size:12.5px;font-weight:700;margin-bottom:4px">دفتر ترید کاغذی — زنده</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px">
+        <span>موجودی <b class="mono" style="color:${(j.paper.return_pct||0)>=0?"#2ecc71":"#e74c3c"}">
+          $${j.paper.balance}</b> <span class="dim">(${(j.paper.return_pct||0)>=0?"+":""}${j.paper.return_pct}٪)</span></span>
+        <span>معامله <b>${j.paper.trades||0}</b></span>
+        <span>برد <b>${j.paper.win_pct==null?"—":j.paper.win_pct+"٪"}</b></span>
+        <span>باز <b>${j.paper.open||0}</b></span>
+        <span>بیشترین افت <b>${j.paper.max_drawdown_pct||0}٪</b></span>
+      </div>
+      ${!j.paper.experiments_first_pullback||!j.paper.experiments_first_pullback.trades?"":`
+      <div class="dim" style="font-size:11.5px;margin-top:4px">
+        آزمایش پولبک اول (سیگنال نشده): ${j.paper.experiments_first_pullback.trades} معامله ·
+        برد ${j.paper.experiments_first_pullback.win_pct}٪ ·
+        ${j.paper.experiments_first_pullback.return_pct}٪ —
+        برای اندازه‌گیری قانون «صبر برای پولبک دوم»</div>`}
+      <div class="dim" style="font-size:11px;margin-top:3px">
+        ریسک هر معامله ${j.paper.risk_per_trade_pct||1}٪ · سفارش لیمیت واقعی با شرط پر شدن —
+        سفارش پرنشده معامله حساب نمی‌شود</div>
+    </div>`}
     <!-- The measured record travels with the signals. Without it the panel
          shows entries and targets and reads as a promise. -->
     <div class="dim" style="font-size:11.5px;margin-top:7px;line-height:1.8;

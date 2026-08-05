@@ -1,0 +1,152 @@
+{
+  "name": "پایش پنل حمید — هشدار و گزارش روزانه",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## پایش پنل ایورا لیام سیگنال\n\n**چه می‌کند:**\n- هر ۱۵ دقیقه فایل سیگنال پنل را از اینترنت می‌خواند (همان که خودت می‌بینی)\n- اگر کهنه‌تر از ۹۰ دقیقه بود → هشدار تلگرام\n- هر شب ۲۱:۰۰ → خلاصهٔ روز: موجودی کاغذی، برد، سیگنال‌ها\n\n**راه‌اندازی:**\n۱. در Credentials یک Telegram credential بساز با توکن ربات\n۲. در دو نود تلگرام، chat id خودت را بگذار\n۳. Workflow را Active کن\n\nهیچ کلیدی داخل این فایل نیست — امن است برای اشتراک.",
+        "height": 340,
+        "width": 420
+      },
+      "id": "note-main",
+      "name": "راهنما",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-560, -80]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "id": "cron-15m",
+      "name": "هر ۱۵ دقیقه",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-80, -160]
+    },
+    {
+      "parameters": {
+        "url": "https://auraliam18.github.io/.sognal/signals/hamid-latest.json",
+        "options": { "timeout": 20000 }
+      },
+      "id": "fetch-hamid",
+      "name": "خواندن سیگنال روش حمید",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [140, -160]
+    },
+    {
+      "parameters": {
+        "jsCode": "// همان بررسی‌ای که دیده‌بان داخلی می‌کند — از بیرون، مستقل از گیت‌هاب.\n// اگر ضربان بمیرد و کرون پشتیبان هم نیاید، این تنها چشمی است که می‌بیند.\nconst j = $input.first().json;\nconst ageMin = (Date.now() - j.generated) / 60000;\nconst setups = j.setups || [];\nconst ready = setups.filter(s => !s.waiting).length;\nconst paper = j.paper || {};\nreturn [{ json: {\n  ageMin: Math.round(ageMin),\n  stale: ageMin > 90,\n  dead: ageMin > 360,\n  mode: j.mode,\n  reads: j.reads || 0,\n  ready,\n  waiting: setups.length - ready,\n  balance: paper.balance,\n  trades: paper.trades,\n  win: paper.win_pct,\n  openOrders: paper.open,\n  generatedText: j.generatedText,\n}}];"
+      },
+      "id": "check",
+      "name": "بررسی تازگی",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, -160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.stale }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-stale",
+      "name": "کهنه است؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [580, -160]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.HAMID_CHAT_ID || 'اینجا-chat-id' }}",
+        "text": "=⚠️ *پنل عقب افتاده*\n\nآخرین چرخه: {{ $json.generatedText }}\n({{ $json.ageMin }} دقیقه پیش — آستانه ۹۰)\n\nضربان یا انتشار روی gh-pages خوابیده. Actions مخزن را نگاه کن یا Heartbeat را دستی اجرا کن.",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "tg-alert",
+      "name": "هشدار تلگرام",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [800, -240],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "content": "### چرا نود «کهنه است؟» آستانهٔ ۹۰ دقیقه دارد\n\nضربان هر ۲۰ دقیقه منتشر می‌کند. ۹۰ دقیقه یعنی چهار چرخهٔ پشت‌سرهم از دست رفته — این دیگر تصادف نیست.\n\nآستانهٔ تنگ‌تر هشدار الکی می‌دهد و هشدار الکی یعنی هشدار واقعی هم خوانده نمی‌شود.",
+        "height": 220,
+        "width": 300
+      },
+      "id": "note-threshold",
+      "name": "یادداشت آستانه",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [560, 40]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 21 * * *" }]
+        }
+      },
+      "id": "cron-daily",
+      "name": "هر شب ۲۱:۰۰",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-80, 320]
+    },
+    {
+      "parameters": {
+        "url": "https://auraliam18.github.io/.sognal/signals/hamid-latest.json",
+        "options": { "timeout": 20000 }
+      },
+      "id": "fetch-daily",
+      "name": "خواندن برای خلاصه",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [140, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\nconst p = j.paper || {};\nconst ex = p.experiments_first_pullback || {};\nconst w = j.world || {};\nconst fg = w.fear_greed || {};\nconst dom = w.dominance || {};\nconst s = j.setups || [];\nconst lines = [\n  '📊 *خلاصهٔ روز — ایورا لیام سیگنال*',\n  '',\n  `💰 دفتر کاغذی: *$${p.balance ?? '—'}* (${p.return_pct >= 0 ? '+' : ''}${p.return_pct ?? '—'}٪)`,\n  `📈 ${p.trades ?? 0} معامله · برد ${p.win_pct ?? '—'}٪ · ${p.open ?? 0} باز · افت ${p.max_drawdown_pct ?? 0}٪`,\n  ex.trades ? `🧪 آزمایش پولبک اول: ${ex.trades} معامله، برد ${ex.win_pct}٪` : null,\n  '',\n  `🎯 ستاپ‌ها الان: ${s.filter(x=>!x.waiting).length} سیگنال · ${s.filter(x=>x.waiting).length} منتظر`,\n  `🌍 ترس و طمع ${fg.value ?? '—'} · دامیننس تتر ${dom.usdt ?? '—'}٪`,\n  '',\n  `🕐 آخرین چرخه: ${j.generatedText}`,\n  '',\n  '_پنل:_ auraliam18.github.io/.sognal',\n].filter(Boolean);\nreturn [{ json: { text: lines.join('\\n') } }];"
+      },
+      "id": "build-summary",
+      "name": "ساخت خلاصه",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [360, 320]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.HAMID_CHAT_ID || 'اینجا-chat-id' }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "tg-daily",
+      "name": "ارسال خلاصهٔ روزانه",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [580, 320],
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "هر ۱۵ دقیقه": { "main": [[{ "node": "خواندن سیگنال روش حمید", "type": "main", "index": 0 }]] },
+    "خواندن سیگنال روش حمید": { "main": [[{ "node": "بررسی تازگی", "type": "main", "index": 0 }]] },
+    "بررسی تازگی": { "main": [[{ "node": "کهنه است؟", "type": "main", "index": 0 }]] },
+    "کهنه است؟": { "main": [[{ "node": "هشدار تلگرام", "type": "main", "index": 0 }], []] },
+    "هر شب ۲۱:۰۰": { "main": [[{ "node": "خواندن برای خلاصه", "type": "main", "index": 0 }]] },
+    "خواندن برای خلاصه": { "main": [[{ "node": "ساخت خلاصه", "type": "main", "index": 0 }]] },
+    "ساخت خلاصه": { "main": [[{ "node": "ارسال خلاصهٔ روزانه", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

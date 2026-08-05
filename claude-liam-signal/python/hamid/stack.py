@@ -177,74 +177,61 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
                 outside += 1
         return touches
 
-    for b in blocks:
-        # «اگر قیمت به آن برگشته، تقریباً معتبر است» — یک برگشتِ ۱ساعته شرط
-        # اعتبار است؛ پولبک دوم روی ۱۵ دقیقه شمرده می‌شود، پایین‌تر.
-        if b.returns < 1:
-            continue
-        # Price has to have left it decisively. This is the part the code was
-        # missing, and its absence was measurable: on pure random walks — no
-        # structure anywhere, by construction — the stack was producing a signal
-        # 42% of the time, against 60% on real coins. A rule that fires on noise
-        # almost as often as on the market is not finding structure.
-        #
-        # 4 ATR is the 90th percentile of block impulse on those same random
-        # walks, so it discards nine tenths of what noise manufactures. It is a
-        # control-derived number, not a knob turned until the count looked right.
-        if b.impulse < MIN_IMPULSE:
-            continue
+    def build(b):
+        """یک نامزد از این بلاک — یا None اگر از گیت‌ها رد نشود."""
+        if b.returns < 1 or b.impulse < MIN_IMPULSE:
+            return None
         direction = "SHORT" if b.dir == "bearish" else "LONG"
-        if t4 == "down" and direction != "SHORT":
-            continue
-        if t4 == "up" and direction != "LONG":
-            continue
+        if (t4 == "down" and direction != "SHORT") or \
+           (t4 == "up" and direction != "LONG"):
+            return None
         lvl = _level_in_block(b, lvls, a15 * 0.3)
         if lvl is None:
-            continue                     # a block not sitting on a level is not his setup
-
+            return None
         entry = b.mid
-        # «هانت نقدینگی بالای اردر بلاک … استاپ را کمی بالاتر تنظیم می‌کنم»
         hunt = a15 * 0.8
         sl = (b.high + hunt) if direction == "SHORT" else (b.low - hunt)
         risk = abs(entry - sl)
         if risk <= 0:
-            continue
+            return None
         tp1 = entry - risk * 1.5 if direction == "SHORT" else entry + risk * 1.5
         tp2 = entry - risk * 2.5 if direction == "SHORT" else entry + risk * 2.5
-        if ch and re:
-            i = len(c15m) - 1
-            notes.append("تارگت کانالی هم فعال است")
-
-        # How much of the account a full stop actually costs, in percent of
-        # entry. Worth showing rather than burying: R:R is always 1.5 by
-        # construction, so it says nothing about size, and a 1H order block on a
-        # volatile alt can be wide enough that "stop just beyond the block" is a
-        # 14% move. Hamid did not say where in the box the limit sits — the
-        # middle is a compromise between filling often and filling well — so the
-        # number is reported and the choice stays his.
         stop_pct = round(abs(sl - entry) / entry * 100, 2)
-        if stop_pct > 6:
-            notes.append(f"فاصلهٔ استاپ {stop_pct}٪ است — باکس اردر بلاک پهن است، "
-                         f"حجم را کوچک بگیر یا لیمیت را به لبهٔ باکس نزدیک‌تر کن")
         t15n = m15_touches(b)
-        second_15m = t15n >= 2
         return {
             "dir": direction,
             "m15_touches": t15n,
             "stop_pct": stop_pct,
-            "entry": round(entry, 8),
-            "sl": round(sl, 8),
-            "tp1": round(tp1, 8),
-            "tp2": round(tp2, 8),
+            "entry": round(entry, 8), "sl": round(sl, 8),
+            "tp1": round(tp1, 8), "tp2": round(tp2, 8),
             "rr": round(abs(tp1 - entry) / risk, 2),
-            "block": _ob(b),
-            "on_level": _lv(lvl),
-            "stage": "پولبک دوم (۱۵د)" if second_15m else "پولبک اول",
-            "waiting": not second_15m,
+            "block": _ob(b), "on_level": _lv(lvl),
+            "stage": "پولبک دوم (۱۵د)" if t15n >= 2 else "پولبک اول",
+            "waiting": t15n < 2,
             "why": (f"روند ۴ساعته {t4}؛ اردر بلاک روی سطحی با "
                     f"{lvl.reactions} واکنش؛ استاپ بالای هانت نقدینگی"),
         }
-    return None
+
+    # همهٔ بلاک‌ها بررسی می‌شوند و «آماده» به «منتظر» ترجیح داده می‌شود.
+    #
+    # نسخهٔ قبلی روی اولین بلاکِ قبول‌شده return می‌کرد، و چون مرتب‌سازی
+    # برگشتِ بیشتر را جلو می‌آورد، بلاک کهنه‌ای که قیمت ازش دور است همیشه اول
+    # می‌آمد و بلاک تازه‌ای که همین حالا لمس می‌شود هرگز بررسی نمی‌شد.
+    # اندازه‌گیری شد: ۴۳ چرخه در ۱۲ ساعت، صفر سیگنال، در حالی که نامزدِ آماده
+    # پشت ستاپِ منتظر پنهان بود.
+    cands = [c for c in (build(b) for b in blocks) if c]
+    if not cands:
+        return None
+    ready = [c for c in cands if not c["waiting"]]
+    pool_ = ready or cands
+    best = max(pool_, key=lambda c: (c["m15_touches"], c["block"]["impulse"]))
+    if ch and re:
+        notes.append("تارگت کانالی هم فعال است")
+    if (best.get("stop_pct") or 0) > 6:
+        notes.append(f"فاصلهٔ استاپ {best['stop_pct']}٪ است — باکس اردر بلاک پهن است، "
+                     f"حجم را کوچک بگیر یا لیمیت را به لبهٔ باکس نزدیک‌تر کن")
+    return best
+
 
 
 def market_first(btc, usdt_d, btc_d):
