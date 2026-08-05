@@ -106,6 +106,89 @@ def usdt_dominance():
         return None
 
 
+def _btc_dir_by_tf(jobs):
+    """Same definition the miner stored: close now against 8 bars ago on the
+    same grid, with a ±0.25% dead zone. A different definition here would make
+    the mined rule and the live test mean different things."""
+    out = {}
+    for j in jobs:
+        if j["sym"] != "BTCUSDT":
+            continue
+        cd = j["candles"]
+        if len(cd) > 8:
+            chg = (cd[-1]["c"] - cd[-9]["c"]) / cd[-9]["c"] * 100
+            out[j["tf"]] = "UP" if chg > 0.25 else "DOWN" if chg < -0.25 else "FLAT"
+    return out
+
+
+def _room_r(s):
+    r = s.get("room")
+    return r["r"] if isinstance(r, dict) else (r or 0)
+
+
+# Mirrors mine.py's CONDITIONS over the live setup's fields. A condition the
+# live setup cannot express exactly (the channel family) is absent on purpose:
+# skipped is honest, approximated is a different rule wearing the same name.
+RULE_TESTS = {
+    "FVG هم‌جهت دارد": lambda s, b: bool(s.get("fvg")),
+    "روی سطح کلیدی": lambda s, b: bool(s.get("level")),
+    "ADX بالای ۲۵": lambda s, b: (s.get("adx") or 0) >= 25,
+    "ADX زیر ۲۰": lambda s, b: (s.get("adx") or 99) < 20,
+    "پولبک دوم یا بیشتر": lambda s, b: (s.get("visits") or 0) >= 2,
+    "نقدینگی جمع شده": lambda s, b: bool(s.get("swept")),
+    "جای حرکت بیش از ۱.۵ برابر": lambda s, b: _room_r(s) >= 1.5,
+    "جای حرکت کمتر از ۱ برابر": lambda s, b: 0 < _room_r(s) < 1,
+    "R:R بالای ۲.۵": lambda s, b: (s.get("rr") or 0) >= 2.5,
+    "CHOCH دارد": lambda s, b: s.get("choch") == 1,
+    "داخل اردر بلاک": lambda s, b: s.get("inOB") == 1 or s.get("inside") is True,
+    "بیت‌کوین صعودی": lambda s, b: b == "UP",
+    "بیت‌کوین نزولی": lambda s, b: b == "DOWN",
+    "لانگ همسو با بیت‌کوین": lambda s, b: s.get("dir") == "LONG" and b == "UP",
+    "شورت همسو با بیت‌کوین": lambda s, b: s.get("dir") == "SHORT" and b == "DOWN",
+    "لانگ خلاف بیت‌کوین": lambda s, b: s.get("dir") == "LONG" and b == "DOWN",
+    "شورت خلاف بیت‌کوین": lambda s, b: s.get("dir") == "SHORT" and b == "UP",
+}
+
+
+def apply_learned_rules(setups, jobs):
+    """The nightly backtest's confirmed lessons, applied instead of just stored.
+
+    brain/backtests/latest.json is remeasured every morning on real candles.
+    Only conditions whose bootstrap interval cleared zero act here, and each
+    acts with its measured delta as a signed weight — so a condition the tape
+    stopped rewarding loses its seat at the next morning's remeasure without
+    anyone editing this file. The measurement decides; this code only obeys it."""
+    try:
+        j = json.loads((ROOT / "brain" / "backtests" / "latest.json").read_text())
+    except Exception:                                # noqa: BLE001 - no backtest yet is a valid state
+        return 0
+    rules = {}
+    for strat, rs in (j.get("reasons") or {}).items():
+        keep = [r for r in rs if r.get("ci") and (r["ci"][0] > 0 or r["ci"][1] < 0)]
+        if keep:
+            rules[strat] = keep
+    if not rules:
+        return 0
+    btc = _btc_dir_by_tf(jobs)
+    n = 0
+    for s in setups:
+        hits, total = [], 0.0
+        for r in rules.get(s.get("strategy"), []):
+            test = RULE_TESTS.get(r["condition"])
+            if not test:
+                continue
+            try:
+                if test(s, btc.get(s["tf"])):
+                    total += r["delta"]
+                    hits.append({"rule": r["condition"], "delta": r["delta"]})
+            except Exception:                        # noqa: BLE001 - one odd field must not kill the scan
+                continue
+        if hits:
+            s["learned"] = {"boost": round(total, 3), "rules": hits}
+            n += 1
+    return n
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols", type=int, default=100)
@@ -154,7 +237,11 @@ def main():
             sys.exit(f"scan worker failed: {se.decode()[:600]}")
         setups += json.loads(so.decode() or "[]")
 
+    applied = apply_learned_rules(setups, jobs)
+    print(f"confirmed backtest rules applied to {applied} setups", flush=True)
+
     setups.sort(key=lambda s: (STAGE_RANK.get(s["stage"], 0), TF_RANK.get(s["tf"], 0),
+                               (s.get("learned") or {}).get("boost", 0.0),
                                s["conf"] or 0, s["ev"] or 0), reverse=True)
 
     # ── the learning room is asked before anything is called a signal ─────────
