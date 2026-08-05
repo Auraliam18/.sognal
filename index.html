@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.3 · منبع همیشه‌متصل</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.4 · قانون‌های تأییدشده در رتبه‌بندی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3425,6 +3425,9 @@ function relayCard(s){
         if(L.verdict==="thin")return chip(`سابقه کم (${L.n} مورد) — بی‌اثر`,false);
         const good=L.verdict==="good";
         return chip(`اتاق یادگیری: ${L.n} مورد · برد ${L.hit}٪ · ${L.ev>=0?"+":""}${L.ev}R`,good);})()}
+      ${(()=>{const R=s.learned;if(!R||!R.rules||!R.rules.length)return"";
+        const t=R.rules.map(x=>x.rule).join("، ");
+        return chip(`قانون تأییدشدهٔ بک‌تست: ${t} (${R.boost>=0?"+":""}${R.boost}R)`,R.boost>0);})()}
     </div>
     <div class="lvls">
       <div><span>ورود (لبهٔ باکس)</span><b class="num">${px(s.entry)}</b></div>
