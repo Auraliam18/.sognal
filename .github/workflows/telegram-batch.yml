@@ -1,0 +1,57 @@
+# ارسال دسته‌ای سیگنال + چارت به تلگرام حمید، با دفترچهٔ ضدتکرار.
+#
+# توکن از Secret می‌آید؛ تا وقتی Secret ثبت نشده، از ورودی workflow_dispatch
+# (که در لاگ چاپ نمی‌شود) — همان الگوی جاافتادهٔ telegram-live-test.
+# بدون هیچ‌کدام، اجرا ساکت و سبز تمام می‌شود.
+name: Telegram batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: "توکن ربات (اگر Secret خالی است)"
+        required: false
+      chat_id:
+        description: "شناسهٔ چت (اگر Secret خالی است)"
+        required: false
+  schedule:
+    - cron: "19,49 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-batch
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: ابزار چارت و ارسال
+        run: pip -q install matplotlib requests
+
+      - name: ارسال سیگنال‌های تازه
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || github.event.inputs.token }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || github.event.inputs.chat_id }}
+        run: python3 claude-liam-signal/python/tg_batch.py
+
+      - name: ثبت دفترچهٔ ضدتکرار
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain/telegram-sent.json 2>/dev/null || true
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "تلگرام: دفترچهٔ ارسال $(date -u '+%Y-%m-%d %H:%M UTC')"
+            for i in 1 2 3; do
+              git push origin HEAD:main && break
+              git pull --rebase origin main || true
+              sleep $((i*3))
+            done
+          fi
