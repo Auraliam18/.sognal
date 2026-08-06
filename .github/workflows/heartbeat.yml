@@ -36,6 +36,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # نگهبانِ داخل حلقه باید بتواند خط خوابیده را dispatch کند
 
 concurrency:
   group: heartbeat
@@ -60,6 +61,7 @@ jobs:
       - name: چرخه، تا وقتی وقت هست
         working-directory: claude-liam-signal/python
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
@@ -127,6 +129,11 @@ jobs:
             cd claude-liam-signal/python
             # بعد از انتشار: حالا مقایسهٔ پنل با آخرین چرخه معنی دارد
             WATCHDOG_AFTER_PUBLISH=1 python3 -m hamid.watchdog --alert --quiet || true
+            # نگهبان داخل حلقه هم اجرا می‌شود. کرون خود نگهبان را گیت‌هاب
+            # می‌اندازد (اندازه‌گیری ۶ اوت: از ۰۴:۰۰ تا ۰۶:۳۵ هیچ شلیکی) —
+            # ولی این حلقه تا وقتی زنده است هر ۲۰ دقیقه یک معاینه می‌کند و
+            # خطی مثل Live scan را که کرونش افتاده، خودش بیدار می‌کند.
+            REVIVE=1 python3 medic.py || true
             LEFT=$(( END - $(date +%s) ))
             [ "$LEFT" -le $((EVERY * 60)) ] && break
             echo "── $EVERY دقیقه صبر"
