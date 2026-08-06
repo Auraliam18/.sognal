@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.4 · قانون‌های تأییدشده در رتبه‌بندی</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.5 · تب سیگنال واقعی و برایند</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -228,6 +228,8 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
   <div class="tabs" id="tabs">
     <button class="tab" data-t="ops">اتاق کنترل<span class="b" id="cOps">•</span></button>
     <button class="tab active" data-t="signals">سیگنال‌ها<span class="b" id="cSig">0</span></button>
+    <button class="tab" data-t="real">سیگنال واقعی<span class="b" id="cReal">0</span></button>
+    <button class="tab" data-t="net">برایند</button>
     <button class="tab" data-t="watch">واچ‌لیست<span class="b" id="cWatch">0</span></button>
     <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
     <button class="tab" data-t="scalp">اسکلپ ۱م (رنج)</button>
@@ -258,6 +260,8 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
   </section>
   <div id="whyBox"></div>
   <section id="view-signals"></section>
+  <section id="view-real" style="display:none"></section>
+  <section id="view-net" style="display:none"></section>
   <section id="view-watch" style="display:none"></section>
 
   <section id="view-single" style="display:none">
@@ -3393,15 +3397,16 @@ async function relayFetch(){
     const j=await r.json();
     if(!j||!Array.isArray(j.signals))throw new Error("بدون سیگنال در فایل");
     RELAY.data=j;RELAY.at=Date.now();RELAY.err=null;
+    DB.set("relay_cache",j);
+    if(typeof refreshServerTabs==="function")setTimeout(refreshServerTabs,0);
     opslog("scan",`اسکن از راه دور: ${j.signals.length} سیگنال · ${j.generatedText}`,j.signals.length?"sig":"info");
   }catch(e){RELAY.err=e.message||String(e);}
   RELAY.tried++;
 }
-/* Only worth fetching when the panel cannot see the market itself. */
+/* تب «سیگنال واقعی» همیشه این فایل را لازم دارد، نه فقط وقتی مرورگر کور است —
+   فایل کوچک است و هر ۲۵ دقیقه یک بار عوض می‌شود. */
 function relayTick(){
-  const n=DIAG.net,age=n.lastOk?Date.now()-n.lastOk:null;
-  const blind=(!n.lastOk&&n.fail>0)||(age!=null&&age>420000);
-  if(blind&&relayStale())relayFetch();
+  if(relayStale())relayFetch();
 }
 setInterval(relayTick,60000);setTimeout(relayTick,6000);
 
@@ -3428,6 +3433,7 @@ function relayCard(s){
       ${(()=>{const R=s.learned;if(!R||!R.rules||!R.rules.length)return"";
         const t=R.rules.map(x=>x.rule).join("، ");
         return chip(`قانون تأییدشدهٔ بک‌تست: ${t} (${R.boost>=0?"+":""}${R.boost}R)`,R.boost>0);})()}
+      ${s.elite?chip("🏆 ردهٔ مسابقه",true):""}
     </div>
     <div class="lvls">
       <div><span>ورود (لبهٔ باکس)</span><b class="num">${px(s.entry)}</b></div>
@@ -3534,12 +3540,20 @@ async function hamidFetch(){
     const j=await r.json();
     if(!j||!j.generated)throw new Error("فایل ناقص است");
     HAMID.data=j;HAMID.err=null;
+    DB.set("hamid_cache",j);
+    if(typeof refreshServerTabs==="function")setTimeout(refreshServerTabs,0);
     const n=(j.setups||[]).filter(x=>!x.waiting).length;
     opslog("scan",`روش حمید: ${n} سیگنال · ${j.generatedText}`,n?"sig":"info");
   }catch(e){HAMID.err=e.message||String(e);}
   HAMID.tried++;
 }
 setInterval(hamidFetch,120000);setTimeout(hamidFetch,3000);
+/* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
+   صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
+(()=>{
+  const h=DB.get("hamid_cache");if(h&&!HAMID.data){HAMID.data=h;HAMID.tried=1;}
+  const r=DB.get("relay_cache");if(r&&!RELAY.data){RELAY.data=r;RELAY.tried=1;}
+})();
 
 function hamidCard(x){
   const long=x.dir==="LONG";
@@ -3642,7 +3656,87 @@ function renderWhy(){
   if(STATE.signals&&STATE.signals.length){el.innerHTML="";return;}
   el.innerHTML=diagHTML()+hamidHTML()+relayHTML();
 }
-setInterval(renderWhy,5000);
+/* =========================================================================
+   تب «سیگنال واقعی» — خانهٔ اصلی چیزی که از سرور ابری می‌آید: روش خود حمید
+   به‌علاوهٔ اسکن دو استراتژی. با کش localStorage، باز و بسته شدن پنل چیزی را
+   صفر نمی‌کند — آخرین دادهٔ دیده‌شده فوراً برمی‌گردد و فچ تازه جایگزینش می‌شود.
+   ========================================================================= */
+function renderReal(){
+  const el=$("#view-real");if(!el)return;
+  const j=RELAY.data;
+  const elite=j?(j.signals||[]).filter(s=>s.elite).length:0;
+  const head=`<div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">سیگنال واقعی — از سرور ابری</h3>
+    <div class="muted" style="font-size:12px;line-height:1.9">
+      این تب به اتصال مرورگر تو هیچ ربطی ندارد: سرور هر ۲۰ دقیقه ۱۰۰ ارز را از
+      ۱۰ صرافی جهانی می‌خواند و نتیجه همین‌جاست. نشان <b>🏆 ردهٔ مسابقه</b> یعنی
+      سیگنال از همهٔ قانون‌های تأییدشدهٔ بک‌تست (بازهٔ اطمینان بالای صفر) گذشته و
+      به هیچ قانون منفی نخورده — رکورد این رده جدا سنجیده می‌شود.
+      ${elite?`الان <b>${elite}</b> سیگنال در ردهٔ مسابقه.`:"الان سیگنالی در ردهٔ مسابقه نیست — رده خالی بهتر از رکورد خراب."}
+    </div></div>`;
+  el.innerHTML=head+hamidHTML()+relayHTML();
+}
+/* =========================================================================
+   تب «برایند» — یک‌جا: دفتر کاغذی سرور، آزمایش پولبک اول، میز تمرین مرورگر،
+   رکورد اندازه‌گیری‌شدهٔ کندل واقعی، و یادگیریِ تأییدشده‌ای که اجازهٔ عمل دارد.
+   ========================================================================= */
+function renderNet(){
+  const el=$("#view-net");if(!el)return;
+  const hp=(HAMID.data||{}).paper||null;
+  const ex=hp&&hp.experiments_first_pullback;
+  const practice=[...(PAPER.trades||[]),...(STATE.trades||[])].filter(t=>!t.open&&t.r!=null);
+  const pw=practice.filter(t=>t.r>0).length;
+  const pr=practice.reduce((a,t)=>a+(t.r||0),0);
+  const rules=(RELAY.data||{}).learned_rules||[];
+  const row=(k,v)=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12.5px"><span class="dim">${k}</span><b class="mono">${v}</b></div>`;
+  el.innerHTML=`
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">دفتر کاغذی سرور — روش حمید</h3>
+    ${hp?row("موجودی",`$${hp.balance} (${(hp.return_pct||0)>=0?"+":""}${hp.return_pct}٪)`)+
+      row("معاملهٔ بسته",hp.trades||0)+row("برد",hp.win_pct==null?"—":hp.win_pct+"٪")+
+      row("سفارش باز",hp.open||0)+row("بیشترین افت",(hp.max_drawdown_pct||0)+"٪"):
+      `<div class="dim" style="font-size:12px">هنوز داده‌ای از سرور نرسیده</div>`}
+    ${ex&&ex.trades?`<div class="dim" style="font-size:11.5px;margin-top:6px">
+      آزمایش پولبک اول (سیگنال نمی‌شود): ${ex.trades} معامله · برد ${ex.win_pct}٪ · ${ex.return_pct}٪ —
+      فقط برای سنجش قانون «صبر برای پولبک دوم»</div>`:""}
+  </div>
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">میز تمرین همین مرورگر</h3>
+    ${practice.length?row("معاملهٔ بسته",practice.length)+
+      row("برد",Math.round(pw/practice.length*100)+"٪")+
+      row("جمع R",(pr>=0?"+":"")+pr.toFixed(2)+"R"):
+      `<div class="dim" style="font-size:12px">هنوز معامله‌ای اینجا بسته نشده — میز تمرین فقط وقتی این پنل باز است معامله می‌گیرد؛ کار اصلی روی سرور است.</div>`}
+  </div>
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">رکورد کندل واقعی — سیگنال‌های واقعی</h3>
+    <div class="muted" style="font-size:12px;line-height:1.9">
+      بک‌تست هر روز صبح روی کندل واقعی: تنها لبهٔ تأییدشده <b>کانال + اردر بلاک</b> است
+      (+0.123R، بازهٔ [0.046, 0.20] تماماً بالای صفر، ۱٬۶۲۰ معامله). IBS هنوز بازه‌اش
+      صفر را می‌گیرد. رکورد لحظه‌ای هر استراتژی را پایین تب «سیگنال واقعی» هم می‌بینی.
+      <b>هیچ عددی اینجا قول نیست — همه از فایل قابل بازتولیدند.</b></div>
+  </div>
+  <div class="box">
+    <h3 style="margin:0 0 4px">یادگیریِ تأییدشده — تنها چیزی که اجازهٔ عمل دارد</h3>
+    <div class="dim" style="font-size:11.5px;margin-bottom:4px">
+      هر شرط اول در بک‌تست شبانه سنجیده می‌شود؛ فقط اگر بازهٔ اطمینانش صفر را رد کند
+      وارد رتبه‌بندی می‌شود و اگر اعتبارش را از دست بدهد، فردای همان روز خودش حذف می‌شود.</div>
+    ${rules.length?rules.map(r=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:5px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <span class="chip" style="${r.delta>0?"border-color:#2f7d5b;color:#8fe3bd":"border-color:#7d2f45;color:#e39fb0"}">${r.verdict}</span>
+      <b>${r.condition}</b><span class="dim">(${r.strategy})</span>
+      <span class="mono" style="margin-inline-start:auto">${r.delta>=0?"+":""}${r.delta}R · n=${r.n} · CI[${r.ci[0]}, ${r.ci[1]}]</span></div>`).join(""):
+      `<div class="dim" style="font-size:12px">فهرست قانون‌ها با چرخهٔ بعدی اسکن می‌رسد</div>`}
+  </div>`;
+}
+function refreshServerTabs(){
+  renderWhy();
+  const j=RELAY.data;
+  const elite=j?(j.signals||[]).filter(s=>s.elite).length:0;
+  const ready=HAMID.data?(HAMID.data.setups||[]).filter(x=>!x.waiting).length:0;
+  const b=$("#cReal");if(b)b.textContent=elite+ready;
+  if($("#view-real").style.display!=="none")renderReal();
+  if($("#view-net").style.display!=="none")renderNet();
+}
+setInterval(refreshServerTabs,5000);
 function diagHTML(){
   const n=DIAG.net,age=n.lastOk?Math.round((Date.now()-n.lastOk)/1000):null;
   /* «قطع بودن» فقط یعنی مرورگرِ همین دستگاه به صرافی‌ها نمی‌رسد. منبع اصلی پنل
@@ -4440,9 +4534,11 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","watch","single","scalp","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","real","net","watch","single","scalp","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
   if(t==="ops")renderOps();
   if(t==="paper")renderReview();
+  if(t==="real")renderReal();
+  if(t==="net")renderNet();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;

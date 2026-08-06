@@ -150,23 +150,33 @@ RULE_TESTS = {
 }
 
 
-def apply_learned_rules(setups, jobs):
-    """The nightly backtest's confirmed lessons, applied instead of just stored.
+def confirmed_rules():
+    """قانون‌هایی که بازهٔ بوت‌استرپشان صفر را رد کرده — تنها یادگیریِ مجاز به عمل.
 
-    brain/backtests/latest.json is remeasured every morning on real candles.
-    Only conditions whose bootstrap interval cleared zero act here, and each
-    acts with its measured delta as a signed weight — so a condition the tape
-    stopped rewarding loses its seat at the next morning's remeasure without
-    anyone editing this file. The measurement decides; this code only obeys it."""
+    brain/backtests/latest.json is remeasured every morning on real candles, so
+    a condition the tape stopped rewarding loses its seat at the next morning's
+    remeasure without anyone editing this file."""
     try:
         j = json.loads((ROOT / "brain" / "backtests" / "latest.json").read_text())
     except Exception:                                # noqa: BLE001 - no backtest yet is a valid state
-        return 0
+        return {}
     rules = {}
     for strat, rs in (j.get("reasons") or {}).items():
         keep = [r for r in rs if r.get("ci") and (r["ci"][0] > 0 or r["ci"][1] < 0)]
         if keep:
             rules[strat] = keep
+    return rules
+
+
+def apply_learned_rules(setups, jobs, rules):
+    """The nightly backtest's confirmed lessons, applied instead of just stored.
+
+    Only conditions whose bootstrap interval cleared zero act here, and each
+    acts with its measured delta as a signed weight. The measurement decides;
+    this code only obeys it. A setup that matches at least one confirmed
+    positive rule and no confirmed negative one is tagged `elite` — the
+    competition tier the panel shows separately, so its record can be judged
+    on its own."""
     if not rules:
         return 0
     btc = _btc_dir_by_tf(jobs)
@@ -185,7 +195,10 @@ def apply_learned_rules(setups, jobs):
                 continue
         if hits:
             s["learned"] = {"boost": round(total, 3), "rules": hits}
+            s["elite"] = all(h["delta"] > 0 for h in hits)
             n += 1
+        else:
+            s["elite"] = False
     return n
 
 
@@ -237,7 +250,8 @@ def main():
             sys.exit(f"scan worker failed: {se.decode()[:600]}")
         setups += json.loads(so.decode() or "[]")
 
-    applied = apply_learned_rules(setups, jobs)
+    rules = confirmed_rules()
+    applied = apply_learned_rules(setups, jobs, rules)
     print(f"confirmed backtest rules applied to {applied} setups", flush=True)
 
     setups.sort(key=lambda s: (STAGE_RANK.get(s["stage"], 0), TF_RANK.get(s["tf"], 0),
@@ -338,6 +352,10 @@ def main():
                 "هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
         "signals": signals,
         "watch": [s for s in setups if s["stage"] != "SIGNAL"][:60],
+        # یادگیریِ تأییدشده — فقط همین‌ها اجازهٔ عمل دارند؛ پنل عین همین را نشان می‌دهد
+        "learned_rules": [{"strategy": st, "condition": r["condition"], "n": r["n"],
+                           "delta": r["delta"], "ci": r["ci"], "verdict": r["verdict"]}
+                          for st, rs in rules.items() for r in rs],
     }
 
     OUT.mkdir(parents=True, exist_ok=True)
