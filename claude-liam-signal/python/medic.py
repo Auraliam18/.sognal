@@ -88,7 +88,7 @@ def examine():
 
     try:
         st, body = fetch(f"{PAGES}/index.html")
-        if st != 200 or b"Hamid Signal Agent" not in body:
+        if st != 200 or ("کلود کد لیام".encode() not in body and b"Hamid Signal Agent" not in body):
             sick = True
             finds.append(f"صفحهٔ پنل درست سرو نمی‌شود (HTTP {st})")
         else:
