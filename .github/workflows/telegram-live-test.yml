@@ -41,19 +41,33 @@ jobs:
       - name: matplotlib برای چارت
         run: pip -q install matplotlib
 
+      # ورودی dispatch هرگز از مسیر ${{ }} وارد env نمی‌شود — گیت‌هاب مقدار env
+      # را در لاگ عمومی چاپ می‌کند و توکن یک بار همین‌طور افشا شد (لاگ‌ها پاک
+      # شدند). خواندن از فایل رویداد + add-mask.
+      - name: ماسک کردن ورودی‌ها
+        run: |
+          for f in token chat_id; do
+            v=$(jq -r ".inputs.$f // empty" "$GITHUB_EVENT_PATH")
+            [ -n "$v" ] && echo "::add-mask::$v"
+          done
+          true
+
       - name: سیگنال + چارت
         env:
           TOKEN_SECRET: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_SECRET: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TOKEN_INPUT: ${{ github.event.inputs.token }}
-          CHAT_INPUT: ${{ github.event.inputs.chat_id }}
         working-directory: claude-liam-signal/python
         run: |
           python3 - <<'PY'
           import io, json, os, sys, time, urllib.request, urllib.error
 
-          tok = (os.environ.get("TOKEN_SECRET") or os.environ.get("TOKEN_INPUT") or "").strip()
-          chat = (os.environ.get("CHAT_SECRET") or os.environ.get("CHAT_INPUT") or "").strip()
+          _ev = {}
+          try:
+              _ev = (json.load(open(os.environ["GITHUB_EVENT_PATH"])).get("inputs") or {})
+          except Exception:
+              pass
+          tok = (os.environ.get("TOKEN_SECRET") or _ev.get("token") or "").strip()
+          chat = (os.environ.get("CHAT_SECRET") or _ev.get("chat_id") or "").strip()
           if not tok:
               print("نه Secret هست نه ورودی — توکن را در فرم Run workflow بده")
               sys.exit(1)
