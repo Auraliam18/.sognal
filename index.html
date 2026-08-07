@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.5 · تب سیگنال واقعی و برایند</span></div>
+    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.6 · نتیجهٔ تک‌به‌تک در برایند</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3699,6 +3699,25 @@ function renderNet(){
     ${ex&&ex.trades?`<div class="dim" style="font-size:11.5px;margin-top:6px">
       آزمایش پولبک اول (سیگنال نمی‌شود): ${ex.trades} معامله · برد ${ex.win_pct}٪ · ${ex.return_pct}٪ —
       فقط برای سنجش قانون «صبر برای پولبک دوم»</div>`:""}
+  </div>
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">نتیجهٔ تک‌به‌تک — آخرین معامله‌های کاغذی سرور</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      همه‌چیز، بدون سانسور: تارگت، استاپ، و سفارش‌های منقضی (پرنشده — معامله حساب نمی‌شوند).</div>
+    ${(()=>{const R=(hp||{}).recent||[];if(!R.length)return`<div class="dim" style="font-size:12px">
+      لیست تک‌به‌تک از چرخهٔ بعدی سرور می‌رسد</div>`;
+    return R.map(t=>{const won=(t.R||0)>0,exp=t.outcome==="expired";
+      const c=exp?"#8b98ab":won?"#2ecc71":"#e74c3c";
+      const lbl=exp?"منقضی":t.outcome==="target"?"تارگت ✓":t.outcome==="stop"?"استاپ ✗":(t.outcome||"—");
+      return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0;
+        border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+        <b class="mono" style="min-width:86px">${t.sym||"—"}</b>
+        <span>${t.dir==="LONG"?"خرید":"فروش"}</span>
+        <span class="dim" style="font-size:10.5px">${t.kind||""}</span>
+        <span style="color:${c};margin-inline-start:auto">${lbl}</span>
+        <b class="mono" style="min-width:52px;text-align:left;color:${c}">${t.R==null?"—":(t.R>0?"+":"")+t.R+"R"}</b>
+        <span class="dim mono" style="font-size:10px">${t.closed?new Date(t.closed).toLocaleString("fa-IR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</span>
+      </div>`;}).join("");})()}
   </div>
   <div class="box" style="margin-bottom:12px">
     <h3 style="margin:0 0 4px">میز تمرین همین مرورگر</h3>
