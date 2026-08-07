@@ -36,11 +36,26 @@ jobs:
       - name: ابزار چارت و ارسال
         run: pip -q install matplotlib requests
 
+      # ورودی dispatch هرگز از مسیر ${{ }} وارد env نمی‌شود — گیت‌هاب مقدار env
+      # را در لاگ عمومی چاپ می‌کند و یک بار توکن همین‌طور افشا شد (لاگ‌ها پاک
+      # شدند). خواندن از فایل رویداد + add-mask یعنی مقدار نه در متن اسکریپت
+      # ظاهر می‌شود نه در بلوک env، و هر جا سهواً چاپ شود ستاره می‌خورد.
+      - name: ماسک کردن ورودی‌ها
+        run: |
+          for f in token chat_id; do
+            v=$(jq -r ".inputs.$f // empty" "$GITHUB_EVENT_PATH")
+            [ -n "$v" ] && echo "::add-mask::$v"
+          done
+          true
+
       - name: ارسال سیگنال‌های تازه
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || github.event.inputs.token }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || github.event.inputs.chat_id }}
-        run: python3 claude-liam-signal/python/tg_batch.py
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")}"
+          export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
+          python3 claude-liam-signal/python/tg_batch.py
 
       - name: ثبت دفترچهٔ ضدتکرار
         run: |
