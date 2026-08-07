@@ -228,9 +228,23 @@ def _equity():
     closed = _read(CLOSED)
     signalled = [t for t in closed if (t.get("why") or {}).get("stage") != "first"]
     experiments = [t for t in closed if (t.get("why") or {}).get("stage") == "first"]
+
+    # شفافیت یعنی خود لیست، نه فقط جمع‌بندی — آخرین نتیجه‌ها تک‌به‌تک به پنل
+    # می‌روند تا حمید ببیند دقیقاً کدام معامله چه شد. سفارش منقضی هم می‌آید،
+    # با برچسب خودش، چون پنهان کردنش همان «عقب‌نشینی از شفافیت» است.
+    def public(t):
+        return {"sym": t.get("sym"), "dir": t.get("dir"),
+                "entry": t.get("entry"), "sl": t.get("sl"), "tp1": t.get("tp1"),
+                "outcome": t.get("outcome"), "R": t.get("R"),
+                "closed": t.get("closed"),
+                "kind": "آزمایش پولبک اول" if (t.get("why") or {}).get("stage") == "first" else "سیگنال‌شده"}
+    recent = sorted([t for t in closed if t.get("closed")],
+                    key=lambda t: t["closed"], reverse=True)[:40]
+
     j = {**run_book(signalled),
          "start": START_BALANCE, "risk_per_trade_pct": RISK_FRACTION * 100,
          "experiments_first_pullback": run_book(experiments),
+         "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
     EQUITY.write_text(json.dumps(j, ensure_ascii=False, indent=1))

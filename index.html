@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hamid Signal Agent — SMC Cycle + Patterns</title>
+<title>کلود کد لیام — Claude Code Liam</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <script src="./lightweight-charts.js"></script>
 <meta name="theme-color" content="#090d13">
@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>Hamid Signal Agent</b><span class="v" id="ver">cycle v21.5 · تب سیگنال واقعی و برایند</span></div>
+    <div class="brand"><b>کلود کد لیام</b><span class="v" id="ver">cycle v21.7 · سیگنال نهایی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3548,11 +3548,25 @@ async function hamidFetch(){
   HAMID.tried++;
 }
 setInterval(hamidFetch,120000);setTimeout(hamidFetch,3000);
+/* «سیگنال نهایی» — هر چه واقعاً به تلگرام رفته. یک منبع حقیقت مشترک بین
+   فرستندهٔ لحظه‌ای چرخه‌ها و پل دستی. */
+const TGLOG={data:null,tried:0};
+async function tglogFetch(){
+  try{
+    const r=await fetch("./signals/telegram-log.json?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(j&&Array.isArray(j.sent)){TGLOG.data=j;DB.set("tglog_cache",j);}
+  }catch(e){}
+  TGLOG.tried++;
+}
+setInterval(tglogFetch,120000);setTimeout(tglogFetch,4000);
 /* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
    صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
 (()=>{
   const h=DB.get("hamid_cache");if(h&&!HAMID.data){HAMID.data=h;HAMID.tried=1;}
   const r=DB.get("relay_cache");if(r&&!RELAY.data){RELAY.data=r;RELAY.tried=1;}
+  const t=DB.get("tglog_cache");if(t&&!TGLOG.data){TGLOG.data=t;}
 })();
 
 function hamidCard(x){
@@ -3674,7 +3688,21 @@ function renderReal(){
       به هیچ قانون منفی نخورده — رکورد این رده جدا سنجیده می‌شود.
       ${elite?`الان <b>${elite}</b> سیگنال در ردهٔ مسابقه.`:"الان سیگنالی در ردهٔ مسابقه نیست — رده خالی بهتر از رکورد خراب."}
     </div></div>`;
-  el.innerHTML=head+hamidHTML()+relayHTML();
+  const tg=(TGLOG.data||{}).sent||[];
+  const finals=!tg.length?"":`<div class="box" style="margin-bottom:12px;border-color:#1e7d5a55">
+    <h3 style="margin:0 0 4px">سیگنال نهایی — ارسال‌شده به تلگرام</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      دقیقاً همان‌هایی که به گوشی‌ات رفته‌اند — همان لحظه، همین‌جا هم ثبت می‌شوند.</div>
+    ${tg.slice(0,12).map(t=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+        padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      ${t.elite?"🏆 ":""}<b class="mono" style="min-width:86px">${t.sym}</b>
+      <span style="color:${t.dir==="LONG"?"#8fe3bd":"#e39fb0"}">${t.dir==="LONG"?"خرید":"فروش"}</span>
+      <span class="dim" style="font-size:10.5px">${t.name||""}</span>
+      <span class="mono dim" style="margin-inline-start:auto;font-size:11px">
+        ورود ${t.entry??"—"} · استاپ ${t.sl??"—"} · تارگت ${t.tp1??"—"}</span>
+      <span class="dim mono" style="font-size:10px">${t.at?new Date(t.at).toLocaleString("fa-IR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</span>
+    </div>`).join("")}</div>`;
+  el.innerHTML=head+finals+hamidHTML()+relayHTML();
 }
 /* =========================================================================
    تب «برایند» — یک‌جا: دفتر کاغذی سرور، آزمایش پولبک اول، میز تمرین مرورگر،
@@ -3699,6 +3727,25 @@ function renderNet(){
     ${ex&&ex.trades?`<div class="dim" style="font-size:11.5px;margin-top:6px">
       آزمایش پولبک اول (سیگنال نمی‌شود): ${ex.trades} معامله · برد ${ex.win_pct}٪ · ${ex.return_pct}٪ —
       فقط برای سنجش قانون «صبر برای پولبک دوم»</div>`:""}
+  </div>
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">نتیجهٔ تک‌به‌تک — آخرین معامله‌های کاغذی سرور</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      همه‌چیز، بدون سانسور: تارگت، استاپ، و سفارش‌های منقضی (پرنشده — معامله حساب نمی‌شوند).</div>
+    ${(()=>{const R=(hp||{}).recent||[];if(!R.length)return`<div class="dim" style="font-size:12px">
+      لیست تک‌به‌تک از چرخهٔ بعدی سرور می‌رسد</div>`;
+    return R.map(t=>{const won=(t.R||0)>0,exp=t.outcome==="expired";
+      const c=exp?"#8b98ab":won?"#2ecc71":"#e74c3c";
+      const lbl=exp?"منقضی":t.outcome==="target"?"تارگت ✓":t.outcome==="stop"?"استاپ ✗":(t.outcome||"—");
+      return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0;
+        border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+        <b class="mono" style="min-width:86px">${t.sym||"—"}</b>
+        <span>${t.dir==="LONG"?"خرید":"فروش"}</span>
+        <span class="dim" style="font-size:10.5px">${t.kind||""}</span>
+        <span style="color:${c};margin-inline-start:auto">${lbl}</span>
+        <b class="mono" style="min-width:52px;text-align:left;color:${c}">${t.R==null?"—":(t.R>0?"+":"")+t.R+"R"}</b>
+        <span class="dim mono" style="font-size:10px">${t.closed?new Date(t.closed).toLocaleString("fa-IR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</span>
+      </div>`;}).join("");})()}
   </div>
   <div class="box" style="margin-bottom:12px">
     <h3 style="margin:0 0 4px">میز تمرین همین مرورگر</h3>

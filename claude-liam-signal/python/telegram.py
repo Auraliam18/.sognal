@@ -24,7 +24,26 @@ from pathlib import Path
 
 API = "https://api.telegram.org"
 SENT = Path(__file__).resolve().parent.parent.parent / "signals" / "sent.json"
+TGLOG = Path(__file__).resolve().parent.parent.parent / "signals" / "telegram-log.json"
 TTL_MS = 12 * 3600 * 1000
+
+
+def _log_final(s):
+    """«سیگنال نهایی» — هر چه واقعاً به تلگرام رفت، برای نمایش در پنل هم ثبت
+    می‌شود. یک فایل مشترک با tg_batch، که پنل یک منبع حقیقت داشته باشد."""
+    try:
+        log = json.loads(TGLOG.read_text()).get("sent", []) if TGLOG.exists() else []
+    except Exception:                                  # noqa: BLE001
+        log = []
+    log.insert(0, {"at": int(time.time() * 1000),
+                   "sym": s.get("sym"), "dir": s.get("dir"), "tf": s.get("tf"),
+                   "entry": s.get("entry"), "sl": s.get("sl"),
+                   "tp1": s.get("tp1"), "tp2": s.get("tp2"),
+                   "name": s.get("strategyName") or s.get("name") or "",
+                   "elite": bool(s.get("elite"))})
+    TGLOG.parent.mkdir(parents=True, exist_ok=True)
+    TGLOG.write_text(json.dumps({"generated": int(time.time() * 1000),
+                                 "sent": log[:40]}, ensure_ascii=False, indent=1))
 
 
 def creds():
@@ -170,6 +189,7 @@ def send_signals(signals, render_chart, limit=8):
             sent[_key(s)] = time.time() * 1000
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
+            _log_final(s)
         except urllib.error.HTTPError as e:
             print(f"  telegram rejected {s['sym']}: {e.code} {scrub(e.read()[:200])}", flush=True)
         except Exception as e:                        # noqa: BLE001 - one failure must not stop the rest
