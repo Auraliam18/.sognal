@@ -57,16 +57,34 @@ jobs:
           export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
           python3 claude-liam-signal/python/tg_batch.py
 
-      - name: ثبت دفترچهٔ ضدتکرار
+      - name: ثبت دفترچهٔ ضدتکرار و سیگنال نهایی
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          git add brain/telegram-sent.json 2>/dev/null || true
+          git add brain/telegram-sent.json signals/telegram-log.json 2>/dev/null || true
           if ! git diff --cached --quiet 2>/dev/null; then
             git commit -m "تلگرام: دفترچهٔ ارسال $(date -u '+%Y-%m-%d %H:%M UTC')"
             for i in 1 2 3; do
               git push origin HEAD:main && break
               git pull --rebase origin main || true
               sleep $((i*3))
+            done
+          fi
+
+      - name: سیگنال نهایی روی پنل (gh-pages)
+        run: |
+          git fetch origin gh-pages -q || exit 0
+          rm -rf /tmp/ghp
+          git worktree add /tmp/ghp origin/gh-pages --detach -q || exit 0
+          mkdir -p /tmp/ghp/signals
+          cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
+          cd /tmp/ghp
+          git add signals
+          if ! git diff --cached --quiet; then
+            git commit -q -m "سیگنال نهایی $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do
+              git push origin HEAD:gh-pages -q && break
+              git fetch origin gh-pages -q || true
+              git rebase origin/gh-pages -q || { git rebase --abort; break; }
             done
           fi

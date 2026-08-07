@@ -114,6 +114,7 @@ jobs:
             if git worktree add /tmp/ghp origin/gh-pages --detach -q 2>/dev/null; then
               mkdir -p /tmp/ghp/signals
               cp signals/hamid-latest.json /tmp/ghp/signals/ 2>/dev/null || true
+              cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
               ( cd /tmp/ghp
                 git add signals
                 if ! git diff --cached --quiet; then

@@ -14,6 +14,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 SENT = ROOT / "brain" / "telegram-sent.json"
+TGLOG = ROOT / "signals" / "telegram-log.json"   # «سیگنال نهایی» — پنل همین را نشان می‌دهد
 CAP = 5                        # سقف هر اجرا — سیل پیام اعتماد را می‌کشد
 
 
@@ -104,6 +105,12 @@ def main():
         except Exception:                              # noqa: BLE001
             sent = []
     seen = set(sent)
+    log = []
+    if TGLOG.exists():
+        try:
+            log = json.loads(TGLOG.read_text()).get("sent", [])
+        except Exception:                              # noqa: BLE001
+            log = []
     new = [s for s in collect() if s["key"] not in seen]
     # ردهٔ مسابقه اول می‌رود — بهترین‌ها نباید پشت سقف ارسال بمانند
     new.sort(key=lambda s: (not s["elite"],))
@@ -131,11 +138,17 @@ def main():
         if j.get("ok"):
             seen.add(s["key"])
             delivered += 1
+            log.insert(0, {"at": int(time.time() * 1000),
+                           "sym": s["sym"], "dir": s["dir"], "tf": s["tf"],
+                           "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"),
+                           "tp2": s.get("tp2"), "name": s["name"], "elite": s["elite"]})
             print(f"✓ {s['sym']} {s['dir']} رفت")
         else:
             print(f"✗ {s['sym']}: {j.get('description')}")
     SENT.parent.mkdir(parents=True, exist_ok=True)
     SENT.write_text(json.dumps(list(seen)[-500:], ensure_ascii=False))
+    TGLOG.write_text(json.dumps({"generated": int(time.time() * 1000),
+                                 "sent": log[:40]}, ensure_ascii=False, indent=1))
     print(f"{delivered} سیگنال فرستاده شد · {len(new) - delivered if len(new) > CAP else 0} ماند برای اجرای بعد")
 
 
