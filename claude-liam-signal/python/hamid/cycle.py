@@ -58,6 +58,15 @@ DAILY_TARGET = 15
 ROOMS = ["market", "radar", "scan", "deep", "trade", "paper",
          "chart", "watch", "learn", "calib", "intel", "sup"]
 
+# فعالیت‌های ایجنت، به زبان ساده — پنل همین لیست را در تب «فعالیت‌های ایجنت»
+# لحظه‌به‌لحظه نشان می‌دهد تا حمید ببیند الان دقیقاً چه کاری در جریان است.
+ACTIVITY = []
+
+
+def act(text):
+    ACTIVITY.append({"t": int(time.time() * 1000), "text": text})
+    print(f"⚙ {text}", flush=True)
+
 
 # ── the day's budget ───────────────────────────────────────────────────────
 
@@ -180,7 +189,52 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
             setups.append((sym, r))
         brain.room_log("scan", f"{sym}: ۴ساعته {r.trend_4h}، "
                                f"{len(r.blocks)} بلاک، ستاپ {'دارد' if r.setup else 'ندارد'}", "read")
-    return first, reads, setups
+    flows = money_flow(fetched)
+    return first, reads, setups, flows
+
+
+def money_flow(fetched, z_gate=2.0, look=4):
+    """ورود/خروج پول، با نگاهی به گذشتهٔ خود ارز — نه حدس.
+
+    حجم آخرین کندل بستهٔ یک‌ساعته نسبت به میانگین/انحراف صد کندل قبل سنجیده
+    می‌شود؛ جهش یعنی z بالای آستانه. بعد در تاریخچهٔ همان ارز، جهش‌های مشابهِ
+    هم‌جهت پیدا و بازدهٔ چهار ساعت بعدشان اندازه گرفته می‌شود — «واکنش
+    انتظاری» میانهٔ همان اندازه‌گیری است، با تعداد نمونه کنارش، که معلوم باشد
+    حرف از چند مشاهده می‌آید. نمونهٔ کمتر از پنج، بدون پیش‌بینی گزارش می‌شود."""
+    out = []
+    for sym, (c1h, _) in fetched.items():
+        if len(c1h) < 120:
+            continue
+        vols = [k["v"] for k in c1h[:-1]]            # کندل باز حساب نیست
+        base = vols[-101:-1]
+        mean = sum(base) / len(base)
+        var = sum((v - mean) ** 2 for v in base) / len(base)
+        sd = var ** 0.5 or 1e-12
+        last = c1h[-2]
+        z = (last["v"] - mean) / sd
+        if z < z_gate:
+            continue
+        inflow = last["c"] >= last["o"]
+        # جهش‌های مشابهِ گذشته در همین سری
+        rets = []
+        for i in range(100, len(c1h) - look - 1):
+            k = c1h[i]
+            b = [x["v"] for x in c1h[max(0, i - 100):i]]
+            m = sum(b) / len(b)
+            s = (sum((v - m) ** 2 for v in b) / len(b)) ** 0.5 or 1e-12
+            if (k["v"] - m) / s >= z_gate and (k["c"] >= k["o"]) == inflow:
+                rets.append((c1h[i + look]["c"] - k["c"]) / k["c"] * 100)
+        rets.sort()
+        n = len(rets)
+        med = rets[n // 2] if n else None
+        out.append({"symbol": sym, "z": round(z, 1),
+                    "flow": "ورود" if inflow else "خروج",
+                    "past_n": n,
+                    "past_median_pct": round(med, 2) if med is not None else None,
+                    "verdict": ("نمونهٔ گذشته کم است — پیش‌بینی نمی‌کنیم" if n < 5 else
+                                f"در {n} جهش مشابه، میانهٔ حرکت {look} ساعت بعد {med:+.2f}٪ بود")})
+    out.sort(key=lambda x: -x["z"])
+    return out[:8]
 
 
 def resample(cd, k):
@@ -309,6 +363,8 @@ def main():
         print(f"بیت‌کوین در دسترس نبود: {e}")
         btc15 = []
     mode, why = regime(btc15) if a.mode == "auto" else (a.mode, "دستی انتخاب شد")
+    ACTIVITY.clear()
+    act(f"شروع چرخه در حالت {'فعال' if mode == 'active' else 'سکوت'} — {why}")
     print(f"حالت: {mode} — {why}")
     brain.event("cycle", mode=mode, why=why, pacing=pace)
 
@@ -327,9 +383,18 @@ def main():
         except Exception as e:                       # noqa: BLE001
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-        first, reads, setups = run_active(syms)
+        act(f"در حال خواندن {len(syms)} ارز برتر از صرافی‌های جهانی")
+        first, reads, setups, flows = run_active(syms)
         report["market"] = first
         report["reads"] = len(reads)
+        report["money_flow"] = flows
+        act(f"{len(reads)} ارز خوانده شد؛ {len(setups)} ارز ساختار اردر بلاک دارند")
+        if flows:
+            act(f"جهش حجم در {len(flows)} ارز دیده شد — واکنش گذشتهٔ هرکدام اندازه گرفته شد")
+        # تاریخچهٔ همان ارزها فوری در اختیار اتاق سیگنال و ریسک
+        for f in flows:
+            brain.room_log("scan", f"پول در حال {f['flow']} به {f['symbol']} "
+                                   f"(z={f['z']}) — {f['verdict']}", "flow")
         rows = [{"symbol": s, **r.setup, "trend_4h": r.trend_4h,
                  "channel": r.channel_note} for s, r in setups]
         ready = [x for x in rows if not x.get("waiting")]
@@ -405,6 +470,7 @@ def main():
               f"{take} سیگنال فرستاده شد"
               + (f"، {held} تای دیگر نگه داشته شد (سهمیهٔ روز)" if held else ""))
     else:
+        act("بازار آرام است — به‌جای اسکن کامل، تقویم اقتصادی و نامزدهای پامپ بررسی می‌شوند")
         report.update(run_quiet())
 
     # Paper book. Every signal is placed as a limit order and tracked to its
@@ -438,6 +504,9 @@ def main():
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
                            **eq}
+        act(f"دفتر کاغذی: {opened} سفارش تازه گذاشته شد، {closed} معامله بسته شد، "
+            f"{still} سفارش هنوز باز است")
+        act("تجربه‌گیری: نتیجهٔ معامله‌های بسته با شرایط لحظهٔ بازشدنشان به حافظهٔ یادگیری رفت")
         print(f"دفتر کاغذی: {opened} سفارش جدید، {still} باز، {closed} بسته — "
               f"${eq['balance']} ({eq['return_pct']:+.2f}٪) از {eq['trades']} معامله")
         # Reasons are only recomputed when there is enough to say anything; the
@@ -455,6 +524,8 @@ def main():
                 [_for_telegram(x) for x in report["setups"] if not x.get("waiting")],
                 lambda setup, path: None)          # text only; charts need candles
             report["telegram"] = sent
+            if sent:
+                act(f"{sent} سیگنال با چارت به تلگرام فرستاده شد")
         except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
             print(f"تلگرام: {type(e).__name__}: {e}")
 
@@ -492,6 +563,8 @@ def main():
         print(f"دیده‌بان اجرا نشد: {type(e).__name__}: {e}")
 
     st["modes"][mode] = st["modes"].get(mode, 0) + 1
+    act("چرخه تمام شد — نتیجه روی پنل منتشر می‌شود")
+    report["activity"] = ACTIVITY[-25:]
     if not a.dry:
         _save_state(st)
         OUT.mkdir(parents=True, exist_ok=True)
