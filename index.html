@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>کلود کد لیام</b><span class="v" id="ver">cycle v21.7 · سیگنال نهایی</span></div>
+    <div class="brand"><b>کلود کد لیام</b><span class="v" id="ver">cycle v21.8 · فعالیت‌های ایجنت و جریان پول</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -232,7 +232,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="tab" data-t="net">برایند</button>
     <button class="tab" data-t="watch">واچ‌لیست<span class="b" id="cWatch">0</span></button>
     <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
-    <button class="tab" data-t="scalp">اسکلپ ۱م (رنج)</button>
+    <button class="tab" data-t="agent">فعالیت‌های ایجنت</button>
     <button class="tab" data-t="radar">رادار پامپ</button>
     <button class="tab" data-t="paper">ترید کاغذی<span class="b" id="cPaper">0</span></button>
     <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
@@ -274,18 +274,9 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div id="ddOut"></div>
   </section>
 
-  <section id="view-scalp" style="display:none">
-    <div class="section-title"><span class="eyebrow">1m reverse-IBS · range scalp</span><h2>اسکلپ ۱ دقیقه‌ای — رنج‌مارکت</h2></div>
-    <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
-      ستاپ: <b>اینداسمنت معتبر (سوییپ لبهٔ رنج) → CHoCH → اولین BOS هم‌جهتِ چرخش</b>، فقط در حالت رنج و روی تک‌ارز.
-      ضدِ سوییپ وارد می‌شویم و به سمت لبهٔ مقابلِ رنج هدف می‌گیریم. این پنل کاملاً مستقل از موتورِ قفل‌شده است.
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 14px">
-      <input class="f" id="scSym" placeholder="نماد، مثلاً BTC یا SOLUSDT" style="max-width:260px" inputmode="text" autocapitalize="characters">
-      <button class="btn primary" id="scBtn">تحلیل اسکلپ ۱م</button>
-      <span class="dim mono" id="scMeta"></span>
-    </div>
-    <div id="scOut"></div>
+  <section id="view-agent" style="display:none">
+    <div class="section-title"><span class="eyebrow">live agent activity</span><h2>فعالیت‌های ایجنت — همین لحظه</h2></div>
+    <div id="agentOut"></div>
   </section>
 
   <section id="view-radar" style="display:none">
@@ -3774,6 +3765,44 @@ function renderNet(){
       `<div class="dim" style="font-size:12px">فهرست قانون‌ها با چرخهٔ بعدی اسکن می‌رسد</div>`}
   </div>`;
 }
+/* =========================================================================
+   تب «فعالیت‌های ایجنت» — قدم‌به‌قدم و به زبان ساده: ایجنت الان دارد چه
+   می‌کند. منبعش لیست activity است که خود چرخهٔ سرور در هر قدم می‌نویسد،
+   به‌علاوهٔ کارهای زندهٔ همین مرورگر (اتاق کنترل).
+   ========================================================================= */
+function renderAgent(){
+  const el=$("#agentOut");if(!el)return;
+  const j=HAMID.data||{};
+  const acts=j.activity||[];
+  const flows=j.money_flow||[];
+  const mins=j.generated?Math.round((Date.now()-j.generated)/60000):null;
+  el.innerHTML=`
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">ایجنت الان چه می‌کند؟</h3>
+    <div class="muted" style="font-size:12.5px;line-height:1.9">
+      ایجنت روی سرور ابری هر ۲۰ دقیقه یک چرخهٔ کامل می‌زند: بازار را می‌خواند، با روش تو
+      ستاپ می‌سازد، ترید کاغذی می‌کند، از نتیجهٔ بسته‌شده‌ها تجربه می‌گیرد، و سلامت خودش
+      را چک می‌کند. این لیست، قدم‌های همان چرخه است — آخرین چرخه ${mins==null?"—":mins+" دقیقه پیش"}.</div>
+    ${acts.length?acts.map(a=>`<div style="display:flex;gap:10px;align-items:baseline;padding:5px 0;
+        border-top:1px solid rgba(140,160,190,.10);font-size:12.5px">
+      <span class="dim mono" style="font-size:10.5px;min-width:42px">${a.t?new Date(a.t).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"}):""}</span>
+      <span>⚙ ${a.text}</span></div>`).join(""):
+      `<div class="dim" style="font-size:12px;margin-top:6px">لیست قدم‌ها از چرخهٔ بعدی سرور می‌رسد</div>`}
+  </div>
+  <div class="box">
+    <h3 style="margin:0 0 4px">💧 ورود و خروج پول — با واکنش گذشتهٔ خود ارز</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      جهش حجم یک‌ساعته نسبت به ۱۰۰ کندل قبل؛ بعد در گذشتهٔ همان ارز، جهش‌های مشابه پیدا و
+      حرکت ۴ ساعت بعدشان اندازه گرفته می‌شود. نمونهٔ کم = بدون پیش‌بینی، صادقانه.</div>
+    ${flows.length?flows.map(f=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+        padding:5px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12.5px">
+      <b class="mono" style="min-width:96px">${f.symbol}</b>
+      <span style="color:${f.flow==="ورود"?"#2ecc71":"#e74c3c"}">پول در حال ${f.flow}</span>
+      <span class="chip">شدت z=${f.z}</span>
+      <span class="dim" style="font-size:11.5px">${f.verdict}</span></div>`).join(""):
+      `<div class="dim" style="font-size:12px">در چرخهٔ اخیر جهش حجم معناداری دیده نشد (یا چرخه در حالت سکوت است)</div>`}
+  </div>`;
+}
 function refreshServerTabs(){
   renderWhy();
   const j=RELAY.data;
@@ -3782,6 +3811,7 @@ function refreshServerTabs(){
   const b=$("#cReal");if(b)b.textContent=elite+ready;
   if($("#view-real").style.display!=="none")renderReal();
   if($("#view-net").style.display!=="none")renderNet();
+  const ag=$("#view-agent");if(ag&&ag.style.display!=="none")renderAgent();
 }
 setInterval(refreshServerTabs,5000);
 function diagHTML(){
@@ -4369,40 +4399,34 @@ function tradeClose(tr,r,why){
 }
 
 function renderTgBanner(){
+  /* ربات تلگرام حالا سمت سرور ساخته شده — فرم توکن از صفحهٔ اول حذف شد و
+     جایش دقیقاً همان چیزی نشسته که حمید خواست: سیگنال‌های فعالِ همین لحظه،
+     و رویدادهای اقتصادی که باید مواظبشان بود. */
   const el=$("#tgBanner");if(!el)return;
-  if(TG.on()){
-    if(el.dataset.st!=="on"){el.dataset.st="on";
-      el.innerHTML=`<div class="box" style="border-color:#1e7d5a;margin-bottom:12px;padding:10px 14px">
-        <span style="font-size:13px">📨 تلگرام وصل است — هر سیگنال، نتیجهٔ هر معامله و گزارش ۵ دقیقه‌ای برایت فرستاده می‌شود.</span>
-        <button class="btn ghost" id="tgTest" style="margin-inline-start:10px;font-size:12px">ارسال پیام آزمایشی</button></div>`;
-      const b=$("#tgTest");if(b)b.onclick=async()=>{b.textContent="در حال ارسال…";
-        const ok=await TG.send("🔔 <b>آزمایش</b> — ارتباط پنل با تلگرام برقرار است.");
-        b.textContent=ok?"فرستاده شد ✓":"ناموفق — توکن/شناسه را بررسی کن";};}
-    return;
-  }
-  if(el.dataset.st==="off")return;
-  el.dataset.st="off";
-  el.innerHTML=`<div class="box" style="border-color:#7d5a1e;margin-bottom:12px;padding:12px 14px">
-    <div style="font-size:13px;margin-bottom:8px">📨 <b>سیگنال‌ها ساخته می‌شوند ولی جایی برای رفتن ندارند.</b>
-      توکن ربات را از <span class="mono">@BotFather</span> و شناسهٔ چت را از <span class="mono">@userinfobot</span> بگیر و اینجا بگذار — یک بار برای همیشه.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <input class="f" id="tgTok" style="flex:2;min-width:230px" placeholder="توکن ربات — 123456:ABC..." autocapitalize="none">
-      <input class="f" id="tgChat" style="flex:1;min-width:130px" placeholder="شناسهٔ چت — 123456789" inputmode="numeric">
-      <button class="btn primary" id="tgSave">اتصال</button>
+  const tg=((TGLOG.data||{}).sent||[]).slice(0,3);
+  const hj=HAMID.data||{};
+  const ready=(hj.setups||[]).filter(x=>!x.waiting);
+  const rj=RELAY.data||{};
+  const rsig=(rj.signals||[]).length;
+  const cal=((hj.world||{}).calendar)||{};
+  const ev=(cal.next_48h||[]).slice(0,3);
+  const news=(((hj.world||{}).news)||{}).hot||[];
+  el.innerHTML=`<div class="box" style="border-color:#1e7d5a55;margin-bottom:12px;padding:10px 14px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+      <b>🚨 سیگنال‌های فعال</b>
+      <span>روش حمید: <b>${ready.length}</b> آماده</span>
+      <span>اسکن استراتژی‌ها: <b>${rsig}</b></span>
+      <span class="dim">آخرین ارسال به تلگرام: ${tg.length?tg.map(t=>`${t.sym} ${t.dir==="LONG"?"خرید":"فروش"}`).join("، "):"—"}</span>
+      <button class="btn ghost" style="font-size:11px;margin-inline-start:auto" onclick="selectTab('real')">تب سیگنال واقعی ←</button>
     </div>
-    <div class="dim" id="tgMsg" style="font-size:12px;margin-top:7px"></div></div>`;
-  const save=$("#tgSave");
-  if(save)save.onclick=async()=>{
-    const t=$("#tgTok").value.trim(),c=$("#tgChat").value.trim(),m=$("#tgMsg");
-    if(!t||!c){m.textContent="هر دو مقدار لازم است.";return;}
-    save.textContent="در حال بررسی…";
-    TG.set(t,c);
-    const ok=await TG.send("✅ <b>پنل به تلگرام وصل شد</b>\nاز این پس هر سیگنال، نتیجهٔ هر معامله و گزارش ۵ دقیقه‌ای اینجا می‌آید.");
-    if(ok){opslog("sup","تلگرام وصل شد — سیگنال‌ها از این پس ارسال می‌شوند","sig");saveLocal();if(SYNC.on())SYNC.push();el.dataset.st="";renderTgBanner();}
-    else{TG.set("","");save.textContent="اتصال";m.textContent="نشد. توکن یا شناسهٔ چت درست نیست — یا هنوز به ربات پیام /start نداده‌ای.";}
-  };
+    <div class="dim" style="font-size:11.5px;margin-top:6px;border-top:1px solid rgba(140,160,190,.12);padding-top:5px">
+      📅 <b>رویدادهای اقتصادی:</b>
+      ${ev.length?ev.map(e=>`${e.title||e.event||e.name||""}${e.time?` (${e.time})`:""}`).join(" · "):
+        `${cal.high_this_week??"—"} رویداد مهم این هفته — در ۴۸ ساعت آینده چیزی نیست`}
+      ${news.length?` · 📰 ${news[0].title.slice(0,80)}`:""}
+    </div></div>`;
 }
-setInterval(renderTgBanner,4000);
+setInterval(renderTgBanner,5000);setTimeout(renderTgBanner,1500);
 function renderTrades(){
   const el=$("#tradeBox");if(el===null||typeof el==="undefined")return;
   const T=STATE.trades||[];
@@ -4581,11 +4605,12 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","real","net","watch","single","scalp","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","real","net","watch","single","agent","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
   if(t==="ops")renderOps();
   if(t==="paper")renderReview();
   if(t==="real")renderReal();
   if(t==="net")renderNet();
+  if(t==="agent")renderAgent();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
