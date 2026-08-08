@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>کلود کد لیام — Claude Code Liam</title>
+<title>حمید کلود مکس پنل — Hamid Claude Max</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <script src="./lightweight-charts.js"></script>
 <meta name="theme-color" content="#090d13">
@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>کلود کد لیام</b><span class="v" id="ver">cycle v21.8 · فعالیت‌های ایجنت و جریان پول</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.9 · حمید کلود مکس</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3801,7 +3801,22 @@ function renderAgent(){
       <span class="chip">شدت z=${f.z}</span>
       <span class="dim" style="font-size:11.5px">${f.verdict}</span></div>`).join(""):
       `<div class="dim" style="font-size:12px">در چرخهٔ اخیر جهش حجم معناداری دیده نشد (یا چرخه در حالت سکوت است)</div>`}
-  </div>`;
+  </div>
+  ${(()=>{const pr=(j.payroll||{}).detail;if(!pr)return"";
+    const base=(j.payroll||{}).base||1000;
+    const rows=Object.entries(pr).sort((a,b)=>(b[1].penalty||0)-(a[1].penalty||0));
+    return `<div class="box" style="margin-top:12px">
+    <h3 style="margin:0 0 4px">⚖️ مسئولیت — حقوق و جریمهٔ اتاق‌ها</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      هر اتاق برای کارش امتیاز می‌گیرد؛ اتاقی که کم بیاورد از حقوق پایهٔ ${base} جریمه
+      می‌شود و باید در چرخه‌های بعد جبران کند. مسئولیت وقتی واقعی است که دیده شود.</div>
+    ${rows.map(([n,r])=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+        padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <b class="mono" style="min-width:56px">${n}</b>
+      <span class="dim" style="font-size:11px;flex:1">${r.why||""}</span>
+      ${r.penalty>0?`<span style="color:#e74c3c">جریمه ${r.penalty}−</span>`:`<span style="color:#2ecc71">حقوق کامل</span>`}
+      ${r.bonus?`<span style="color:#f0d24e">پاداش ${r.bonus}+</span>`:""}
+    </div>`).join("")}</div>`;})()}`;
 }
 function refreshServerTabs(){
   renderWhy();
