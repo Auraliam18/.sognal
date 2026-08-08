@@ -1,7 +1,7 @@
 /* Hamid Signal Agent — service worker
    Caches the app shell so the panel opens instantly (even offline),
    while always going to the network for live market data and the cloud API. */
-const CACHE = "hsa-shell-v21.9";
+const CACHE = "hsa-shell-v21.10";
 const ASSETS = [
   "./",
   "./index.html",
@@ -62,8 +62,11 @@ self.addEventListener("fetch", (e) => {
   // guarantee that what is on screen is what was deployed. The cached copy still
   // answers when the network does not, so it still opens offline.
   if (req.mode === "navigate" || (req.destination === "document")) {
+    // no-store: fetch(req) خالی از کش HTTP مرورگر می‌خواند و GitHub Pages تا
+    // ۱۰ دقیقه max-age می‌دهد — یعنی رفرشِ بعد از دیپلوی، صفحهٔ قدیمی را
+    // می‌آورد و «تغییر نام پنل» دیده نمی‌شد. مستقیم از شبکه، همیشه.
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-store" })
         .then(save)
         .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
     );
