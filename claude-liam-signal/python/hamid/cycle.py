@@ -539,8 +539,20 @@ def main():
                         capture_output=True, text=True, timeout=120)
         if r_pay.returncode == 0:
             pj = json.loads((ROOT / "brain" / "rooms" / "payroll.json").read_text())
-            report["payroll"] = {"rooms": len(pj.get("rooms") or []),
-                                 "total": pj.get("total")}
+            base = pj.get("base", 1000)
+            rooms = pj.get("rooms") or {}
+            # جریمه، نه فقط پاداش: اتاقی که کم بیاورد از حقوق پایه کم می‌شود و
+            # پنل همین را نشان می‌دهد — مسئولیت وقتی واقعی است که دیده شود.
+            detail = {name: {"score": r.get("score"), "salary": r.get("salary"),
+                             "bonus": r.get("bonus", 0),
+                             "penalty": max(0, base - (r.get("salary") or base)),
+                             "why": r.get("why")}
+                      for name, r in rooms.items()}
+            fined = [n for n, r in detail.items() if r["penalty"] > 0]
+            report["payroll"] = {"rooms": len(rooms), "total": pj.get("total"),
+                                 "base": base, "detail": detail}
+            act(f"حقوق‌دهی اتاق‌ها: {len(rooms)} اتاق امتیاز گرفت"
+                + (f"، {len(fined)} اتاق جریمه شد ({'، '.join(fined[:4])})" if fined else "، بدون جریمه"))
             print(f"راندمان اتاق‌ها: {report['payroll']['rooms']} اتاق امتیاز گرفت")
         else:
             print(f"payroll شکست خورد: {r_pay.stderr[-200:]}")

@@ -106,9 +106,15 @@ def _post(token, method, fields, files=None):
         return json.load(r)
 
 
+PANEL_NAME = "حمید کلود مکس پنل"
+
+
 def caption(s):
     dir_fa = "🟢 خرید (LONG)" if s["dir"] == "LONG" else "🔴 فروش (SHORT)"
-    L = [f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
+    # نام پنل بالای هر پیام — چند هوش مصنوعی دیگر هم سیگنال می‌فرستند و حمید
+    # باید بداند هر سیگنال از کدام است تا ضعیف‌ها را حذف کند.
+    L = [f"🏷 <b>{PANEL_NAME}</b>",
+         f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
     # Which strategy produced this. Two strategies run side by side and a signal
     # that does not say which one it came from cannot be judged or learned from.
     if s.get("strategyName"):
