@@ -55,10 +55,15 @@ def examine():
         j = json.loads(body)
         a = age_min(j)
         setups, paper, reads = j.get("setups"), j.get("paper"), j.get("reads", 0)
+        quiet = j.get("mode") == "quiet"
         if a is None or a > HAMID_MAX_MIN:
             sick = True
             wake.append("heartbeat.yml")
             finds.append(f"خط تولید سیگنال کهنه است — آخرین چرخه {round(a) if a else '؟'} دقیقه پیش (آستانه {HAMID_MAX_MIN})")
+        elif quiet:
+            # حالت سکوت طبق طرح خود حمید اسکن کامل نمی‌کند (بازار آرام یا تعطیل)
+            # و reads=0 طبیعی آن است — یک بار همین‌جا هشدار الکی داده شد.
+            finds.append(f"چرخه سالم (حالت سکوت): {round(a)} دقیقه پیش — {j.get('why', 'بازار آرام')}")
         elif not isinstance(setups, list) or not isinstance(paper, dict) or reads < 10:
             sick = True
             wake.append("heartbeat.yml")
