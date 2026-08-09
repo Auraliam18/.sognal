@@ -53,28 +53,55 @@ BITUNIX_TICKERS = "https://fapi.bitunix.com/api/v1/futures/market/tickers"
 # ── تاپ گینرز ──────────────────────────────────────────────────────────────
 
 def _parse_bitunix(rows):
-    """شکل مشاهده‌شده در پنل: اشیاء با symbol/lastPrice/priceChangePercent یا
-    change (کسر). نام فیلدهای حجم برعکس محتوایشان است — quoteVol مقدار پایه
-    را دارد؛ برای رتبه‌بندی گینرها فقط بزرگی نسبی مهم است."""
-    out = []
+    """اجرای دوم نشان داد این endpoint فیلد «درصد تغییر» ندارد — همه صفر خوانده
+    شدند. پس اول تغییر را خودمان از «آخرین ÷ باز» حساب می‌کنیم (بدون ابهام
+    مقیاس)؛ فقط اگر فیلد باز هم نبود سراغ فیلدهای درصدی می‌رویم، با تشخیص
+    خودکار مقیاس کسری. نام فیلدهای حجم برعکس محتوایشان است (مشاهدهٔ پنل)."""
+    out, used_open = [], 0
     for t in rows or []:
         s = str(t.get("symbol") or "")
         if not s.endswith("USDT"):
             continue
         try:
-            chg = t.get("priceChangePercent")
-            chg = float(chg) if chg not in (None, "") else float(t.get("change") or 0) * 100
             last = float(t.get("lastPrice") or t.get("last") or t.get("markPrice") or 0)
             vol = float(t.get("quoteVol") or t.get("baseVol") or 0)
         except (TypeError, ValueError):
             continue
-        if last <= 0 or abs(chg) > 500:              # عدد بی‌معنا = ردیف خراب
+        if last <= 0:
+            continue
+        chg, opn = None, None
+        for k in ("open", "openPrice", "open24h", "openUtc"):
+            try:
+                v = float(t.get(k) or 0)
+            except (TypeError, ValueError):
+                continue
+            if v > 0:
+                opn = v
+                break
+        if opn:
+            chg = (last / opn - 1) * 100
+            used_open += 1
+        else:
+            v = t.get("priceChangePercent")
+            if v not in (None, ""):
+                try:
+                    chg = float(v)
+                except (TypeError, ValueError):
+                    chg = None
+            if chg is None:
+                v = t.get("change")                  # این فیلد کسر است (مشاهدهٔ پنل)
+                if v not in (None, ""):
+                    try:
+                        chg = float(v) * 100
+                    except (TypeError, ValueError):
+                        chg = None
+        if chg is None or abs(chg) > 500:            # عدد بی‌معنا = ردیف خراب
             continue
         out.append({"symbol": s, "change_pct": chg, "last": last, "vol": vol})
-    # تشخیص مقیاس، نه حدس: بین صدها جفت فیوچرز کریپتو همیشه کسی بیش از ±۱.۵٪
-    # در ۲۴ ساعت حرکت کرده. اگر بیشینهٔ قدرمطلق همه زیر ۱.۵ است، فیلد کسر بوده
-    # (0.27 یعنی ۲۷٪) — همان خطایی که اجرای اول را «هیچ گینری» نشان داد.
-    if len(out) >= 20 and max(abs(x["change_pct"]) for x in out) < 1.5:
+    # تشخیص مقیاس فقط برای مسیر فیلد درصدی: بین صدها جفت فیوچرز کریپتو همیشه
+    # کسی بیش از ±۱.۵٪ در ۲۴ ساعت حرکت کرده؛ اگر بیشینه زیر ۱.۵ است فیلد کسر
+    # بوده (0.27 یعنی ۲۷٪). مسیر «آخرین ÷ باز» ابهام مقیاس ندارد.
+    if not used_open and len(out) >= 20 and max(abs(x["change_pct"]) for x in out) < 1.5:
         for x in out:
             x["change_pct"] *= 100
     for x in out:
@@ -87,11 +114,17 @@ def gainers(top=6, min_pct=5.0):
     try:
         rows = sources._rows(sources._json(BITUNIX_TICKERS))
         g = _parse_bitunix(rows)
-        if len(g) >= 20:
+        if rows:
+            print("کلیدهای تیکر بیتیونیکس:", sorted((rows[0] or {}).keys()))
+        moved = [x for x in g if abs(x["change_pct"]) >= 0.5]
+        # اگر هیچ‌کس «حرکت» ندارد، داده تغییرِ واقعی ندارد — ادعای بیتیونیکس
+        # نمی‌کنیم و صادقانه به منبع بعدی می‌رویم (درس اجرای دوم: همه +0.0٪).
+        if len(g) >= 20 and len(moved) >= 5:
             g.sort(key=lambda x: -x["change_pct"])
             print("بیتیونیکس، ۵ تغییر بزرگ ۲۴س: " +
                   ", ".join(f"{x['symbol']} {x['change_pct']:+}%" for x in g[:5]))
             return "بیتیونیکس (فیوچرز)", [x for x in g if x["change_pct"] >= min_pct][:top]
+        print(f"تیکر بیتیونیکس تغییرِ قابل‌استفاده ندارد ({len(g)} جفت، {len(moved)} متحرک)")
     except Exception as e:                           # noqa: BLE001 - صرافی بعدی
         print(f"بیتیونیکس جواب نداد: {type(e).__name__}")
     r = sources._json("https://api.mexc.com/api/v3/ticker/24hr")
