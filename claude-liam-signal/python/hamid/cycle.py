@@ -305,6 +305,116 @@ def run_quiet():
     return out
 
 
+def practice_candidates(reads, cap=12):
+    """میز تمرین سروری — دروازه‌ها عمداً شُل: هر ساختاری با ورود، استاپ و هدف
+    واقعی. دلیلش عدد است، نه سلیقه: بعد از چند روز فقط ۴۹ معاملهٔ بسته داریم
+    و با این نرخ، یادگیریِ آماری ماه‌ها گرسنه می‌ماند. این میز نمونه را چند
+    برابر می‌کند؛ سیگنال نیست، به حمید نمی‌رسد، دفترش جداست."""
+    out = []
+    for r in reads:
+        if getattr(r, "setup", None):        # ستاپ واقعی خودش کاغذی می‌شود
+            continue
+        bs = getattr(r, "blocks", None) or []
+        if not bs:
+            continue
+        b = bs[0]
+        lo, hi = b.get("low"), b.get("high")
+        if not lo or not hi or hi <= lo:
+            continue
+        box = hi - lo
+        if b.get("dir") == "bearish":
+            entry, sl = lo, hi + 0.3 * box
+            tp1, tp2 = entry - 1.5 * (sl - entry), entry - 2.5 * (sl - entry)
+            d = "SHORT"
+        else:
+            entry, sl = hi, lo - 0.3 * box
+            tp1, tp2 = entry + 1.5 * (entry - sl), entry + 2.5 * (entry - sl)
+            d = "LONG"
+        out.append({"symbol": r.symbol, "dir": d, "entry": entry, "sl": sl,
+                    "tp1": tp1, "tp2": tp2, "stage_tag": "practice",
+                    "trend_4h": getattr(r, "trend_4h", None)})
+        if len(out) >= cap:
+            break
+    return out
+
+
+def watch_alarms():
+    """قولِ «با رسیدن قیمت، بازبینی و سیگنال» — تا امروز آلارم‌ها فقط ثبت
+    می‌شدند و هیچ‌کس نگاهشان نمی‌کرد. حالا هر چرخه، هر آلارم مسلح با دو کندل
+    ۱۵ دقیقهٔ آخر سنجیده می‌شود: لمس نقطهٔ ورود = فعال؛ بسته‌شدن ۷٪ آن‌طرف
+    ورود = ناحیه از دست رفته و آلارم باطل، با دلیلِ نوشته."""
+    st = brain.room_load("radar", {}) or {}
+    alarms = st.get("alarms") or []
+    if not alarms:
+        return []
+    fired, keep = [], []
+    for a in alarms:
+        if a.get("stage") != "ARMED":
+            keep.append(a)
+            continue
+        try:
+            rows = sources.klines(a["sym"], "15m", 3)
+            cs = [{"h": k[2], "l": k[3], "c": k[4]} for k in rows]
+        except Exception:                            # noqa: BLE001 - دفعهٔ بعد
+            keep.append(a)
+            continue
+        if len(cs) < 2:
+            keep.append(a)
+            continue
+        px = a.get("price")
+        now = cs[-1]["c"]
+        a["now"] = now
+        a["distancePct"] = round(abs(now - px) / px * 100, 2) if px else None
+        d = a.get("dir", "LONG")
+        if px and ((d == "LONG" and now < px * 0.93) or
+                   (d == "SHORT" and now > px * 1.07)):
+            a["stage"] = "DEAD"
+            a["why_dead"] = "قیمت ۷٪ آن‌طرف نقطهٔ ورود بسته — ناحیه از دست رفت"
+            act(f"آلارم {a['sym']} باطل شد — {a['why_dead']}")
+            keep.append(a)
+            continue
+        touched = px and min(c["l"] for c in cs[-2:]) <= px <= max(c["h"] for c in cs[-2:])
+        if touched:
+            a["stage"] = "TRIGGERED"
+            a["triggered_at"] = int(time.time() * 1000)
+            fired.append(a)
+            act(f"⏰ قیمت به آلارم {a['sym']} رسید ({px}) — بازبینی شروع شد")
+        keep.append(a)
+    brain.room_save("radar", {**st, "alarms": keep[:80]})
+    return fired
+
+
+def review_cycle():
+    """مرور دوساعته، خودکار: چه بسته شد و هر دفتر چه کرد. جای قضاوت من نیست —
+    ثبتِ قابل‌مقایسه است تا «یک تغییر کنترل‌شده در هر مرور» چیزی برای
+    نمره‌گرفتن داشته باشد. بازهٔ بدون معامله صادقانه همین را می‌گوید."""
+    rv = brain.room_load("review", {}) or {}
+    last = rv.get("at", 0)
+    now_ms = int(time.time() * 1000)
+    if now_ms - last < 2 * 3600 * 1000:
+        return None
+    from hamid import paper as _p
+    closed = [t for t in _p._read(_p.CLOSED)
+              if t.get("R") is not None and t.get("outcome") != "expired"
+              and (t.get("closed") or 0) > last]
+    books = {}
+    for t in closed:
+        k = (t.get("why") or {}).get("stage") or "؟"
+        books.setdefault(k, []).append(t["R"])
+    verdict = "؛ ".join(
+        f"{k}: {len(v)} معامله، میانگین {sum(v)/len(v):+.2f}R"
+        for k, v in sorted(books.items())) or \
+        "در این بازه معامله‌ای بسته نشد — نتیجه‌گیری ممنوع"
+    entry = {"at": now_ms, "closed": len(closed), "verdict": verdict,
+             "books": {k: {"n": len(v), "mean_r": round(sum(v) / len(v), 3)}
+                       for k, v in books.items()}}
+    hist = rv.get("history") or []
+    hist.insert(0, entry)
+    brain.room_save("review", {"at": now_ms, "history": hist[:84]})
+    act(f"مرور دوساعته: {verdict}")
+    return entry
+
+
 # ── the cycle ──────────────────────────────────────────────────────────────
 
 def _for_telegram(x):
@@ -549,6 +659,16 @@ def main():
                      for s_, x in (inds if mode == "active" else [])]
         if ind_cands:
             opened += paper.open_from(ind_cands, ctx)
+        if mode == "active":
+            try:
+                pc = practice_candidates(reads)
+                if pc:
+                    n_pr = paper.open_from(pc, ctx)
+                    opened += n_pr
+                    act(f"میز تمرین: {n_pr} معاملهٔ تمرینی باز شد — "
+                        "فقط خوراک یادگیری، سیگنال نیست")
+            except Exception as e:                   # noqa: BLE001 - تمرین چرخه را نمی‌کشد
+                print(f"میز تمرین: {type(e).__name__}: {e}")
         still, closed = paper.mark()
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
@@ -607,6 +727,69 @@ def main():
             print(f"payroll شکست خورد: {r_pay.stderr[-200:]}")
     except Exception as e:                           # noqa: BLE001 - امتیازدهی چرخه را نمی‌کشد
         print(f"payroll: {type(e).__name__}: {e}")
+
+    # آلارم‌های رسیده — بازبینی و سیگنال، در هر دو حالت فعال و آرام
+    try:
+        fired = watch_alarms()
+        if fired:
+            from hamid.analyze_pump import rsi as _rsi
+            from hamid.structure import atr as _atr
+            sigs = []
+            for al in fired:
+                try:
+                    rows = sources.klines(al["sym"], "15m", 120)
+                    cs = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
+                           "c": k[4], "v": k[5]} for k in rows]
+                    r15, av = _rsi(cs), _atr(cs) or 0
+                    if not av:
+                        continue
+                    d = al.get("dir", "LONG")
+                    # بازبینی: در اشباع دنبال قیمت نمی‌دویم — همان قانونی که
+                    # حمید برای نقطهٔ ورودِ کم‌استاپ گذاشته
+                    if r15 is not None and ((d == "LONG" and r15 >= 78) or
+                                            (d == "SHORT" and r15 <= 22)):
+                        act(f"آلارم {al['sym']} رسید ولی RSI پانزده‌دقیقه {r15} — "
+                            "اشباع است، سیگنال نشد")
+                        continue
+                    px = al["price"]
+                    sgn = 1 if d == "LONG" else -1
+                    sig = {"sym": al["sym"], "tf": "15m", "dir": d, "entry": px,
+                           "sl": round(px - sgn * 0.8 * av, 10),
+                           "tp1": round(px + sgn * 1.6 * av, 10),
+                           "tp2": round(px + sgn * 2.4 * av, 10), "rr": 2.0,
+                           "strategy": al.get("strategy") or "alarm",
+                           "strategyName": (al.get("strategyName") or "آلارم رادار")
+                           + " — قیمت رسید",
+                           "footer": "<i>آلارمِ رسیدن قیمت به ناحیهٔ ازپیش‌ثبت‌شده — "
+                                     "رکورد این مسیر جدا اندازه‌گیری می‌شود.</i>"}
+                    sigs.append(sig)
+                except Exception as e:               # noqa: BLE001 - یک آلارم بقیه را نمی‌کشد
+                    print(f"بازبینی آلارم {al.get('sym')}: {type(e).__name__}")
+            report["alarms_fired"] = [{"sym": x["sym"], "entry": x["entry"],
+                                       "name": x["strategyName"]} for x in sigs]
+            if sigs:
+                import telegram
+                sent_al = telegram.send_signals(sigs, lambda s, p: None)
+                from hamid import paper as _pp
+                _pp.open_from([{"symbol": x["sym"], "dir": x["dir"],
+                                "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],
+                                "tp2": x["tp2"], "stage_tag": "alarm"} for x in sigs],
+                              {"mode": mode})
+                act(f"⏰ {len(sigs)} آلارم فعال‌شده سیگنال شد"
+                    + (f"، {sent_al} به تلگرام رفت" if sent_al else "")
+                    + " — و برای اندازه‌گیری، کاغذی هم ثبت شد")
+    except Exception as e:                           # noqa: BLE001 - آلارم چرخه را نمی‌کشد
+        print(f"پایش آلارم: {type(e).__name__}: {e}")
+
+    # مرور دوساعته — ثبت قابل‌مقایسه برای نمره دادن به تغییرِ هر مرور
+    try:
+        rv = review_cycle()
+        if rv:
+            report["review"] = rv
+        else:
+            report["review"] = (brain.room_load("review", {}) or {}).get("history", [None])[0]
+    except Exception as e:                           # noqa: BLE001
+        print(f"مرور دوساعته: {type(e).__name__}: {e}")
 
     # دیده‌بان پنل — هر چرخه، نه روزی دو بار. آن باگ ۳۹ ساعته دقیقاً به این
     # دلیل زنده ماند که هیچ‌کس همان جایی را نگاه نمی‌کرد که حمید نگاه می‌کند.
