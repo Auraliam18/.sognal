@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.10 · شناسنامهٔ ایجنت</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.11 · رادار پامپ خوشه‌ای</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -280,14 +280,17 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
   </section>
 
   <section id="view-radar" style="display:none">
-    <div class="section-title"><span class="eyebrow">1h pump radar · correlation · pre-pump similarity</span><h2>رادار پامپ + ارزهای مشابه</h2></div>
+    <div class="section-title"><span class="eyebrow">bitunix top gainers · cluster · 3 layers</span><h2>رادار پامپ خوشه‌ای</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
-      ارزی که در یک کندل ۱ساعته <b>≥۸٪</b> پریده را پیدا می‌کند؛ سپس (۱) ارزهای <b>هم‌بسته</b> با آن و
-      (۲) ارزهایی که چارت فعلی‌شان شبیهِ <b>«قبل از پامپِ»</b> همان ارز است را لیست می‌کند تا کاندیدِ پامپ بعدی را زیر نظر بگیری.
+      سرور ابری هر نیم‌ساعت <b>تاپ گینرزهای بیتیونیکس</b> را می‌گیرد و برای هر کدام همان تحلیل BICO را خودکار انجام می‌دهد:
+      پامپ‌های گذشته، نقش خوشه‌ای (<b>سردسته</b> یا <b>دنباله‌رو</b>)، شبیه‌ترین «قبل از پامپ» تاریخی به چارت الان،
+      و بعد لایهٔ دوم (دنباله‌روها) و لایهٔ سوم (دنباله‌روهای دنباله‌روها) — تا یک قدم جلوتر از بازار باشیم.
+      پیشنهاد نهایی با دلایلش به تلگرام هم می‌رود و آلارمش در رادار ثبت می‌شود.
     </p>
+    <div id="pumpCloudOut" style="margin-top:12px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 14px">
-      <button class="btn primary" id="raBtn">اسکن رادار پامپ</button>
-      <span class="dim mono">آستانه ۸٪ · بالاترین‌حجم‌ها · ۱ساعته</span>
+      <button class="btn primary" id="raBtn">اسکن لحظه‌ای همین مرورگر</button>
+      <span class="dim mono">لایهٔ دوم پایش — آستانه ۸٪ · بالاترین‌حجم‌ها · ۱ساعته</span>
     </div>
     <div id="raOut"></div>
   </section>
@@ -3552,13 +3555,75 @@ async function tglogFetch(){
   TGLOG.tried++;
 }
 setInterval(tglogFetch,120000);setTimeout(tglogFetch,4000);
+/* رادار پامپ خوشه‌ای — خروجی ورک‌فلوی نیم‌ساعتهٔ سرور: تاپ گینرز بیتیونیکس،
+   نقش سردسته/دنباله‌رو، سه لایهٔ خوشه و پیشنهاد نهایی با دلایل. */
+const PUMPR={data:null,tried:0};
+async function pumprFetch(){
+  try{
+    const r=await fetch("./signals/pump-radar.json?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(j&&j.generated){PUMPR.data=j;DB.set("pumpr_cache",j);
+      const v=$("#view-radar");if(v&&v.style.display!=="none")renderPumpCloud();}
+  }catch(e){}
+  PUMPR.tried++;
+}
+setInterval(pumprFetch,120000);setTimeout(pumprFetch,5000);
 /* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
    صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
 (()=>{
   const h=DB.get("hamid_cache");if(h&&!HAMID.data){HAMID.data=h;HAMID.tried=1;}
   const r=DB.get("relay_cache");if(r&&!RELAY.data){RELAY.data=r;RELAY.tried=1;}
   const t=DB.get("tglog_cache");if(t&&!TGLOG.data){TGLOG.data=t;}
+  const p=DB.get("pumpr_cache");if(p&&!PUMPR.data){PUMPR.data=p;}
 })();
+function renderPumpCloud(){
+  const el=$("#pumpCloudOut");if(!el)return;
+  const j=PUMPR.data;
+  if(!j){el.innerHTML=`<div class="box"><div class="dim" style="font-size:12px">
+    اولین نتیجهٔ رادار خوشه‌ای از سرور در راه است — هر نیم‌ساعت اجرا می‌شود.</div></div>`;return;}
+  const mins=Math.round((Date.now()-j.generated)/60000);
+  const picks=j.recommendation||[];
+  const recBox=picks.length?`<div class="box" style="margin-bottom:12px;border-color:#8a6d1e88">
+    <h3 style="margin:0 0 4px">🎯 پیشنهاد رادار — با دلیل</h3>
+    ${picks.map((p,i)=>`<div style="padding:6px 0;border-top:1px solid rgba(140,160,190,.10)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px">
+        <b class="mono">${i===0?"⭐ انتخاب اول":"جایگزین"}: ${p.symbol}</b>
+        <span class="chip">امتیاز ${p.score}</span>
+        <span class="mono" style="margin-inline-start:auto;font-size:12px">
+          ورود ${p.entry} · استاپ ${p.sl} · ریسک ${p.risk_pct}٪ · فاصله ${p.dist_pct}٪</span></div>
+      <div class="dim" style="font-size:11.5px;line-height:1.9;margin-top:2px">
+        ${(p.reasons||[]).map(w=>"• "+w).join("<br>")}</div></div>`).join("")}
+    <div class="dim" style="font-size:10.5px;margin-top:6px">همین پیشنهاد با سرتیتر «گزینه‌های پامپ» به تلگرام هم فرستاده می‌شود و آلارمش در رادار ثبت است.</div>
+  </div>`:`<div class="box" style="margin-bottom:12px"><div class="dim" style="font-size:12px">
+    در این چرخه هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است.</div></div>`;
+  const layer=l=>({1:"لایه ۱ — گینر",2:"لایه ۲ — دنباله‌رو",3:"لایه ۳ — دنباله‌رویِ دنباله‌رو"}[l]||"");
+  const rows=(j.coins||[]).map(c=>{const al=c.alarm||{};const m=c.match;
+    const risk=al.entry&&al.sl?Math.abs((al.entry-al.sl)/al.entry*100).toFixed(1):null;
+    return `<tr>
+      <td class="mono"><b>${c.symbol.replace("USDT","")}</b><div class="dim" style="font-size:9.5px">${layer(c.layer)}${c.via?" ← "+c.via.replace("USDT",""):""}</div></td>
+      <td class="mono">${fmt(c.price)}</td>
+      <td style="font-size:11px">${(c.pumps||[]).length?`${c.pumps.length} پامپ<div class="dim" style="font-size:9.5px">بزرگ‌ترین +${Math.max(...c.pumps.map(p=>p.ret_4h_pct))}٪</div>`:"—"}</td>
+      <td><span class="chip" style="${c.role==="سردسته"?"border-color:#8a6d1e;color:#f0d24e":c.role==="دنباله‌رو"?"border-color:#2f7d5b;color:#8fe3bd":""}">${c.role}</span>
+        ${c.leaders&&c.leaders.length?`<div class="dim" style="font-size:9.5px">سردسته: ${c.leaders[0].symbol.replace("USDT","")}</div>`:""}</td>
+      <td style="font-size:11px">${c.now.trend_4h==="up"?"↑":c.now.trend_4h==="down"?"↓":"→"} / ${c.now.trend_1h==="up"?"↑":c.now.trend_1h==="down"?"↓":"→"}</td>
+      <td class="mono" style="font-size:11px;color:${c.now.rsi_1h>=75?"#e74c3c":c.now.rsi_1h<=35?"#2ecc71":"inherit"}">${c.now.rsi_1h??"—"} / ${c.now.rsi_15m??"—"}</td>
+      <td style="font-size:11px">${m?`${m.corr_pct}٪<div class="dim" style="font-size:9.5px">بعدش ${m.then_24h_pct>0?"+":""}${m.then_24h_pct}٪</div>`:"—"}</td>
+      <td class="mono" style="font-size:11px">${al.entry?`${al.entry}<div class="dim" style="font-size:9.5px">SL ${al.sl}${risk?" · "+risk+"٪":""}</div>`:"—"}</td>
+    </tr>`;}).join("");
+  el.innerHTML=recBox+`
+  <div class="box">
+    <h3 style="margin:0 0 6px">جدول خوشه — ${(j.coins||[]).length} ارز
+      <span class="dim" style="font-size:10.5px;font-weight:400">منبع: ${j.source||"—"} · ${mins} دقیقه پیش</span></h3>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="text-align:right" class="dim">
+        <th style="padding:4px 6px">ارز</th><th>قیمت</th><th>پامپ‌ها</th><th>نقش</th>
+        <th>روند 4h/1h</th><th>RSI 1h/15m</th><th>شباهت به قبلِ پامپ</th><th>⏰ ورود / استاپ</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="8" class="dim" style="padding:8px">در این چرخه گینری بالای آستانه نبود</td></tr>`}</tbody>
+    </table></div>
+    <div class="dim" style="font-size:10.5px;margin-top:6px">${j.note||""}</div>
+  </div>`;
+}
 
 function hamidCard(x){
   const long=x.dir==="LONG";
@@ -3827,6 +3892,7 @@ function refreshServerTabs(){
   if($("#view-real").style.display!=="none")renderReal();
   if($("#view-net").style.display!=="none")renderNet();
   const ag=$("#view-agent");if(ag&&ag.style.display!=="none")renderAgent();
+  const ra=$("#view-radar");if(ra&&ra.style.display!=="none")renderPumpCloud();
 }
 setInterval(refreshServerTabs,5000);
 function diagHTML(){
@@ -4627,6 +4693,7 @@ function selectTab(t){
   if(t==="real")renderReal();
   if(t==="net")renderNet();
   if(t==="agent")renderAgent();
+  if(t==="radar")renderPumpCloud();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
