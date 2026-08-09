@@ -1,0 +1,103 @@
+# رادار پامپ خوشه‌ای — تاپ گینرز بیتیونیکس، هر نیم‌ساعت.
+#
+# «هر لحظه» روی Actions رایگان یعنی همین سقف: کرون هر ۳۰ دقیقه (+dispatch
+# دستی). لایهٔ دوم پایشِ لحظه‌ای، رادارِ خود پنل است وقتی باز باشد.
+#
+# پوش ضدتصادم: قبل از هر تلاش، درخت به origin/main برمی‌گردد و خروجی‌های
+# خودمان با --reapply دوباره می‌نشینند (آلارم‌ها merge، لاگ تلگرام اجتماع دو
+# نسخه). همان تصادمی که یک بار نتیجهٔ TUT را بی‌صدا انداخت، اینجا ممکن نیست.
+name: Pump radar
+
+on:
+  schedule:
+    - cron: "9,39 * * * *"
+  workflow_dispatch:
+    inputs:
+      token:
+        description: "توکن ربات (اگر Secret خالی است)"
+        required: false
+      chat_id:
+        description: "شناسهٔ چت (اگر Secret خالی است)"
+        required: false
+      min_pct:
+        description: "حداقل رشد ۲۴س برای گینر"
+        default: "5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pump-radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      # ورودی dispatch هرگز از مسیر ${{ }} وارد env نمی‌شود — گیت‌هاب بلوک env
+      # را در لاگ عمومی چاپ می‌کند و یک بار توکن همین‌طور افشا شد.
+      - name: ماسک کردن ورودی‌ها
+        run: |
+          for f in token chat_id; do
+            v=$(jq -r ".inputs.$f // empty" "$GITHUB_EVENT_PATH")
+            [ -n "$v" ] && echo "::add-mask::$v"
+          done
+          true
+
+      - name: آزمون آفلاین
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.test_pump_radar
+
+      - name: رادار خوشه‌ای
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")}"
+          export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
+          MIN=$(jq -r '.inputs.min_pct // empty' "$GITHUB_EVENT_PATH")
+          python3 -m hamid.pump_radar --min-pct "${MIN:-5}"
+
+      - name: ثبت روی main (ضدتصادم)
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          BK=/tmp/pump-radar-backup; mkdir -p "$BK"
+          cp signals/pump-radar.json "$BK/" 2>/dev/null || true
+          cp signals/telegram-log.json "$BK/" 2>/dev/null || true
+          cp brain/pump-radar-sent.json "$BK/" 2>/dev/null || true
+          for i in 1 2 3 4; do
+            git fetch origin main -q
+            git reset --hard origin/main -q
+            (cd claude-liam-signal/python && python3 -m hamid.pump_radar --reapply "$BK")
+            git add signals brain 2>/dev/null || true
+            git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
+            git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin HEAD:main -q && { echo "ثبت شد (تلاش $i)"; break; }
+            sleep $((i*2))
+          done
+
+      - name: انتشار روی پنل (gh-pages)
+        run: |
+          git fetch origin gh-pages -q || exit 0
+          rm -rf /tmp/ghp
+          git worktree add /tmp/ghp origin/gh-pages --detach -q || exit 0
+          mkdir -p /tmp/ghp/signals
+          cp signals/pump-radar.json /tmp/ghp/signals/ 2>/dev/null || true
+          cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
+          cd /tmp/ghp
+          git add signals
+          if ! git diff --cached --quiet; then
+            git commit -q -m "پامپ رادار $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do
+              git push origin HEAD:gh-pages -q && break
+              git fetch origin gh-pages -q || true
+              git rebase origin/gh-pages -q || { git rebase --abort; break; }
+            done
+          fi
