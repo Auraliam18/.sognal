@@ -34,6 +34,11 @@ check("پارس بیتیونیکس: فقط ردیف‌های سالم USDT", [x[
 check("priceChangePercent مستقیم خوانده شد", g[0]["change_pct"] == 2.5)
 check("change کسری در ۱۰۰ ضرب شد", g[1]["change_pct"] == 31.0)
 
+# محاسبه از «آخرین ÷ باز» وقتی فیلد باز هست — بدون ابهام مقیاس
+open_rows = [{"symbol": "OPNUSDT", "lastPrice": "1.2", "open": "1.0"}]
+go = pr._parse_bitunix(open_rows)
+check("تغییر از last/open حساب شد", go and go[0]["change_pct"] == 20.0)
+
 # تشخیص مقیاس: ۲۵ ردیف که همه priceChangePercent کسری دارند (بیشینه 0.27)
 frac_rows = [{"symbol": f"C{i}USDT", "lastPrice": "1",
               "priceChangePercent": str(0.27 - i * 0.01)} for i in range(25)]
