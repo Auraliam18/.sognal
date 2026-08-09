@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.12 · ناظر تجربه + قانون ۱۰٪</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.13 · آلارم زنده + میز تمرین + مرور ۲ساعته</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3789,6 +3789,12 @@ function renderNet(){
     ${ex&&ex.trades?`<div class="dim" style="font-size:11.5px;margin-top:6px">
       آزمایش پولبک اول (سیگنال نمی‌شود): ${ex.trades} معامله · برد ${ex.win_pct}٪ · ${ex.return_pct}٪ —
       فقط برای سنجش قانون «صبر برای پولبک دوم»</div>`:""}
+    ${(()=>{const pd=hp&&hp.practice_desk;if(!pd||!pd.trades)return"";
+      return `<div class="dim" style="font-size:11.5px;margin-top:4px">
+      🏋️ میز تمرین سرور (دروازهٔ شل، فقط خوراک یادگیری): ${pd.trades} معامله · برد ${pd.win_pct}٪ · ${pd.return_pct}٪</div>`;})()}
+    ${(()=>{const ab=hp&&hp.alarm_signals;if(!ab||!ab.trades)return"";
+      return `<div class="dim" style="font-size:11.5px;margin-top:4px">
+      ⏰ سیگنال‌های آلارم (رسیدن قیمت به ناحیه): ${ab.trades} معامله · برد ${ab.win_pct}٪ · ${ab.return_pct}٪</div>`;})()}
   </div>
   <div class="box" style="margin-bottom:12px">
     <h3 style="margin:0 0 4px">نتیجهٔ تک‌به‌تک — آخرین معامله‌های کاغذی سرور</h3>
@@ -3882,6 +3888,19 @@ function renderAgent(){
       <span class="dim" style="font-size:11.5px">${f.verdict}</span></div>`).join(""):
       `<div class="dim" style="font-size:12px">در چرخهٔ اخیر جهش حجم معناداری دیده نشد (یا چرخه در حالت سکوت است)</div>`}
   </div>
+  ${(()=>{const rv=j.review;if(!rv||!rv.verdict)return"";
+    return `<div class="box" style="margin-top:12px">
+    <h3 style="margin:0 0 4px">🧾 مرور دوساعته — نمرهٔ دفترها</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      هر دو ساعت خودکار: چه بسته شد و هر دفتر چه کرد. تغییرِ هر مرور با همین ثبت در مرور بعد نمره می‌گیرد.</div>
+    <div style="font-size:12.5px;line-height:1.9">${rv.verdict}</div>
+    <div class="dim mono" style="font-size:10px;margin-top:4px">${rv.at?new Date(rv.at).toLocaleString("fa-IR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):""} · ${rv.closed} معاملهٔ بسته در بازه</div></div>`;})()}
+  ${(()=>{const af=j.alarms_fired;if(!af||!af.length)return"";
+    return `<div class="box" style="margin-top:12px;border-color:#8a6d1e88">
+    <h3 style="margin:0 0 4px">⏰ آلارم‌های فعال‌شده در این چرخه</h3>
+    ${af.map(x=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <b class="mono">${x.sym}</b><span class="dim" style="font-size:11px">${x.name||""}</span>
+      <span class="mono dim" style="margin-inline-start:auto">ورود ${x.entry}</span></div>`).join("")}</div>`;})()}
   ${(()=>{const pr=(j.payroll||{}).detail;if(!pr)return"";
     const base=(j.payroll||{}).base||1000;
     const rows=Object.entries(pr).sort((a,b)=>(b[1].penalty||0)-(a[1].penalty||0));
