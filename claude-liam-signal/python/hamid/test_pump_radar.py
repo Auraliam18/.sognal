@@ -105,6 +105,39 @@ check("دنباله‌روی نزدیک‌به‌ورود بالاتر از ار
 check("هر امتیاز دلیل نوشته دارد", all(p["reasons"] for p in picks))
 check("ارز اشباع‌خرید امتیاز منفی خورد", next(p for p in picks if p["symbol"] == "HOTUSDT")["score"] < picks[0]["score"])
 
+# ── قانون حمید: پامپ‌خورده سیگنال نیست ────────────────────────────────────
+late30 = {"symbol": "L30USDT", "price": 1.0, "role": "دنباله‌رو",
+          "leaders": [{"symbol": "XUSDT", "pre_24h_pct": 30.0}], "followers": [],
+          "pumps": [1, 2, 3], "match": None, "change_30m_pct": 12.0, "change_24h_pct": 5.0,
+          "now": {"rsi_1h": 50.0}, "alarm": {"entry": 0.99, "sl": 0.95}}
+late24 = {**late30, "symbol": "L24USDT", "change_30m_pct": 2.0, "change_24h_pct": 40.0}
+ok_coin = {**late30, "symbol": "OKUSDT", "change_30m_pct": 2.0, "change_24h_pct": 4.0}
+p2 = pr.recommend([late30, late24, ok_coin])
+check("۱۰٪+ در ۳۰ دقیقه → حذف از پیشنهاد", all(p["symbol"] != "L30USDT" for p in p2))
+check("۱۰٪+ در ۲۴ ساعت → حذف از پیشنهاد", all(p["symbol"] != "L24USDT" for p in p2))
+check("عضو نپریدهٔ خوشه می‌ماند", p2 and p2[0]["symbol"] == "OKUSDT")
+check("دلیل حذف روی خود ارز ثبت شد", "دیر است" in late30.get("skipped", ""))
+
+# سردستهٔ در حال پریدن → امتیاز اضافه برای عضو نپریده
+p3 = pr.recommend([dict(ok_coin)], hot={"XUSDT"})
+check("سردستهٔ شعله‌ور امتیاز و دلیل اضافه داد",
+      p3 and p3[0]["score"] > p2[0]["score"] and any("در حال پریدن" in w for w in p3[0]["reasons"]))
+
+# ── شعله‌گیری ۳۰ دقیقه‌ای (زودتر از تیکر ۲۴ساعته) ─────────────────────────
+class FakeKc:
+    def get(self, s, tf, n):
+        base = [{"t": i, "o": 1, "h": 1, "l": 1, "c": 1.0, "v": 100.0} for i in range(38)]
+        if s == "IGNUSDT":
+            base += [{"t": 38, "o": 1, "h": 1.06, "l": 1, "c": 1.03, "v": 900.0},
+                     {"t": 39, "o": 1.03, "h": 1.08, "l": 1.02, "c": 1.06, "v": 900.0}]
+        else:
+            base += [{"t": 38, "o": 1, "h": 1, "l": 1, "c": 1.0, "v": 100.0},
+                     {"t": 39, "o": 1, "h": 1, "l": 1, "c": 1.0, "v": 100.0}]
+        return base
+em = pr.early_movers(FakeKc(), ["IGNUSDT", "FLATUSDT"])
+check("شعله‌گیری با حجم پیدا شد و ارز آرام نه",
+      [x["symbol"] for x in em] == ["IGNUSDT"] and em[0]["change_pct"] >= 4)
+
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)
 check("سرتیتر پنل + گزینه‌های پامپ", "حمید کلود مکس پنل" in msg and "گزینه‌های پامپ" in msg)

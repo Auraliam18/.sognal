@@ -87,6 +87,25 @@ def _append(p, row):
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def experience_index(min_n=12):
+    """کارنامهٔ بسته به تفکیک (ارز، جهت) — ناظرِ چرخه قبل از صدور هر سیگنال
+    همین را می‌پرسد. سفارش‌های منقضی معامله نیستند و حساب نمی‌شوند. زیر min_n
+    معامله «تاریخچهٔ نازک» است: گزارش می‌شود ولی حق وتو ندارد — قضاوت با
+    نمونهٔ کوچک همان اشتباهی است که یک بار ۵۵۷ معامله را نتیجه خواند."""
+    idx = {}
+    for t in _read(CLOSED):
+        if t.get("R") is None or t.get("outcome") == "expired":
+            continue
+        idx.setdefault((t["sym"], t["dir"]), []).append(t["R"])
+    out = {}
+    for k, rs in idx.items():
+        n = len(rs)
+        out[k] = {"n": n, "mean_r": round(sum(rs) / n, 3),
+                  "win_pct": round(100 * sum(1 for r in rs if r > 0) / n, 1),
+                  "thin": n < min_n}
+    return out
+
+
 # ── the book ───────────────────────────────────────────────────────────────
 
 def open_from(setups, context):

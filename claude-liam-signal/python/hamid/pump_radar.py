@@ -196,19 +196,44 @@ def role_of(rel, gate=8.0):
 
 
 class Kcache:
-    """هر نماد یک بار از شبکه؛ تحلیل خوشه‌ای بدون این، صدها فچ تکراری می‌شود."""
+    """هر نماد یک بار از شبکه؛ تحلیل خوشه‌ای بدون این، صدها فچ تکراری می‌شود.
+    اگر قبلاً با n کوچک‌تر گرفته شده و حالا بلندتر لازم است، دوباره می‌گیرد."""
 
     def __init__(self):
         self.d = {}
+        self.n = {}
 
     def get(self, sym, tf, n):
         k = (sym, tf)
-        if k not in self.d:
+        if k not in self.d or (self.n.get(k, 0) < n and len(self.d[k]) >= self.n.get(k, 0)):
+            if k in self.d and self.n.get(k, 0) >= n:
+                return self.d[k]
             try:
                 self.d[k] = cds(sym, tf, n)
             except Exception:                        # noqa: BLE001 - نماد بی‌داده
                 self.d[k] = []
+            self.n[k] = n
         return self.d[k]
+
+
+def early_movers(kc, uni, gate=4.0):
+    """شعله‌گیری در ۳۰ دقیقهٔ اخیر — برای اینکه زودتر از تیکر ۲۴ساعته بفهمیم.
+    دو کندل ۱۵ دقیقهٔ آخر بالای آستانه + حجم دو کندل آخر بیش از ۳ برابر
+    میانگین. این همان «زودتر رسیدن» است که حمید خواست: منتظر نمی‌مانیم ارز
+    در جدول گینرهای روز بنشیند."""
+    out = []
+    for s in uni:
+        c = kc.get(s, "15m", 40)
+        if len(c) < 32:
+            continue
+        r30 = (c[-1]["c"] / c[-3]["c"] - 1) * 100
+        vols = [x["v"] for x in c[-32:-2]]
+        m = sum(vols) / len(vols) if vols else 0
+        if r30 >= gate and m > 0 and (c[-1]["v"] + c[-2]["v"]) > 3 * 2 * m:
+            out.append({"symbol": s, "change_pct": round(r30, 1),
+                        "last": c[-1]["c"], "vol": c[-1]["v"], "ignition": True})
+    out.sort(key=lambda x: -x["change_pct"])
+    return out
 
 
 def related_cached(sym, eps, cd1h, universe, kc, window=24):
@@ -256,8 +281,12 @@ def analyze_one(sym, kc, universe, with_related=True):
     rel = related_cached(sym, eps, c1h, universe, kc) if (with_related and eps) else {}
     role, leaders, followers = role_of(rel) if rel else ("نامشخص", [], [])
     ch1 = channel(c1h)
+    c30 = (c15[-1]["c"] / c15[-3]["c"] - 1) * 100 if len(c15) >= 3 else None
+    c24 = (c1h[-1]["c"] / c1h[-25]["c"] - 1) * 100 if len(c1h) >= 25 else None
     block = {
         "symbol": sym, "price": c1h[-1]["c"],
+        "change_30m_pct": round(c30, 1) if c30 is not None else None,
+        "change_24h_pct": round(c24, 1) if c24 is not None else None,
         "pumps": eps,
         "pump_note": (f"{len(eps)} پامپ در {len(c1h)//24} روز؛ بزرگ‌ترین "
                       f"+{max((e['ret_4h_pct'] for e in eps), default=0)}٪"
@@ -277,15 +306,32 @@ def analyze_one(sym, kc, universe, with_related=True):
 
 # ── پیشنهاد ────────────────────────────────────────────────────────────────
 
-def recommend(blocks):
+def recommend(blocks, hot=None):
     """امتیازِ هر ارزِ دارای نقطهٔ ورود، با دلیلِ نوشته‌شده برای تک‌تک امتیازها —
-    پیشنهادی که دلیلش را نگوید قابل حذف‌کردنِ هوش مصنوعی ضعیف نیست."""
+    پیشنهادی که دلیلش را نگوید قابل حذف‌کردنِ هوش مصنوعی ضعیف نیست.
+
+    قانون حمید، سخت و بی‌استثنا: ارزی که خودش پامپ خورده (۱۰٪+ در ۳۰ دقیقه
+    یا ۱۰٪+ در ۲۴ ساعت) دیگر «سیگنال پامپ» نیست — دیر است. کار ما گرفتن
+    عضوهای هنوز-نپریدهٔ خوشه است از روی گذشتهٔ اعضای پریده، نه توضیح دادن
+    پامپی که تمام شده."""
+    hot = hot or set()
     scored = []
     for b in blocks:
         al = b.get("alarm")
         if not al or not al.get("entry"):
             continue
+        c30, c24 = b.get("change_30m_pct"), b.get("change_24h_pct")
+        if (c30 is not None and c30 >= 10) or (c24 is not None and c24 >= 10):
+            b["skipped"] = (f"خودش پامپ خورده ({'+%s٪/30د' % c30 if c30 and c30 >= 10 else ''}"
+                            f"{' ' if c30 and c30 >= 10 and c24 and c24 >= 10 else ''}"
+                            f"{'+%s٪/24س' % c24 if c24 and c24 >= 10 else ''}) — دیر است، سیگنال نیست")
+            continue
         s, why = 0, []
+        if b["symbol"].replace("USDT", "") and b.get("leaders") and \
+                any(l["symbol"] in hot for l in b["leaders"]):
+            s += 2
+            hl = next(l["symbol"] for l in b["leaders"] if l["symbol"] in hot)
+            why.append(f"سردسته‌اش ({hl}) همین حالا در حال پریدن است و این هنوز نپریده")
         if b["role"] == "دنباله‌رو" and b.get("leaders"):
             s += 2
             why.append(f"دنباله‌روی خوشه است — سردسته‌اش ({b['leaders'][0]['symbol']}) "
@@ -459,6 +505,16 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         uni = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
     kc = Kcache()
+
+    # شعله‌گیری ۳۰ دقیقه‌ای — زودتر از جدول گینرهای روز می‌فهمیم
+    ign = early_movers(kc, uni)
+    if ign:
+        print("شعله‌ور در ۳۰ دقیقهٔ اخیر: " +
+              ", ".join(f"{x['symbol']} {x['change_pct']:+}%" for x in ign[:5]))
+    triggers = gs[:deep_n] + [x for x in ign
+                              if x["symbol"] not in {g["symbol"] for g in gs}][:3]
+    hot = {t["symbol"] for t in triggers}
+
     blocks, seen = [], set()
 
     def add(sym, layer, via=None, with_related=True):
@@ -474,11 +530,12 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             print(f"  لایه {layer} · {sym}: نقش {b['role']} · {b['pump_note']}")
         return b
 
-    for g in gs[:deep_n]:
+    for g in triggers:
         b = add(g["symbol"], 1)
         if not b:
             continue
-        b["change_24h_pct"] = g["change_pct"]
+        if g.get("ignition"):
+            b["ignition"] = True
         # لایهٔ دوم: دنباله‌روهای این گینر — و لایهٔ سوم: دنباله‌روهای آن‌ها
         for f in (b.get("followers") or [])[:3]:
             b2 = add(f["symbol"], 2, via=g["symbol"])
@@ -487,17 +544,30 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             for f3 in (b2.get("followers") or [])[:2]:
                 add(f3["symbol"], 3, via=f["symbol"], with_related=False)
 
-    picks = recommend(blocks)[:2]
+    picks = recommend(blocks, hot=hot)[:2]
     picks = [p for p in picks if p["score"] >= 2]
+
+    skipped = [{"symbol": b["symbol"], "why": b["skipped"]}
+               for b in blocks if b.get("skipped")]
+    verdict = None
+    if (gs or ign) and not picks:
+        verdict = ("خوشه قبل از رسیدن ما دویده — همهٔ اعضا ۱۰٪+ رفته‌اند یا نقطهٔ "
+                   "ورود ندارند. دیر است؛ سیگنالِ دیر صادر نمی‌کنیم و این یک ضعف "
+                   "ثبت‌شده است، نه یک فرصت.")
+        print(verdict)
 
     report = {
         "generated": int(time.time() * 1000),
         "source": source,
         "gainers": gs,
+        "ignitions": ign[:6],
         "universe_n": len(uni),
         "coins": blocks,
         "recommendation": picks,
-        "note": ("رخدادهای پامپ کم‌اند؛ روابط خوشه‌ای مشاهده‌اند، نه قانون. "
+        "already_pumped": skipped,
+        "verdict": verdict,
+        "note": ("قانون: ارزِ ۱۰٪+ پریده سیگنال نیست — فقط عضو نپریدهٔ خوشه. "
+                 "رخدادهای پامپ کم‌اند؛ روابط خوشه‌ای مشاهده‌اند، نه قانون. "
                  "پیشنهاد یعنی آلارم و بازبینی در لحظهٔ رسیدن قیمت — نه ورود کور."),
     }
     OUT.parent.mkdir(exist_ok=True)

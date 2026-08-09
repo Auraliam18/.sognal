@@ -470,6 +470,33 @@ def main():
         #
         # Impulse stays because it is the one threshold here derived from a
         # control rather than from intuition.
+        # ناظر تجربه — جواب مستقیم به حرف حمید: «یاد بگیرد و مثل روز اول
+        # سیگنال ندهد». قبل از صدور، کارنامهٔ بستهٔ همین ارز و همین جهت از
+        # دفتر کاغذی پرسیده می‌شود؛ ۱۲ معامله به بالا با میانگین منفی و برد
+        # زیر ۴۵٪ یعنی این سیگنال به حمید نمی‌رسد. وتوشده همچنان کاغذی ثبت
+        # می‌شود تا اگر رکوردش برگشت، خودش دوباره راه باز کند — وتو حکم ابد
+        # نیست، حافظه است. زیر ۱۲ معامله حق وتو نیست: نمونهٔ کوچک قاضی بدی است.
+        vetoed = []
+        try:
+            from hamid import paper as _p2
+            exp_idx = _p2.experience_index()
+            kept = []
+            for x in ready:
+                e = exp_idx.get((x["symbol"], x["dir"]))
+                if e and not e["thin"] and e["mean_r"] < 0 and e["win_pct"] < 45:
+                    x["vetoed"] = e
+                    vetoed.append(x)
+                    act(f"ناظر تجربه: سیگنال {x['symbol']} {x['dir']} رد شد — "
+                        f"{e['n']} معاملهٔ قبلی همین ارز/جهت، میانگین {e['mean_r']}R، "
+                        f"برد {e['win_pct']}٪")
+                else:
+                    kept.append(x)
+            ready = kept
+        except Exception as e:                       # noqa: BLE001 - ناظر چرخه را نمی‌کشد
+            print(f"ناظر تجربه: {type(e).__name__}: {e}")
+        report["vetoes"] = [{"sym": x["symbol"], "dir": x["dir"], **x["vetoed"]}
+                            for x in vetoed]
+
         ready.sort(key=lambda x: (-(x.get("learn_score") or 0), -x["block"]["impulse"]))
         room = max(0, DAILY_TARGET - st["signals"])
         per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
@@ -481,7 +508,7 @@ def main():
         # می‌گیرد: یادگیری به معاملهٔ بسته نیاز دارد و با ۲ سیگنال در چرخه،
         # رسیدن به ۲۰ معامله (کف نتیجه‌گیری) هفته‌ها طول می‌کشید. ثبت کاغذی
         # هزینه‌ای ندارد و هیچ پیامی برای حمید نمی‌سازد.
-        report["paper_candidates"] = ready + [x for x in waiting]
+        report["paper_candidates"] = ready + vetoed + [x for x in waiting]
         st["signals"] += take
         print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ، "
               f"{take} سیگنال فرستاده شد"
