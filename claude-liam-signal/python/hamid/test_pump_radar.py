@@ -34,6 +34,16 @@ check("پارس بیتیونیکس: فقط ردیف‌های سالم USDT", [x[
 check("priceChangePercent مستقیم خوانده شد", g[0]["change_pct"] == 2.5)
 check("change کسری در ۱۰۰ ضرب شد", g[1]["change_pct"] == 31.0)
 
+# تشخیص مقیاس: ۲۵ ردیف که همه priceChangePercent کسری دارند (بیشینه 0.27)
+frac_rows = [{"symbol": f"C{i}USDT", "lastPrice": "1",
+              "priceChangePercent": str(0.27 - i * 0.01)} for i in range(25)]
+gf = pr._parse_bitunix(frac_rows)
+check("مقیاس کسری خودکار ×۱۰۰ شد", max(x["change_pct"] for x in gf) == 27.0)
+mixed = [{"symbol": f"D{i}USDT", "lastPrice": "1",
+          "priceChangePercent": str(3.0 if i == 0 else 0.2)} for i in range(25)]
+gm = pr._parse_bitunix(mixed)
+check("وقتی درصد واقعی است دست نمی‌خورد", max(x["change_pct"] for x in gm) == 3.0)
+
 # ── همبستگی ────────────────────────────────────────────────────────────────
 a = [math.sin(i / 5) + 2 for i in range(48)]
 check("همبستگی سری با خودش = ۱", abs(pr._corr(a, a) - 1) < 1e-9)
