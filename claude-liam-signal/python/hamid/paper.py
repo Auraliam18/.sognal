@@ -51,7 +51,14 @@ EQUITY = BOOK / "equity.json"
 
 START_BALANCE = 1000.0
 RISK_FRACTION = 0.01          # 1% of balance per trade
-FILL_HOURS = 6                # a limit untouched this long is cancelled
+# تغییر کنترل‌شدهٔ این چرخه، با اندازه‌گیری نه حدس: از ۴۵ سفارش پرشده، میانهٔ
+# زمان تا پر شدن ۱٫۷ ساعت بود ولی ۳۸٪ در بازهٔ ۳ تا ۶ ساعت پر شدند و هیچ‌چیز
+# بعد از ۶ ساعت «دیده نشد» — چون خود سقف ۶ ساعته مشاهده را می‌بُرید (دادهٔ
+# سانسورشده). ستاپ‌های حمید از ساختار ۱ساعته/۴ساعته می‌آیند و ۸۴٪ سفارش‌ها
+# منقضی می‌شدند. پنجره ۲۴ ساعت شد؛ پر شدنِ بعد از ۶ ساعت با برچسب late_fill
+# ثبت می‌شود تا بازبینی بعدی بسنجد معامله‌های دیرپرشده واقعاً می‌ارزند یا نه —
+# اگر EVشان منفی بود، برمی‌گردیم.
+FILL_HOURS = 24               # a limit untouched this long is cancelled
 HOLD_HOURS = 24               # then closed at market
 
 
@@ -151,6 +158,10 @@ def mark():
             for c in cd:
                 if c["l"] <= p["entry"] <= c["h"]:
                     p["filled"] = c["t"]
+                    # برچسب برای بازبینی: پر شدن بعد از ۶ ساعت — تا اثر باز
+                    # کردن پنجره جدا سنجیده شود، نه قاطی کل دفتر.
+                    if c["t"] - p["opened"] > 6 * 3600_000:
+                        p["late_fill"] = True
                     break
             if p["filled"] is None:
                 if now - p["opened"] > FILL_HOURS * 3600_000:
