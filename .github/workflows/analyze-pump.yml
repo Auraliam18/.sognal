@@ -1,0 +1,44 @@
+# تحلیل پامپ یک ارز — درخواست حمید برای BICO؛ برای هر ارز قابل اجراست.
+name: Analyze pump
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "نماد، مثل BICOUSDT"
+        default: "BICOUSDT"
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: تحلیل
+        working-directory: claude-liam-signal/python
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: python3 -m hamid.analyze_pump --symbol "${{ github.event.inputs.symbol || 'BICOUSDT' }}"
+      - name: ثبت و انتشار
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain signals 2>/dev/null || true
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "تحلیل پامپ ${{ github.event.inputs.symbol || 'BICOUSDT' }} $(date -u '+%H:%M UTC')"
+            for i in 1 2 3; do git push origin HEAD:main && break; git pull --rebase origin main || true; sleep $((i*3)); done
+          fi
+          git fetch origin gh-pages -q || exit 0
+          rm -rf /tmp/ghp; git worktree add /tmp/ghp origin/gh-pages --detach -q || exit 0
+          mkdir -p /tmp/ghp/signals
+          cp signals/pump-analysis.json /tmp/ghp/signals/ 2>/dev/null || true
+          cd /tmp/ghp; git add signals
+          if ! git diff --cached --quiet; then
+            git commit -q -m "تحلیل پامپ $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do git push origin HEAD:gh-pages -q && break; git fetch origin gh-pages -q||true; git rebase origin/gh-pages -q||{ git rebase --abort; break; }; done
+          fi
