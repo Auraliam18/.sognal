@@ -45,7 +45,13 @@ jobs:
 
           Ran on a GitHub runner so the laptop stays free. Report and raw
           per-slice numbers are in claude-liam-signal/cycles."
-            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
+            # به main، با تلاش مجدد — پوش خام به شاخهٔ آینه یک بار با جلو رفتن
+            # شاخه رد شد و ضربدر قرمز کاشت؛ اندازه‌گیری موفق بود و گزارشش گم شد.
+            for i in 1 2 3; do
+              git push origin HEAD:main && break
+              git pull --rebase origin main || true
+              sleep $((i*3))
+            done
           fi
       - name: Summary
         run: cat claude-liam-signal/cycles/latest.md >> $GITHUB_STEP_SUMMARY
