@@ -44,6 +44,13 @@ def _fmt(v):
     return f"{v:.8f}".rstrip("0").rstrip(".")
 
 
+def _watermark(ax):
+    """امضای کانال حمید — Trade_Osuli — پشت کندل‌ها، کم‌رنگ، بدون شلوغی."""
+    ax.text(0.5, 0.5, "Trade_Osuli", transform=ax.transAxes,
+            fontsize=34, color=DIM, alpha=0.12, ha="center", va="center",
+            rotation=15, fontweight="bold", zorder=0)
+
+
 def render(candles, s, path, bars=110):
     """candles: [{t,o,h,l,c,v}] oldest first. s: one setup from scan.py."""
     cd = candles[-bars:]
@@ -53,6 +60,7 @@ def render(candles, s, path, bars=110):
     fig, ax = plt.subplots(figsize=(11, 6.2), dpi=110)
     fig.patch.set_facecolor(BG)
     ax.set_facecolor(BG)
+    _watermark(ax)
 
     width = 0.62
     for i, c in enumerate(cd):

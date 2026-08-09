@@ -415,6 +415,24 @@ def review_cycle():
     return entry
 
 
+def _tg_chart(s, path):
+    """چارت ۵ دقیقه با واترمارک Trade_Osuli برای ارسال لحظه‌ای — اگر matplotlib
+    روی رانر نبود، متن خالی می‌رود ولی سیگنال گم نمی‌شود."""
+    try:
+        from tg_batch import chart as _c
+        rows = sources.klines(s["sym"], "5m", 120)
+        cd = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+              for k in rows]
+        if len(cd) < 20:
+            return None
+        buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"), s["dir"])
+        with open(path, "wb") as f:
+            f.write(buf.read())
+        return path
+    except Exception:                                # noqa: BLE001 - چارت اختیاری است
+        return None
+
+
 # ── the cycle ──────────────────────────────────────────────────────────────
 
 def _for_telegram(x):
@@ -750,7 +768,7 @@ def main():
             import telegram
             sent = telegram.send_signals(
                 [_for_telegram(x) for x in report["setups"] if not x.get("waiting")],
-                lambda setup, path: None)          # text only; charts need candles
+                _tg_chart)                          # چارت ۵د با واترمارک Trade_Osuli
             report["telegram"] = sent
             if sent:
                 act(f"{sent} سیگنال با چارت به تلگرام فرستاده شد")
@@ -828,7 +846,7 @@ def main():
                                        "name": x["strategyName"]} for x in sigs]
             if sigs:
                 import telegram
-                sent_al = telegram.send_signals(sigs, lambda s, p: None)
+                sent_al = telegram.send_signals(sigs, _tg_chart)
                 from hamid import paper as _pp
                 _pp.open_from([{"symbol": x["sym"], "dir": x["dir"],
                                 "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],

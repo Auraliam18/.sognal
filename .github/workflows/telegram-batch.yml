@@ -53,8 +53,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")}"
-          export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
+          # با ثبت Secrets، فرستندهٔ لحظه‌ای فعال است؛ پل دیگر فقط پیام تکراری
+          # می‌سازد (دو دفترچهٔ جدا) — حمید سه تکرار دید. پس خودش کنار می‌کشد.
+          if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            echo "مسیر لحظه‌ای با Secrets فعال است — پل برای جلوگیری از تکرار کاری نمی‌کند"
+            exit 0
+          fi
+          export TELEGRAM_BOT_TOKEN="$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")"
+          export TELEGRAM_CHAT_ID="$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")"
           python3 claude-liam-signal/python/tg_batch.py
 
       - name: ثبت دفترچهٔ ضدتکرار و سیگنال نهایی
