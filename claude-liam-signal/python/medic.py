@@ -92,6 +92,22 @@ def examine():
         finds.append(f"latest.json در دسترس نیست: {type(e).__name__}")
 
     try:
+        st, body = fetch(f"{PAGES}/signals/pump-radar.json")
+        j = json.loads(body)
+        a = age_min(j)
+        if a is None or a > 50:                       # کرون ۱۵دقیقه‌ای + جای لغزش
+            sick = True
+            wake.append("pump-radar.yml")
+            finds.append(f"رادار پامپ کهنه است — {round(a) if a else '؟'} دقیقه پیش")
+        else:
+            picks = len(j.get("recommendation") or [])
+            finds.append(f"رادار پامپ سالم: {round(a)} دقیقه پیش، {picks} پیشنهاد فعال")
+    except Exception as e:                            # noqa: BLE001
+        sick = True
+        wake.append("pump-radar.yml")
+        finds.append(f"pump-radar.json در دسترس نیست: {type(e).__name__}")
+
+    try:
         st, body = fetch(f"{PAGES}/index.html")
         if st != 200 or all(n.encode() not in body for n in
                             ("حمید کلود مکس", "کلود کد لیام", "Hamid Signal Agent")):
