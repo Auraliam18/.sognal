@@ -256,10 +256,16 @@ def _equity():
                 "max_drawdown_pct": round(dd * 100, 2)}
 
     closed = _read(CLOSED)
+    # چهار دفتر جدا: سیگنال‌شده (رکورد اصلی)، دو آزمایش، میز تمرین (دروازهٔ
+    # شل برای چندبرابر کردن نمونهٔ یادگیری) و سیگنال‌های آلارم. قاطی کردنشان
+    # رکورد استراتژی سیگنال‌شده را ناخوانا می‌کند.
+    _aside = ("first", "inducement", "practice", "alarm")
     signalled = [t for t in closed
-                 if (t.get("why") or {}).get("stage") not in ("first", "inducement")]
+                 if (t.get("why") or {}).get("stage") not in _aside]
     experiments = [t for t in closed if (t.get("why") or {}).get("stage") == "first"]
     inducements = [t for t in closed if (t.get("why") or {}).get("stage") == "inducement"]
+    practices = [t for t in closed if (t.get("why") or {}).get("stage") == "practice"]
+    alarm_trades = [t for t in closed if (t.get("why") or {}).get("stage") == "alarm"]
 
     # شفافیت یعنی خود لیست، نه فقط جمع‌بندی — آخرین نتیجه‌ها تک‌به‌تک به پنل
     # می‌روند تا حمید ببیند دقیقاً کدام معامله چه شد. سفارش منقضی هم می‌آید،
@@ -270,7 +276,9 @@ def _equity():
                 "outcome": t.get("outcome"), "R": t.get("R"),
                 "closed": t.get("closed"),
                 "kind": {"first": "آزمایش پولبک اول",
-                         "inducement": "آزمایش ایندوسمنت"}.get(
+                         "inducement": "آزمایش ایندوسمنت",
+                         "practice": "میز تمرین",
+                         "alarm": "سیگنال آلارم"}.get(
                              (t.get("why") or {}).get("stage"), "سیگنال‌شده")}
     recent = sorted([t for t in closed if t.get("closed")],
                     key=lambda t: t["closed"], reverse=True)[:40]
@@ -279,6 +287,8 @@ def _equity():
          "start": START_BALANCE, "risk_per_trade_pct": RISK_FRACTION * 100,
          "experiments_first_pullback": run_book(experiments),
          "experiments_inducement": run_book(inducements),
+         "practice_desk": run_book(practices),
+         "alarm_signals": run_book(alarm_trades),
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
