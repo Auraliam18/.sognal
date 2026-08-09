@@ -70,7 +70,15 @@ def _parse_bitunix(rows):
             continue
         if last <= 0 or abs(chg) > 500:              # عدد بی‌معنا = ردیف خراب
             continue
-        out.append({"symbol": s, "change_pct": round(chg, 1), "last": last, "vol": vol})
+        out.append({"symbol": s, "change_pct": chg, "last": last, "vol": vol})
+    # تشخیص مقیاس، نه حدس: بین صدها جفت فیوچرز کریپتو همیشه کسی بیش از ±۱.۵٪
+    # در ۲۴ ساعت حرکت کرده. اگر بیشینهٔ قدرمطلق همه زیر ۱.۵ است، فیلد کسر بوده
+    # (0.27 یعنی ۲۷٪) — همان خطایی که اجرای اول را «هیچ گینری» نشان داد.
+    if len(out) >= 20 and max(abs(x["change_pct"]) for x in out) < 1.5:
+        for x in out:
+            x["change_pct"] *= 100
+    for x in out:
+        x["change_pct"] = round(x["change_pct"], 1)
     return out
 
 
@@ -81,6 +89,8 @@ def gainers(top=6, min_pct=5.0):
         g = _parse_bitunix(rows)
         if len(g) >= 20:
             g.sort(key=lambda x: -x["change_pct"])
+            print("بیتیونیکس، ۵ تغییر بزرگ ۲۴س: " +
+                  ", ".join(f"{x['symbol']} {x['change_pct']:+}%" for x in g[:5]))
             return "بیتیونیکس (فیوچرز)", [x for x in g if x["change_pct"] >= min_pct][:top]
     except Exception as e:                           # noqa: BLE001 - صرافی بعدی
         print(f"بیتیونیکس جواب نداد: {type(e).__name__}")
