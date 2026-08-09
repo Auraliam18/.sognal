@@ -127,11 +127,32 @@ def examine():
     return sick, finds, wake
 
 
+def _runs(workflow, tok, status):
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/Auraliam18/.sognal/actions/workflows/{workflow}"
+        f"/runs?status={status}&per_page=5",
+        headers={"Authorization": f"Bearer {tok}",
+                 "Accept": "application/vnd.github+json", "User-Agent": "medic/1"})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return len(json.load(r).get("workflow_runs") or [])
+
+
 def revive(workflow):
-    """همان کاری که دکمهٔ Run workflow می‌کند — برای هر خطی که خوابیده."""
+    """همان کاری که دکمهٔ Run workflow می‌کند — برای هر خطی که خوابیده.
+
+    اول نگاه می‌کند خط واقعاً خوابیده باشد: dispatch روی خطی که همین حالا
+    در حال اجرا یا در صف است فقط صف را پر می‌کرد و هر جایگزینی صف، یک اجرای
+    «cancelled» قرمز در اینباکس حمید می‌کاشت — ۴ تا در ۷۵ دقیقه شمرده شد."""
     tok = os.environ.get("GITHUB_TOKEN")
     if not tok or os.environ.get("REVIVE") != "1":
         return "درمان غیرفعال است (REVIVE=1 و GITHUB_TOKEN لازم دارد)"
+    try:
+        if _runs(workflow, tok, "in_progress") > 0:
+            return f"{workflow} همین حالا در حال اجراست — دست نمی‌زنم"
+        if _runs(workflow, tok, "queued") > 0:
+            return f"{workflow} در صف است — dispatch دوباره لازم نیست"
+    except Exception:                                 # noqa: BLE001 - چک ناموفق مانع درمان نمی‌شود
+        pass
     req = urllib.request.Request(
         f"https://api.github.com/repos/Auraliam18/.sognal/actions/workflows/{workflow}/dispatches",
         data=json.dumps({"ref": "main"}).encode(),
