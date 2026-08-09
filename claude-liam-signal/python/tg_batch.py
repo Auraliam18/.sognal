@@ -37,19 +37,30 @@ def klines(sym, tf="15m", n=96):
                  "l": float(k[3]), "c": float(k[4])} for k in json.loads(r.read())]
 
 
+def watermark(ax):
+    """امضای کانال حمید — Trade_Osuli — پشت کندل‌ها، کم‌رنگ و تمیز؛ تبلیغ
+    هست ولی دید چارت را اشغال نمی‌کند (خواستهٔ خودش، کلمه به کلمه)."""
+    ax.text(0.5, 0.5, "Trade_Osuli", transform=ax.transAxes,
+            fontsize=34, color="#8899aa", alpha=0.13, ha="center", va="center",
+            rotation=15, fontweight="bold", zorder=0)
+
+
 def chart(sym, cd, entry, sl, tp1, tp2, dir_):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(9, 5), dpi=110)
+    watermark(ax)
     for i, k in enumerate(cd):
         up = k["c"] >= k["o"]
         ax.plot([i, i], [k["l"], k["h"]], color="#666", lw=0.7, zorder=1)
         ax.add_patch(plt.Rectangle((i - 0.33, min(k["o"], k["c"])), 0.66,
                      max(abs(k["c"] - k["o"]), 1e-12),
                      color="#26a69a" if up else "#ef5350", zorder=2))
-    for v, c, lb in [(entry, "#42a5f5", "ورود"), (sl, "#ef5350", "استاپ"),
-                     (tp1, "#26a69a", "تارگت۱"), (tp2, "#66bb6a", "تارگت۲")]:
+    # برچسب لاتین عمداً: matplotlib شکل‌دهی عربی ندارد و فارسی حروف‌جدا و
+    # برعکس می‌افتد (در عکس تست دیده شد). فارسی در کپشن زیر عکس هست.
+    for v, c, lb in [(entry, "#42a5f5", "ENTRY"), (sl, "#ef5350", "SL"),
+                     (tp1, "#26a69a", "TP1"), (tp2, "#66bb6a", "TP2")]:
         if v:
             ax.axhline(v, color=c, lw=1.1, ls="--")
             ax.text(len(cd) + 1, v, lb, color=c, fontsize=8, va="center")
@@ -75,7 +86,7 @@ def collect():
     for s in h.get("setups", []):
         if s.get("waiting"):
             continue
-        out.append({"key": f"hamid|{s['symbol']}|{s['dir']}|{round(s['entry'], 8)}",
+        out.append({"key": f"hamid|{s['symbol']}|{s['dir']}",
                     "sym": s["symbol"], "dir": s["dir"], "tf": "15m",
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": "روش حمید — پولبک دوم", "elite": False, "usdt": usdt})
@@ -84,7 +95,7 @@ def collect():
     except Exception:                                  # noqa: BLE001
         r = {}
     for s in r.get("signals", []):
-        out.append({"key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}|{round(s['entry'], 8)}",
+        out.append({"key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}",
                     "sym": s["sym"], "dir": s["dir"], "tf": s.get("tf", "15m"),
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": s.get("strategyName", ""), "elite": bool(s.get("elite")),
@@ -125,7 +136,8 @@ def main():
                (f"\nدامیننس تتر: {s['usdt']}٪" if s.get("usdt") else "") +
                f"\n\nپنل: auraliam18.github.io/.sognal")
         try:
-            cd = s.get("candles") or klines(s["sym"], s["tf"])
+            # چارت ۵ دقیقه — خواستهٔ حمید؛ کندل‌های ضمیمه فقط جایگزین اضطراری
+            cd = klines(s["sym"], "5m") or s.get("candles") or []
             png = chart(s["sym"], cd[-96:], s["entry"], s["sl"], s.get("tp1"), s.get("tp2"), s["dir"])
             j = tg("sendPhoto", {"chat_id": chat, "caption": cap},
                    {"photo": (f"{s['sym']}.png", png, "image/png")}, tok)

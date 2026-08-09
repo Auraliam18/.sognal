@@ -143,7 +143,7 @@ jobs:
 
           import sources
           sym = (sig or {}).get("symbol", "BTCUSDT")
-          rows = sources.klines(sym, "15m", 96)
+          rows = sources.klines(sym, "5m", 96)      # ۵ دقیقه — خواستهٔ حمید
           candles = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4]} for k in rows]
           last = candles[-1]["c"]
           print(f"✓ {len(candles)} کندل {sym} از {sources.used()['klines']}")
@@ -155,6 +155,10 @@ jobs:
           from matplotlib.patches import Rectangle
           fig, ax = plt.subplots(figsize=(11, 6), facecolor="#0d1117")
           ax.set_facecolor("#0d1117")
+          # امضای کانال — کم‌رنگ، پشت کندل‌ها، بدون اشغال دید چارت
+          ax.text(0.5, 0.5, "Trade_Osuli", transform=ax.transAxes, fontsize=36,
+                  color="#8899aa", alpha=0.13, ha="center", va="center",
+                  rotation=15, fontweight="bold", zorder=0)
           w = (candles[1]["t"] - candles[0]["t"]) * 0.7
           for c in candles:
               up = c["c"] >= c["o"]
@@ -171,7 +175,7 @@ jobs:
               b = sig.get("block") or {}
               if b:
                   ax.axhspan(b["low"], b["high"], color="#f0a92e", alpha=0.15)
-          ax.set_title(f"{sym} 15m — Hamid Method (live test)", color="#e6edf3")
+          ax.set_title(f"{sym} 5m — Hamid Method (live test)", color="#e6edf3")
           ax.tick_params(colors="#8b98ab", labelsize=8)
           for s in ax.spines.values(): s.set_color("#30363d")
           ax.get_xaxis().set_visible(False)
