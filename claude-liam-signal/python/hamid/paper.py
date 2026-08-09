@@ -237,8 +237,10 @@ def _equity():
                 "max_drawdown_pct": round(dd * 100, 2)}
 
     closed = _read(CLOSED)
-    signalled = [t for t in closed if (t.get("why") or {}).get("stage") != "first"]
+    signalled = [t for t in closed
+                 if (t.get("why") or {}).get("stage") not in ("first", "inducement")]
     experiments = [t for t in closed if (t.get("why") or {}).get("stage") == "first"]
+    inducements = [t for t in closed if (t.get("why") or {}).get("stage") == "inducement"]
 
     # شفافیت یعنی خود لیست، نه فقط جمع‌بندی — آخرین نتیجه‌ها تک‌به‌تک به پنل
     # می‌روند تا حمید ببیند دقیقاً کدام معامله چه شد. سفارش منقضی هم می‌آید،
@@ -248,13 +250,16 @@ def _equity():
                 "entry": t.get("entry"), "sl": t.get("sl"), "tp1": t.get("tp1"),
                 "outcome": t.get("outcome"), "R": t.get("R"),
                 "closed": t.get("closed"),
-                "kind": "آزمایش پولبک اول" if (t.get("why") or {}).get("stage") == "first" else "سیگنال‌شده"}
+                "kind": {"first": "آزمایش پولبک اول",
+                         "inducement": "آزمایش ایندوسمنت"}.get(
+                             (t.get("why") or {}).get("stage"), "سیگنال‌شده")}
     recent = sorted([t for t in closed if t.get("closed")],
                     key=lambda t: t["closed"], reverse=True)[:40]
 
     j = {**run_book(signalled),
          "start": START_BALANCE, "risk_per_trade_pct": RISK_FRACTION * 100,
          "experiments_first_pullback": run_book(experiments),
+         "experiments_inducement": run_book(inducements),
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
