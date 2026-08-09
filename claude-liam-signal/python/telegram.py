@@ -119,6 +119,10 @@ def caption(s):
     # that does not say which one it came from cannot be judged or learned from.
     if s.get("strategyName"):
         L.append(f"استراتژی: <b>{s['strategyName']}</b>")
+    # حافظهٔ ایجنت — «اگر شباهت قوی با گذشته پیدا کردی صریح ذکر کن»: جملهٔ
+    # عددی حافظه دربارهٔ همین ارز/جهت، روی خود پیام، تا تصمیم با تجربه باشد.
+    if s.get("memory"):
+        L.append(f"🧠 <i>{s['memory']}</i>")
     L.append("")
     L.append(f"ورود    <code>{s['entry']:.10g}</code>")
     L.append(f"استاپ   <code>{s['sl']:.10g}</code>")
