@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.11 · رادار پامپ خوشه‌ای</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.12 · ناظر تجربه + قانون ۱۰٪</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3584,8 +3584,13 @@ function renderPumpCloud(){
     اولین نتیجهٔ رادار خوشه‌ای از سرور در راه است — هر نیم‌ساعت اجرا می‌شود.</div></div>`;return;}
   const mins=Math.round((Date.now()-j.generated)/60000);
   const picks=j.recommendation||[];
-  const recBox=picks.length?`<div class="box" style="margin-bottom:12px;border-color:#8a6d1e88">
-    <h3 style="margin:0 0 4px">🎯 پیشنهاد رادار — با دلیل</h3>
+  const lateBox=j.verdict?`<div class="box" style="margin-bottom:12px;border-color:#7d2f45">
+    <h3 style="margin:0 0 4px">⏱ دیر رسیدیم — سیگنال صادر نشد</h3>
+    <div class="dim" style="font-size:12px;line-height:1.9">${j.verdict}</div></div>`:"";
+  const skippedRow=(j.already_pumped&&j.already_pumped.length)?`<div class="dim" style="font-size:11px;margin:6px 0 0">
+    🚫 پامپ‌خورده‌ها (قانون: ۱۰٪+ = سیگنال نیست): ${j.already_pumped.map(s=>`<b class="mono">${s.symbol.replace("USDT","")}</b>`).join("، ")}</div>`:"";
+  const recBox=lateBox+(picks.length?`<div class="box" style="margin-bottom:12px;border-color:#8a6d1e88">
+    <h3 style="margin:0 0 4px">🎯 پیشنهاد رادار — فقط عضو نپریدهٔ خوشه، با دلیل</h3>
     ${picks.map((p,i)=>`<div style="padding:6px 0;border-top:1px solid rgba(140,160,190,.10)">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px">
         <b class="mono">${i===0?"⭐ انتخاب اول":"جایگزین"}: ${p.symbol}</b>
@@ -3595,14 +3600,15 @@ function renderPumpCloud(){
       <div class="dim" style="font-size:11.5px;line-height:1.9;margin-top:2px">
         ${(p.reasons||[]).map(w=>"• "+w).join("<br>")}</div></div>`).join("")}
     <div class="dim" style="font-size:10.5px;margin-top:6px">همین پیشنهاد با سرتیتر «گزینه‌های پامپ» به تلگرام هم فرستاده می‌شود و آلارمش در رادار ثبت است.</div>
-  </div>`:`<div class="box" style="margin-bottom:12px"><div class="dim" style="font-size:12px">
-    در این چرخه هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است.</div></div>`;
+    ${skippedRow}
+  </div>`:(j.verdict?`<div class="box" style="margin-bottom:12px">${skippedRow||`<div class="dim" style="font-size:12px">—</div>`}</div>`:`<div class="box" style="margin-bottom:12px"><div class="dim" style="font-size:12px">
+    در این چرخه هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است.</div>${skippedRow}</div>`));
   const layer=l=>({1:"لایه ۱ — گینر",2:"لایه ۲ — دنباله‌رو",3:"لایه ۳ — دنباله‌رویِ دنباله‌رو"}[l]||"");
   const rows=(j.coins||[]).map(c=>{const al=c.alarm||{};const m=c.match;
     const risk=al.entry&&al.sl?Math.abs((al.entry-al.sl)/al.entry*100).toFixed(1):null;
     return `<tr>
-      <td class="mono"><b>${c.symbol.replace("USDT","")}</b><div class="dim" style="font-size:9.5px">${layer(c.layer)}${c.via?" ← "+c.via.replace("USDT",""):""}</div></td>
-      <td class="mono">${fmt(c.price)}</td>
+      <td class="mono"><b>${c.symbol.replace("USDT","")}</b>${c.ignition?" 🔥":""}<div class="dim" style="font-size:9.5px">${layer(c.layer)}${c.via?" ← "+c.via.replace("USDT",""):""}</div></td>
+      <td class="mono">${fmt(c.price)}<div class="dim" style="font-size:9.5px">${c.change_30m_pct!=null?(c.change_30m_pct>0?"+":"")+c.change_30m_pct+"٪/30د":""} ${c.change_24h_pct!=null?(c.change_24h_pct>0?"+":"")+c.change_24h_pct+"٪/24س":""}</div></td>
       <td style="font-size:11px">${(c.pumps||[]).length?`${c.pumps.length} پامپ<div class="dim" style="font-size:9.5px">بزرگ‌ترین +${Math.max(...c.pumps.map(p=>p.ret_4h_pct))}٪</div>`:"—"}</td>
       <td><span class="chip" style="${c.role==="سردسته"?"border-color:#8a6d1e;color:#f0d24e":c.role==="دنباله‌رو"?"border-color:#2f7d5b;color:#8fe3bd":""}">${c.role}</span>
         ${c.leaders&&c.leaders.length?`<div class="dim" style="font-size:9.5px">سردسته: ${c.leaders[0].symbol.replace("USDT","")}</div>`:""}</td>
@@ -3818,6 +3824,15 @@ function renderNet(){
       صفر را می‌گیرد. رکورد لحظه‌ای هر استراتژی را پایین تب «سیگنال واقعی» هم می‌بینی.
       <b>هیچ عددی اینجا قول نیست — همه از فایل قابل بازتولیدند.</b></div>
   </div>
+  ${(()=>{const v=(HAMID.data||{}).vetoes||[];if(!v.length)return"";
+    return `<div class="box" style="margin-bottom:12px;border-color:#7d2f45">
+    <h3 style="margin:0 0 4px">🚫 ناظر تجربه — سیگنال‌هایی که تجربه رد کرد</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      یادگیریِ اعمال‌شده: کارنامهٔ بستهٔ همین ارز/جهت منفی بود (۱۲+ معامله)، پس سیگنال به تو نرسید.
+      کاغذی ثبت می‌شود تا اگر رکوردش برگشت، خودش دوباره راه باز کند.</div>
+    ${v.map(x=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <b class="mono">${x.sym}</b><span>${x.dir==="LONG"?"خرید":"فروش"}</span>
+      <span class="mono dim" style="margin-inline-start:auto">${x.n} معامله · میانگین ${x.mean_r}R · برد ${x.win_pct}٪</span></div>`).join("")}</div>`;})()}
   <div class="box">
     <h3 style="margin:0 0 4px">یادگیریِ تأییدشده — تنها چیزی که اجازهٔ عمل دارد</h3>
     <div class="dim" style="font-size:11.5px;margin-bottom:4px">
