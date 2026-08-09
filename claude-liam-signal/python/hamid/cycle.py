@@ -669,7 +669,34 @@ def main():
                         "فقط خوراک یادگیری، سیگنال نیست")
             except Exception as e:                   # noqa: BLE001 - تمرین چرخه را نمی‌کشد
                 print(f"میز تمرین: {type(e).__name__}: {e}")
+        t_mark = int(time.time() * 1000)
         still, closed = paper.mark()
+        # اعلان نتیجه — قول داده شد: فقط ورود نبیند، خروج را هم ببیند. هر
+        # معاملهٔ سیگنال‌شده که همین چرخه بسته شد، با نتیجه به تلگرام می‌رود.
+        # آزمایش‌ها و میز تمرین نه — آن‌ها سیگنال نبودند و پیامشان فقط نویز است.
+        try:
+            just = [t for t in paper._read(paper.CLOSED)
+                    if (t.get("closed") or 0) >= t_mark
+                    and t.get("outcome") in ("target", "stop")
+                    and (t.get("why") or {}).get("stage")
+                    not in ("first", "practice", "inducement")]
+            if just:
+                import telegram as _tg
+                tok, chat = _tg.creds()
+                if tok:
+                    L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
+                    for t in just[:10]:
+                        won = t["outcome"] == "target"
+                        L.append(f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
+                                 f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
+                                 f"{'تارگت خورد' if won else 'استاپ خورد'} "
+                                 f"(<code>{t['R']:+.2f}R</code>)")
+                    _tg._post(tok, "sendMessage",
+                              {"chat_id": chat, "text": "\n".join(L),
+                               "parse_mode": "HTML"})
+                    act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت")
+        except Exception as e:                       # noqa: BLE001 - اعلان چرخه را نمی‌کشد
+            print(f"اعلان نتیجه: {_tg.scrub(e) if '_tg' in dir() else type(e).__name__}")
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
                            **eq}
