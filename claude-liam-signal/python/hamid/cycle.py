@@ -48,6 +48,7 @@ import brain                                                  # noqa: E402
 import sources                                                # noqa: E402
 from hamid import research                                    # noqa: E402
 from hamid.stack import market_first, read                    # noqa: E402
+from hamid import inducement                                  # noqa: E402
 from hamid.structure import atr                               # noqa: E402
 
 ROOT = HERE.parent.parent.parent
@@ -173,7 +174,7 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
                 for sym in symbols}
         fetched = {sym: (a.result(), b.result()) for sym, (a, b) in jobs.items()}
 
-    reads, setups = [], []
+    reads, setups, inds = [], [], []
     for sym in symbols:
         c1h, c15 = fetched.get(sym, ([], []))
         if len(c1h) < 60 or len(c15) < 60:
@@ -187,10 +188,16 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
         reads.append(r)
         if r.setup:
             setups.append((sym, r))
+        try:
+            ind = inducement.find(c15)
+            if ind:
+                inds.append((sym, ind))
+        except Exception:                            # noqa: BLE001 - آزمایش نباید چرخه را بکشد
+            pass
         brain.room_log("scan", f"{sym}: ۴ساعته {r.trend_4h}، "
                                f"{len(r.blocks)} بلاک، ستاپ {'دارد' if r.setup else 'ندارد'}", "read")
     flows = money_flow(fetched)
-    return first, reads, setups, flows
+    return first, reads, setups, flows, inds
 
 
 def money_flow(fetched, z_gate=2.0, look=4):
@@ -387,13 +394,20 @@ def main():
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
         act(f"در حال خواندن {len(syms)} ارز برتر از صرافی‌های جهانی")
-        first, reads, setups, flows = run_active(syms)
+        first, reads, setups, flows, inds = run_active(syms)
         report["market"] = first
         report["reads"] = len(reads)
         report["money_flow"] = flows
         act(f"{len(reads)} ارز خوانده شد؛ {len(setups)} ارز ساختار اردر بلاک دارند")
         if flows:
             act(f"جهش حجم در {len(flows)} ارز دیده شد — واکنش گذشتهٔ هرکدام اندازه گرفته شد")
+        # استراتژی ایندوسمنت (NEAR-style) — فقط اندازه‌گیری، هنوز سیگنال نمی‌شود
+        report["inducement"] = [{"symbol": s_, "dir": x.dir, "entry": x.entry,
+                                 "sl": x.sl, "tp1": x.tp1, "tp2": x.tp2,
+                                 "room_r": x.room_r, "note": x.note}
+                                for s_, x in inds]
+        if inds:
+            act(f"استراتژی ایندوسمنت: {len(inds)} ستاپ پیدا شد — به دفتر آزمایش رفت (تا تأیید آماری سیگنال نمی‌شود)")
         # تاریخچهٔ همان ارزها فوری در اختیار اتاق سیگنال و ریسک
         for f in flows:
             brain.room_log("scan", f"پول در حال {f['flow']} به {f['symbol']} "
@@ -503,6 +517,11 @@ def main():
         for c in cands:
             c["stage_tag"] = "second" if not c.get("waiting") else "first"
         opened = paper.open_from(cands, ctx)
+        ind_cands = [{"symbol": s_, "dir": x.dir, "entry": x.entry, "sl": x.sl,
+                      "tp1": x.tp1, "tp2": x.tp2, "stage_tag": "inducement"}
+                     for s_, x in (inds if mode == "active" else [])]
+        if ind_cands:
+            opened += paper.open_from(ind_cands, ctx)
         still, closed = paper.mark()
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
