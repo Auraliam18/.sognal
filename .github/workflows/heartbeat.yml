@@ -38,9 +38,11 @@ permissions:
   contents: write
   actions: write        # نگهبانِ داخل حلقه باید بتواند خط خوابیده را dispatch کند
 
-concurrency:
-  group: heartbeat
-  cancel-in-progress: false
+# بدون concurrency: صفِ جایگزین‌شونده هر بار یک اجرای «cancelled» قرمز در
+# اینباکس حمید می‌کاشت (اندازه‌گیری ۹ اوت: ۴ ضربدر در ۷۵ دقیقه، همه اجراهای
+# در صف که با dispatch بعدی جایگزین شدند). به‌جایش نگهبان اول کار: اگر ضربان
+# دیگری زنده است، این اجرا سبز و بی‌سروصدا تمام می‌شود؛ پوشش را کرون ۲ساعته
+# به‌علاوهٔ پزشکِ پایشگرِ تازگی نگه می‌دارند.
 
 jobs:
   beat:
@@ -48,17 +50,35 @@ jobs:
     # سقف گیت‌هاب ۳۶۰ دقیقه است؛ کمی زیرش می‌مانیم تا مرحلهٔ پایانی هم فرصت کند.
     timeout-minutes: 355
     steps:
+      - name: فقط یک ضربان
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          N=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/heartbeat.yml/runs?status=in_progress&per_page=10" \
+            | jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})] | length" 2>/dev/null || echo 0)
+          if [ "${N:-0}" -gt 0 ]; then
+            echo "ضربان دیگری زنده است ($N اجرا) — این اجرا لازم نیست و سبز تمام می‌شود"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
         with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip != 'true'
         with: { python-version: "3.11" }
 
       - name: Git identity
+        if: steps.guard.outputs.skip != 'true'
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
 
       - name: چرخه، تا وقتی وقت هست
+        if: steps.guard.outputs.skip != 'true'
         working-directory: claude-liam-signal/python
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
