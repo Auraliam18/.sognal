@@ -71,6 +71,10 @@ jobs:
         if: steps.guard.outputs.skip != 'true'
         with: { python-version: "3.11" }
 
+      - name: matplotlib برای چارت سیگنال
+        if: steps.guard.outputs.skip != 'true'
+        run: pip -q install matplotlib
+
       - name: Git identity
         if: steps.guard.outputs.skip != 'true'
         run: |
