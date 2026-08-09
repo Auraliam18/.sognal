@@ -556,6 +556,21 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                    "ثبت‌شده است، نه یک فرصت.")
         print(verdict)
 
+    # ذخیره در حافظه — قانون حمید: هر تحلیل، نتیجه و ضعفش را ثبت کند تا
+    # تحلیل بعد از آن استفاده کند، نه اینکه هر بار از صفر شروع شود.
+    try:
+        from hamid import memory as mem
+        if verdict:
+            mem.remember("ضعف", gs[0]["symbol"] if gs else "-",
+                         "پامپ رادار دیر رسید: " + verdict[:120])
+        for p in picks:
+            mem.remember("تحلیل", p["symbol"],
+                         f"رادار {p['symbol']} را پیشنهاد کرد (امتیاز {p['score']}): "
+                         + (p["reasons"][0] if p["reasons"] else ""),
+                         {"entry": p["entry"], "score": p["score"]})
+    except Exception as e:                           # noqa: BLE001 - حافظه تحلیل را نمی‌کشد
+        print(f"ثبت حافظه: {type(e).__name__}")
+
     report = {
         "generated": int(time.time() * 1000),
         "source": source,

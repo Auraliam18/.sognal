@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.13 · آلارم زنده + میز تمرین + مرور ۲ساعته</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.14 · حافظه و درس‌ها</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3888,6 +3888,18 @@ function renderAgent(){
       <span class="dim" style="font-size:11.5px">${f.verdict}</span></div>`).join(""):
       `<div class="dim" style="font-size:12px">در چرخهٔ اخیر جهش حجم معناداری دیده نشد (یا چرخه در حالت سکوت است)</div>`}
   </div>
+  ${(()=>{const mm=j.memory;if(!mm||!(mm.lessons||[]).length)return"";
+    return `<div class="box" style="margin-top:12px">
+    <h3 style="margin:0 0 4px">🧠 حافظه و درس‌ها — یادگیری واقعی، قابل دیدن</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      چرخهٔ حمید: تحلیل ← یادگیری ← ذخیره ← استفاده در تحلیل بعد. هر معاملهٔ بسته با
+      شرایطش هضم می‌شود و قبل از هر سیگنال، حافظهٔ همین ارز/جهت با عدد پرسیده و روی پیام تلگرام هم ذکر می‌شود.</div>
+    ${mm.lessons.map(l=>`<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12px">
+      <span class="chip" style="font-size:10px">${l.kind}</span>
+      <span style="flex:1;line-height:1.8">${l.text}</span>
+      <span class="dim mono" style="font-size:9.5px">${l.at?new Date(l.at).toLocaleString("fa-IR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):""}</span>
+    </div>`).join("")}
+    ${mm.fed_now?`<div class="dim" style="font-size:10.5px;margin-top:4px">در این چرخه ${mm.fed_now} معامله هضم و ایندکس دانش به‌روز شد.</div>`:""}</div>`;})()}
   ${(()=>{const rv=j.review;if(!rv||!rv.verdict)return"";
     return `<div class="box" style="margin-top:12px">
     <h3 style="margin:0 0 4px">🧾 مرور دوساعته — نمرهٔ دفترها</h3>
