@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.17 · اتاق دامیننس ۵د + پنجرهٔ تاریخی پامپ</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.18 · شکار خبر ۳ساعته + تریدینگ‌ویو</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3589,6 +3589,16 @@ async function domjFetch(){
 }
 setInterval(domjFetch,120000);setTimeout(domjFetch,5500);
 (()=>{const d=DB.get("domj_cache");if(d&&!DOMJ.data)DOMJ.data=d;})();
+/* شکار خبر ۳ساعته — خبر دسته‌بندی‌شده + رویدادها */
+const NEWSJ={data:null};
+async function newsjFetch(){
+  try{
+    const r=await fetch("./signals/news.json?t="+Date.now(),{cache:"no-store"});
+    if(r.ok){const j=await r.json();if(j&&j.generated){NEWSJ.data=j;DB.set("newsj_cache",j);}}
+  }catch(e){}
+}
+setInterval(newsjFetch,300000);setTimeout(newsjFetch,6000);
+(()=>{const n=DB.get("newsj_cache");if(n&&!NEWSJ.data)NEWSJ.data=n;})();
 /* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
    صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
 (()=>{
@@ -3957,8 +3967,8 @@ const GRAPH_NODES=[
   desc:"منابع داده: بیتیونیکس، MEXC و بقیه — کندل واقعی، پایهٔ همه‌چیز."},
  {id:"dom",x:300,y:14,w:190,h:46,label:"💹 دامیننس",sub:"مستقل — هر ۵ دقیقه",fresh:()=>DOMJ.data&&DOMJ.data.generated,
   desc:"اتاق مستقل: هر ~۵ دقیقه USDT.D و BTC.D را می‌خواند، به سری زمانی خودش می‌چسباند و با تغییر ۱س/۴س + رویدادهای کلان (تورم/بیکاری/فدرال) نظر می‌دهد."},
- {id:"news",x:540,y:14,w:190,h:46,label:"📰 اخبار و وبگردی",sub:"دسته‌بندی → اتاق‌ها",fresh:()=>{const n=HAMID.data&&HAMID.data.world&&HAMID.data.world.news;return n?HAMID.data.generated:null;},
-  desc:"جستجوی وب و تیترهای داغ؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
+ {id:"news",x:540,y:14,w:190,h:46,label:"📰 شکار خبر",sub:"هر ۳ ساعت + TV",fresh:()=>NEWSJ.data&&NEWSJ.data.generated||(HAMID.data&&HAMID.data.world&&HAMID.data.world.news?HAMID.data.generated:null),
+  desc:"هر ۳ ساعت: جستجوی عمیق وب + RSSها + تیترهای تریدینگ‌ویو + تقویم رویدادها؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
  {id:"medic",x:780,y:14,w:160,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
   desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی به تلگرام هشدار می‌رود."},
  // ── ردیف موتورهای تحلیل ──
@@ -4052,6 +4062,12 @@ function renderGraph(){
     const n=P(g.dataset.id);const info=$("#graphInfo");
     info.style.display="";
     let extra="";
+    if(n.id==="news"&&NEWSJ.data){
+      const c=NEWSJ.data.classified||[];
+      extra=`<div style="margin-top:6px;font-size:12px;line-height:1.9;border-top:1px solid rgba(140,160,190,.15);padding-top:6px">
+        ${c.slice(0,5).map(x=>`<div>· <span class="chip" style="font-size:9.5px">${x.cat}</span> ${(x.title||"").slice(0,80)}</div>`).join("")||"—"}
+        ${(NEWSJ.data.calendar||[]).slice(0,2).map(e=>`<div class="dim">📅 ${e.title} — ${e.in_hours}س دیگر</div>`).join("")}</div>`;
+    }
     if(n.id==="dom"&&DOMJ.data){
       const d=DOMJ.data;
       extra=`<div style="margin-top:6px;font-size:12.5px;line-height:1.9;border-top:1px solid rgba(140,160,190,.15);padding-top:6px">
