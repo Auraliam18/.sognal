@@ -27,7 +27,7 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -103,10 +103,28 @@ def open_interest():
     return {"btc_oi": float(d.get("oiCcy") or 0), "at": d.get("ts")}
 
 
+def _tv_calendar():
+    """تقویم رویدادهای تریدینگ‌ویو — پشتیبان تقویم اصلی (خواستهٔ حمید: سرچ
+    مداوم در تریدینگ‌ویو و ایونت‌ها). فقط رویدادهای اهمیت بالا."""
+    now = datetime.now(timezone.utc)
+    frm = now.strftime("%Y-%m-%dT00:00:00.000Z")
+    to = (now + timedelta(days=3)).strftime("%Y-%m-%dT00:00:00.000Z")
+    j = _json("https://economic-calendar.tradingview.com/events"
+              f"?from={frm}&to={to}&minImportance=1")
+    rows = j.get("result") if isinstance(j, dict) else j
+    return [{"title": e.get("title"), "country": e.get("country"),
+             "date": e.get("date"), "impact": "High"}
+            for e in (rows or []) if e.get("title")]
+
+
 def calendar():
-    """تقویم اقتصادی — در روزهای آرام مهم‌ترین چیزی است که بازار را تکان می‌دهد."""
-    j = _json("https://nfs.faireconomy.media/ff_calendar_thisweek.json")
-    high = [e for e in j if (e.get("impact") or "").lower() == "high"]
+    """تقویم اقتصادی — در روزهای آرام مهم‌ترین چیزی است که بازار را تکان می‌دهد.
+    منبع اصلی faireconomy؛ اگر نداد، تقویم تریدینگ‌ویو جایگزین می‌شود."""
+    try:
+        j = _json("https://nfs.faireconomy.media/ff_calendar_thisweek.json")
+        high = [e for e in j if (e.get("impact") or "").lower() == "high"]
+    except Exception:                                # noqa: BLE001 - پشتیبان TV
+        high = _tv_calendar()
     now = datetime.now(timezone.utc)
     soon = []
     for e in high:
@@ -147,6 +165,18 @@ def news():
     with ThreadPoolExecutor(max_workers=3) as pool:
         for r in pool.map(one, NEWS_FEEDS):
             items += r
+    # تریدینگ‌ویو هم — خواستهٔ حمید. JSON عمومی؛ اگر شکل عوض شد بی‌صدا رد
+    # می‌شود و RSSها سر جایشان هستند.
+    try:
+        j = _json("https://news-headlines.tradingview.com/v2/headlines"
+                  "?category=crypto&lang=en")
+        rows = j.get("items") if isinstance(j, dict) else j
+        for it in (rows or [])[:12]:
+            t = it.get("title") or it.get("headline")
+            if t:
+                items.append({"source": "TradingView", "title": str(t).strip()})
+    except Exception:                                # noqa: BLE001
+        pass
     hot = [i for i in items if any(k in i["title"].lower() for k in HOT)]
     return {"count": len(items), "hot": hot[:8], "headlines": items[:12]}
 

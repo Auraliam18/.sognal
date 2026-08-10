@@ -108,6 +108,20 @@ def examine():
         finds.append(f"pump-radar.json در دسترس نیست: {type(e).__name__}")
 
     try:
+        st, body = fetch(f"{PAGES}/signals/news.json")
+        j = json.loads(body)
+        a = age_min(j)
+        if a is None or a > 260:                      # کرون ۳ساعته + لغزش
+            sick = True
+            wake.append("news-hunt.yml")
+            finds.append(f"شکار خبر کهنه است — {round(a) if a else '؟'} دقیقه پیش")
+        else:
+            finds.append(f"شکار خبر سالم: {round(a)} دقیقه پیش")
+    except Exception:                                 # noqa: BLE001 - اولین اجرا هنوز نیامده
+        wake.append("news-hunt.yml")
+        finds.append("news.json هنوز منتشر نشده — شکار خبر بیدار می‌شود")
+
+    try:
         st, body = fetch(f"{PAGES}/index.html")
         if st != 200 or all(n.encode() not in body for n in
                             ("حمید کلود مکس", "کلود کد لیام", "Hamid Signal Agent")):

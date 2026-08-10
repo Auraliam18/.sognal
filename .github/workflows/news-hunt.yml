@@ -1,0 +1,70 @@
+# شکار خبر — هر ۳ ساعت (خواستهٔ حمید): جستجوی عمیق وب + RSSها + تریدینگ‌ویو
+# (خبر و تقویم رویدادها)، دسته‌بندی و مسیردهی به اتاق‌ها، و انتشار برای پنل.
+name: News hunt
+
+on:
+  schedule:
+    - cron: "37 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: news-hunt
+  cancel-in-progress: false
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: جمع‌آوری و دسته‌بندی
+        working-directory: claude-liam-signal/python
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+        run: |
+          python3 -m hamid.intel --deep --quiet
+          python3 - <<'PY'
+          import json, sys, time
+          sys.path.insert(0, ".")
+          from hamid import discovery
+          d = json.load(open("../../brain/intel/latest.json"))
+          hot = (d.get("news") or {}).get("hot") or []
+          cls = discovery.classify_news(hot)
+          out = {"generated": int(time.time() * 1000),
+                 "verdict": d.get("verdict"),
+                 "classified": cls[:10],
+                 "calendar": (d.get("calendar") or {}).get("next_48h") or [],
+                 "deep_topics": len(d.get("deep") or [])}
+          open("../../signals/news.json", "w").write(
+              json.dumps(out, ensure_ascii=False, indent=1))
+          print(f"{len(hot)} تیتر داغ، {len(out['calendar'])} رویداد ۴۸س")
+          PY
+      - name: ثبت روی main
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain signals/news.json 2>/dev/null || true
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -q -m "شکار خبر $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do git push origin HEAD:main -q && break; git pull --rebase origin main -q || true; sleep $((i*2)); done
+          fi
+      - name: انتشار روی پنل
+        run: |
+          git fetch origin gh-pages -q || exit 0
+          rm -rf /tmp/ghn
+          git worktree add /tmp/ghn origin/gh-pages --detach -q || exit 0
+          mkdir -p /tmp/ghn/signals
+          cp signals/news.json /tmp/ghn/signals/ 2>/dev/null || true
+          cd /tmp/ghn
+          git add signals
+          if ! git diff --cached --quiet; then
+            git commit -q -m "شکار خبر $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do git push origin HEAD:gh-pages -q && break; git fetch origin gh-pages -q||true; git rebase origin/gh-pages -q||{ git rebase --abort; break; }; done
+          fi
