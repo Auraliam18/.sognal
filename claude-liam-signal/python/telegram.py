@@ -114,6 +114,12 @@ def _post(token, method, fields, files=None):
 PANEL_NAME = "حمید کلود مکس پنل"
 
 
+def tehran(ms=None):
+    """ساعت تهران (UTC+3:30) — حمید باید ببیند بین تحلیل و ارسال تأخیری نبوده."""
+    t = time.gmtime(((ms if ms else time.time() * 1000) / 1000) + 3.5 * 3600)
+    return time.strftime("%H:%M", t)
+
+
 def caption(s):
     dir_fa = "🟢 خرید (LONG)" if s["dir"] == "LONG" else "🔴 فروش (SHORT)"
     # نام پنل بالای هر پیام — چند هوش مصنوعی دیگر هم سیگنال می‌فرستند و حمید
@@ -130,6 +136,10 @@ def caption(s):
         L.append(f"🧠 <i>{s['memory']}</i>")
     if s.get("liq_note"):
         L.append(f"💧 <i>{s['liq_note']}</i>")
+    # ساعت تحلیل و ساعت ارسال، به وقت ایران — تا تأخیر قابل راستی‌آزمایی باشد
+    an = s.get("analyzed_at")
+    L.append((f"🕐 تحلیل <code>{tehran(an)}</code> · " if an else "🕐 ")
+             + f"ارسال <code>{tehran()}</code> — به وقت ایران")
     L.append("")
     L.append(f"ورود    <code>{s['entry']:.10g}</code>")
     L.append(f"استاپ   <code>{s['sl']:.10g}</code>")

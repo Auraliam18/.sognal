@@ -37,6 +37,12 @@ def klines(sym, tf="15m", n=96):
                  "l": float(k[3]), "c": float(k[4])} for k in json.loads(r.read())]
 
 
+def tehran(ms=None):
+    """ساعت تهران — تحلیل و ارسال روی هر پیام تا تأخیر قابل راستی‌آزمایی باشد."""
+    t = time.gmtime((((ms if ms else time.time() * 1000)) / 1000) + 3.5 * 3600)
+    return time.strftime("%H:%M", t)
+
+
 def watermark(ax):
     """امضای کانال حمید — Trade_Osuli — پشت کندل‌ها، کم‌رنگ و تمیز؛ تبلیغ
     هست ولی دید چارت را اشغال نمی‌کند (خواستهٔ خودش، کلمه به کلمه)."""
@@ -86,7 +92,7 @@ def collect():
     for s in h.get("setups", []):
         if s.get("waiting"):
             continue
-        out.append({"key": f"hamid|{s['symbol']}|{s['dir']}",
+        out.append({"key": f"hamid|{s['symbol']}|{s['dir']}", "analyzed_at": h.get("generated"),
                     "sym": s["symbol"], "dir": s["dir"], "tf": "15m",
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": "روش حمید — پولبک دوم", "elite": False, "usdt": usdt})
@@ -95,7 +101,7 @@ def collect():
     except Exception:                                  # noqa: BLE001
         r = {}
     for s in r.get("signals", []):
-        out.append({"key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}",
+        out.append({"key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}", "analyzed_at": r.get("generated"),
                     "sym": s["sym"], "dir": s["dir"], "tf": s.get("tf", "15m"),
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": s.get("strategyName", ""), "elite": bool(s.get("elite")),
@@ -134,6 +140,7 @@ def main():
                f"ورود: {s['entry']}\nاستاپ: {s['sl']}\n"
                f"تارگت۱: {s['tp1']}" + (f"\nتارگت۲: {s['tp2']}" if s.get("tp2") else "") +
                (f"\nدامیننس تتر: {s['usdt']}٪" if s.get("usdt") else "") +
+               f"\n🕐 تحلیل {tehran(s.get('analyzed_at'))} · ارسال {tehran()} — به وقت ایران" +
                f"\n\nپنل: auraliam18.github.io/.sognal")
         try:
             # چارت ۵ دقیقه — خواستهٔ حمید؛ کندل‌های ضمیمه فقط جایگزین اضطراری
