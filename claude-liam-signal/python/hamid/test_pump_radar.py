@@ -214,8 +214,10 @@ hist_blocks = [
     {"symbol": "FOLUSDT", "pumps": [{"i": 53, "t": 103 * H, "ret_4h_pct": 9.0, "vol_z": 3.0}],
      "followers": [], "leaders": [{"symbol": "LEADUSDT", "n": 3}]},
 ]
-n1 = pr.update_history(hist_blocks)
+n1, fresh1 = pr.update_history(hist_blocks)
 check("رخدادها ثبت شدند", n1 == 3)
+check("رخدادهای تازه برای گزارش به ایجنت برگشتند",
+      len(fresh1) == 3 and all(s in ("LEADUSDT", "FOLUSDT") for s, _ in fresh1))
 led = json.loads(pr.HIST.read_text())
 ev = led["symbols"]["LEADUSDT"]["events"]
 check("جدیدترین اول و تاریخ تهران دارد", ev[0]["t"] == 200 * H and ev[0]["date"])
@@ -223,9 +225,18 @@ old = next(e for e in ev if e["t"] == 100 * H)
 check("واکنش دنباله‌رو با فاصلهٔ ساعتی ثبت شد",
       old["reactions"] and old["reactions"][0]["symbol"] == "FOLUSDT"
       and old["reactions"][0]["lag_h"] == 3.0)
-n2 = pr.update_history(hist_blocks)
-check("اجرای دوباره رخداد تکراری نمی‌سازد", n2 == 3)
+n2, fresh2 = pr.update_history(hist_blocks)
+check("اجرای دوباره رخداد تکراری نمی‌سازد", n2 == 3 and not fresh2)
 check("خلاصهٔ تاریخچه روی بلوک نشست", hist_blocks[0].get("history"))
+# «پاک نشود» — ۶۰ رخداد قدیمی هم بعد از اجرای تازه باید سر جایشان بمانند
+many = {"symbols": {"OLDUSDT": {"events": [
+    {"t": i * H, "date": "x", "ret_4h_pct": 12.0, "reactions": []}
+    for i in range(60)], "updated": 1}}}
+pr.HIST.write_text(json.dumps(many))
+n3, _ = pr.update_history(hist_blocks)
+led3 = json.loads(pr.HIST.read_text())
+check("هیچ رخداد قدیمی‌ای پاک نمی‌شود (بدون سقف)",
+      len(led3["symbols"]["OLDUSDT"]["events"]) == 60 and n3 == 63)
 
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)

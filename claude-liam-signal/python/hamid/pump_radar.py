@@ -367,6 +367,7 @@ def update_history(blocks):
         led = {"symbols": {}}
     syms = led.setdefault("symbols", {})
     bmap = {b["symbol"]: b for b in blocks}
+    fresh = []                                        # (sym, event) های تازه‌ثبت‌شده
     for b in blocks:
         if not b.get("pumps"):
             continue
@@ -389,24 +390,24 @@ def update_history(blocks):
                 old.setdefault("reactions", []).extend(
                     r for r in reacts if r["symbol"] not in have)
                 continue
-            rec["events"].append({"t": e["t"], "date": _teh_date(e["t"]),
-                                  "ret_4h_pct": e["ret_4h_pct"],
-                                  "vol_z": e.get("vol_z"),
-                                  "reactions": reacts})
-        rec["events"] = sorted(rec["events"], key=lambda x: -x["t"])[:40]
+            ev = {"t": e["t"], "date": _teh_date(e["t"]),
+                  "ret_4h_pct": e["ret_4h_pct"],
+                  "vol_z": e.get("vol_z"),
+                  "reactions": reacts}
+            rec["events"].append(ev)
+            fresh.append((b["symbol"], ev))
+        # دستور صریح حمید: «پاک نشود» — هیچ سقفی، هیچ حذفی؛ فقط مرتب‌سازی
+        rec["events"] = sorted(rec["events"], key=lambda x: -x["t"])
         rec["updated"] = int(time.time() * 1000)
         # خلاصهٔ خوانا روی خود بلوک — پنل و تلگرام همین را نشان می‌دهند
         b["history"] = [
             {"date": ev["date"], "ret_4h_pct": ev["ret_4h_pct"],
              "reactions": ev.get("reactions") or []}
             for ev in rec["events"][:3]]
-    if len(syms) > 200:
-        for k in sorted(syms, key=lambda k: syms[k].get("updated", 0))[:len(syms) - 200]:
-            del syms[k]
     led["updated"] = int(time.time() * 1000)
     HIST.parent.mkdir(exist_ok=True)
     HIST.write_text(json.dumps(led, ensure_ascii=False, indent=1))
-    return sum(len(r["events"]) for r in syms.values())
+    return sum(len(r["events"]) for r in syms.values()), fresh
 
 
 def entry_point(c15):
@@ -690,9 +691,10 @@ def reapply(backup_dir):
             for sym, rec in ours.items():
                 trec = theirs.setdefault(sym, {"events": []})
                 have = {e["t"] for e in trec["events"]}
+                # «پاک نشود» — اجتماع کامل، بدون سقف
                 trec["events"] = sorted(
                     trec["events"] + [e for e in rec["events"] if e["t"] not in have],
-                    key=lambda x: -x["t"])[:40]
+                    key=lambda x: -x["t"])
                 trec["updated"] = max(trec.get("updated", 0), rec.get("updated", 0))
             HIST.parent.mkdir(exist_ok=True)
             HIST.write_text(json.dumps({"symbols": theirs,
@@ -800,10 +802,41 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                 add(f3["symbol"], 3, via=f["symbol"], with_related=False)
 
     # دفتر ماندگار تاریخچهٔ پامپ‌ها — هر رخداد یک بار ثبت و برای همیشه نگه
-    # داشته می‌شود؛ خلاصهٔ خوانا هم روی بلوک می‌نشیند (پنل + تلگرام)
+    # داشته می‌شود («پاک نشود»)؛ خلاصهٔ خوانا هم روی بلوک می‌نشیند
+    past_reports = []
     try:
-        n_h = update_history(blocks)
-        print(f"دفتر تاریخچهٔ پامپ: {n_h} رخداد ثبت‌شده تا امروز")
+        n_h, fresh_evs = update_history(blocks)
+        print(f"دفتر تاریخچهٔ پامپ: {n_h} رخداد ثبت‌شده تا امروز"
+              + (f" ({len(fresh_evs)} تازه)" if fresh_evs else ""))
+        # وظیفهٔ ثابت (دستور حمید): گذشتهٔ هر ارزِ تازه‌پامپ‌شده چک و به خود
+        # ایجنت گزارش شود — اتاق یادگیری + حافظه + گزارش JSON، نه فقط تلگرام.
+        bmap_h = {b["symbol"]: b for b in blocks}
+        for sym, ev in fresh_evs:
+            b = bmap_h.get(sym) or {}
+            hist = b.get("history") or []
+            n_all = len((json.loads(HIST.read_text())["symbols"].get(sym) or {})
+                        .get("events", [])) if HIST.exists() else len(hist)
+            fols = [f["symbol"] for f in (b.get("followers") or [])
+                    if (f.get("n") or 0) >= 2][:3]
+            m = b.get("match")
+            rpt = (f"پامپ تازهٔ {sym} ({ev['date']}، +{ev['ret_4h_pct']}٪): "
+                   f"در گذشته {n_all} پامپ ثبت‌شده"
+                   + (f"؛ شبیه‌ترین پامپ قبلی {m['corr_pct']}٪ همخوان و بعدش "
+                      f"{m['then_24h_pct']:+}٪ رفت" if m else "")
+                   + (f"؛ دنباله‌روهای تاریخی‌اش: {'، '.join(fols)}" if fols
+                      else "؛ دنباله‌روی تاریخی معناداری ندارد"))
+            past_reports.append({"symbol": sym, "event": ev, "report": rpt})
+            try:
+                import brain
+                brain.room_log("learning", rpt, "pump-past")
+            except Exception:                        # noqa: BLE001
+                pass
+            try:
+                from hamid import memory as _mem
+                _mem.remember("تحلیل", sym, rpt, {"ret": ev["ret_4h_pct"]})
+            except Exception:                        # noqa: BLE001
+                pass
+            print(f"  📜 {rpt}")
     except Exception as e:                           # noqa: BLE001
         print(f"دفتر تاریخچه: {type(e).__name__}: {e}")
 
@@ -912,6 +945,7 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         "universe_n": len(uni),
         "coins": blocks,
         "recommendation": picks,
+        "past_reports": past_reports,
         "window_closed": [{"symbol": p["symbol"], "why": p["expired_reason"]}
                           for p in expired_picks],
         "already_pumped": skipped,
