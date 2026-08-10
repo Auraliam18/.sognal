@@ -3966,41 +3966,58 @@ const GRAPH_NODES=[
   desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور می‌خواند؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."},
  {id:"medic",x:740,y:16,w:190,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
   desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی را به تلگرام هشدار می‌دهد."}];
+/* یال پزشک نقطه‌چین است: کنترل است نه داده. tg→panel حذف شد — پنل از
+   فایل‌های منتشرشدهٔ چرخه می‌خواند، نه از تلگرام (نقد طراح: فلش دروغ بود). */
 const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],
  ["cycle","sup"],["cycle","mem"],["mem","sup"],["sup","tg"],
  ["scan","tg"],["scan","paper"],["cycle","paper"],["radar","alarm"],
- ["alarm","tg"],["paper","mem"],["paper","review"],["tg","panel"],["medic","radar"]];
+ ["alarm","tg"],["paper","mem"],["paper","review"],["cycle","panel"],
+ ["medic","radar"],["medic","cycle"],["medic","scan"]];
 function graphAge(n){
   if(!n.fresh)return null;
   const g=n.fresh();if(!g)return Infinity;
   return (Date.now()-g)/60000;
 }
+const faNum=s=>String(s).replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[d]);
 function renderGraph(){
   const el=$("#graphOut");if(el===null)return;
   const dot=a=>a==null?"#8b98ab":a===Infinity?"#e74c3c":a<=45?"#2ecc71":a<=120?"#f0a92e":"#e74c3c";
-  const ageTxt=a=>a==null?"":a===Infinity?" · بی‌خبر":a<1?" · الان":` · ${Math.round(a)}د پیش`;
+  const ageTxt=a=>a==null?"":a===Infinity?" · بی‌خبر":a<1?" · الان":` · ${faNum(Math.round(a))}د پیش`;
   const P=id=>GRAPH_NODES.find(n=>n.id===id);
+  // فن-این: چند یال به یک مقصد، نوک‌هایشان کنار هم بنشیند نه روی هم
+  const inCount={},inSeen={};
+  GRAPH_EDGES.forEach(([a,b])=>inCount[b]=(inCount[b]||0)+1);
   const edges=GRAPH_EDGES.map(([a,b])=>{const A=P(a),B=P(b);
-    const x1=A.x+A.w/2,y1=A.y+A.h,x2=B.x+B.w/2,y2=B.y;
+    const col=a==="medic"?"rgba(240,169,46,.55)":dot(graphAge(A));
+    const dash=a==="medic"?' stroke-dasharray="4 4"':'';
+    const k=(inSeen[b]=(inSeen[b]||0)+1)-1;
+    if(A.y===B.y){ // هم‌ردیف: از پهلو، صاف — نه شیرجه از میان سلول دیگر
+      const L=A.x<B.x, x1=L?A.x+A.w:A.x, x2=L?B.x:B.x+B.w, y=A.y+A.h/2;
+      return `<path d="M${x1},${y} C${(x1+x2)/2},${y-14} ${(x1+x2)/2},${y-14} ${x2},${y}"
+        fill="none" stroke="${col}" stroke-opacity=".5" stroke-width="1.8"${dash} marker-end="url(#gfArrow)"/>`;}
+    const x1=A.x+A.w/2, y1=A.y+A.h;
+    const x2=B.x+B.w/2+(k-(inCount[b]-1)/2)*24, y2=B.y;
     const my=(y1+y2)/2;
     return `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"
-      fill="none" stroke="rgba(140,160,190,.35)" stroke-width="1.4" marker-end="url(#gfArrow)"/>`;}).join("");
+      fill="none" stroke="${col}" stroke-opacity=".5" stroke-width="1.8"${dash} marker-end="url(#gfArrow)"/>`;}).join("");
   const nodes=GRAPH_NODES.map(n=>{const a=graphAge(n);
     return `<g class="gfNode" data-id="${n.id}" style="cursor:pointer">
       <rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10"
         fill="#111a26" stroke="${dot(a)}" stroke-opacity=".55" stroke-width="1.3"/>
       <circle cx="${n.x+16}" cy="${n.y+n.h/2}" r="4.5" fill="${dot(a)}"/>
       <text x="${n.x+n.w/2+8}" y="${n.y+n.h/2-4}" text-anchor="middle" fill="#e6edf3"
-        font-size="13" font-weight="bold">${n.label}</text>
+        font-size="13" font-weight="bold" direction="rtl" unicode-bidi="embed">${n.label}</text>
       <text x="${n.x+n.w/2+8}" y="${n.y+n.h/2+13}" text-anchor="middle" fill="#8b98ab"
-        font-size="10">${n.sub}${ageTxt(a)}</text></g>`;}).join("");
+        font-size="10" direction="rtl" unicode-bidi="embed">${n.sub}${ageTxt(a)}</text></g>`;}).join("");
   el.innerHTML=`<div class="box" style="overflow-x:auto"><svg viewBox="0 0 1000 420"
     style="width:100%;min-width:720px;direction:ltr">
     <defs><marker id="gfArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-      <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.5)"/></marker></defs>
+      <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.6)"/></marker></defs>
     ${edges}${nodes}</svg>
     <div class="dim" style="font-size:10.5px;margin-top:4px">
-      🟢 تازه · 🟡 دیر شده · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم — هر ۵ ثانیه به‌روز می‌شود</div></div>`;
+      🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
+      خط نقطه‌چین = پایش پزشک · رنگ هر خط از تازگیِ مبدأش می‌آید — هر ۵ ثانیه به‌روز</div></div>`;
+  const bx=el.querySelector("div.box");if(bx)bx.scrollLeft=0;
   el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
     const n=P(g.dataset.id);const info=$("#graphInfo");
     info.style.display="";
