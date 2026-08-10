@@ -378,10 +378,21 @@ def merge_alarms(picks):
         return
     import brain
     st = brain.room_load("radar", {}) or {}
-    al = [a for a in (st.get("alarms") or [])
-          if not (a.get("strategy") == "pump-radar"
-                  and a.get("sym") in {p["symbol"] for p in picks})]
+    pick_syms = {p["symbol"] for p in picks}
+    al, keep_fired = [], set()
+    for a in (st.get("alarms") or []):
+        if a.get("strategy") == "pump-radar" and a.get("sym") in pick_syms:
+            # بازبینی کد: آلارم فعال‌شده/باطل‌شده نباید هر نیم‌ساعت دوباره
+            # مسلح شود — سیگنال و معاملهٔ کاغذی تکراری می‌ساخت. فقط ARMED
+            # قدیمی با نسخهٔ تازه جایگزین می‌شود.
+            if a.get("stage") in ("TRIGGERED", "DEAD"):
+                al.append(a)
+                keep_fired.add(a["sym"])
+            continue
+        al.append(a)
     for p in reversed(picks):
+        if p["symbol"] in keep_fired:
+            continue
         al.insert(0, {"sym": p["symbol"], "tf": "15m", "dir": "LONG",
                       "strategy": "pump-radar", "strategyName": "پامپ رادار خوشه‌ای",
                       "price": p["entry"], "now": p["price"],

@@ -12,6 +12,7 @@
    بگیرند، نه متن خام.
 """
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -25,10 +26,17 @@ KNOWN = ROOT / "brain" / "known-symbols.json"
 NEWS_BUCKETS = [
     ("لیست‌شدن/لانچ", ("list", "launch", "debut", "airdrop", "ieo", "ido", "mainnet")),
     ("هک/امنیت", ("hack", "exploit", "stolen", "breach", "drain", "rug")),
-    ("قانون‌گذاری", ("sec", "etf", "regulat", "lawsuit", "ban", "court", "license")),
+    ("قانون‌گذاری", ("sec", "etf", "regulat", "lawsuit", "ban", "banned", "court", "license")),
     ("نهنگ/جریان پول", ("whale", "outflow", "inflow", "transfer", "liquidat", "treasury")),
     ("کلان/فدرال", ("fed", "rate", "cpi", "inflation", "fomc", "treasur", "dollar")),
 ]
+
+
+def _hit(text, k):
+    """با مرز کلمه — بازبینی کد: «ban» داخل bank و «ido» داخل video و «sec»
+    داخل second دستهٔ غلط می‌ساخت. کلیدهای کوتاه کلمهٔ کامل، بلندها پیشوند."""
+    pat = rf"\b{re.escape(k)}\b" if len(k) <= 4 else rf"\b{re.escape(k)}"
+    return re.search(pat, text) is not None
 
 
 def classify_news(hot):
@@ -38,7 +46,7 @@ def classify_news(hot):
         t = (it.get("title") or "").lower()
         cat, room = "عمومی", None
         for name, keys in NEWS_BUCKETS:
-            if any(k in t for k in keys):
+            if any(_hit(t, k) for k in keys):
                 cat = name
                 room = "learn" if name in ("لیست‌شدن/لانچ", "نهنگ/جریان پول") else "intel"
                 break
@@ -47,19 +55,26 @@ def classify_news(hot):
     return out
 
 
-def new_listings(tickers, keep=400):
+def new_listings(tickers, venue=None):
     """دیفِ نمادها با حافظهٔ دیروز — نماد تازه = لانچ/لیست تازه در صرافی.
-    اولین اجرا فقط حافظه می‌سازد و ادعای «تازه» نمی‌کند (وگرنه ۴۰۰ نماد
-    قدیمی را کشف تازه جا می‌زدیم)."""
+
+    دو قید صداقت (بازبینی کد): اولین اجرا فقط حافظه می‌سازد و ادعای «تازه»
+    نمی‌کند؛ و اگر صرافیِ سرویس‌دهنده عوض شده باشد (fallback منابع)، دیفْ
+    تفاوتِ دو صرافی است نه لانچ تازه — پایه از نو ساخته می‌شود، بدون ادعا."""
     syms = sorted({t.get("symbol") for t in tickers or []
-                   if t.get("symbol") and t["symbol"].endswith("USDT")})[:2000]
+                   if t.get("symbol") and t["symbol"].endswith("USDT")})
     try:
         prev = json.loads(KNOWN.read_text())
     except Exception:                                # noqa: BLE001
         prev = None
     KNOWN.parent.mkdir(parents=True, exist_ok=True)
-    KNOWN.write_text(json.dumps({"at": int(time.time() * 1000), "symbols": syms}))
+    KNOWN.write_text(json.dumps({"at": int(time.time() * 1000),
+                                 "venue": venue, "symbols": syms}))
     if not prev or not prev.get("symbols"):
         return {"first_run": True, "new": []}
-    fresh = [s for s in syms if s not in set(prev["symbols"])]
+    if venue and prev.get("venue") and prev["venue"] != venue:
+        return {"first_run": True, "new": [],
+                "note": f"منبع تیکر عوض شد ({prev['venue']} ← {venue}) — پایه از نو"}
+    prev_set = set(prev["symbols"])
+    fresh = [s for s in syms if s not in prev_set]
     return {"first_run": False, "new": fresh[:12]}

@@ -103,17 +103,19 @@ def consult(sym, direction, strategy="second"):
     except Exception:                                # noqa: BLE001 - بدون ایندکس، بدون ادعا
         rec = {"verdict": "thin"}
     ls = lessons(sym=sym, limit=3)
-    note, adj = None, 0.0
+    note, adj, verdict = None, 0.0, rec.get("verdict")
     s = rec.get("symbol")
     if s:
         note = (f"حافظه: {s['n']} مورد مشابه همین ارز/جهت — "
                 f"برد {s['hit']}٪، میانگین {s['ev']:+.2f}R")
+        # حکم رتبه‌ای را خودمان از n و ev می‌سازیم — بازبینی کد: brain.recall
+        # فقط از ۱۲ مورد حکم می‌دهد و کف ۸ موردِ مستندشده عملاً کد مرده بود.
         if s["n"] >= 8:
-            if rec.get("verdict") == "good":
-                adj = 0.05
-            elif rec.get("verdict") == "bad":
-                adj = -0.08
+            if s["ev"] > 0.05:
+                adj, verdict = 0.05, "good"
+            elif s["ev"] < -0.05:
+                adj, verdict = -0.08, "bad"
     elif ls:
         note = "حافظهٔ آماری نازک؛ آخرین تجربهٔ این ارز: " + ls[0]["text"][:90]
-    return {"note": note, "adj": adj, "verdict": rec.get("verdict"),
+    return {"note": note, "adj": adj, "verdict": verdict,
             "lessons": [l["text"] for l in ls]}
