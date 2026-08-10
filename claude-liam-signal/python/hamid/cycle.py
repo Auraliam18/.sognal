@@ -496,6 +496,19 @@ def review_cycle():
     return entry
 
 
+def _method_record():
+    """رکورد روش، زنده از دفتر — عدد هاردکد با رشد دفتر دروغ می‌شد (داور)."""
+    try:
+        eq = json.loads((ROOT / "brain" / "paper" / "equity.json").read_text())
+        n, w = eq.get("trades"), eq.get("win_pct")
+        if n:
+            return (f"رکورد این روش تا حالا: {n} معاملهٔ واقعی، {w}٪ برد — "
+                    "بازهٔ اطمینان هنوز ادعای لبه نمی‌دهد؛ سایز کوچک.")
+    except Exception:                                # noqa: BLE001
+        pass
+    return "رکورد این روش هنوز در حال جمع شدن است — سایز کوچک."
+
+
 def _tg_chart(s, path):
     """چارت ۵ دقیقه با واترمارک Trade_Osuli برای ارسال لحظه‌ای — اگر matplotlib
     روی رانر نبود، متن خالی می‌رود ولی سیگنال گم نمی‌شود."""
@@ -539,9 +552,7 @@ def _for_telegram(x):
                   "touches": x["on_level"]["touches"]},
         "footer": (f"<i>فاصلهٔ استاپ {x.get('stop_pct')}٪. "
                    f"{x.get('why','')}</i>\n"
-                   "<i>این روش تا الان روی ۴۳ معاملهٔ واقعی ۴۶٫۵٪ برد و +۰٫۱۸۴R داده، "
-                   "ولی بازهٔ اطمینان صفر را در بر می‌گیرد — یعنی هنوز لبهٔ ثابت‌شده "
-                   "نیست. سایز را کوچک نگه دار.</i>"),
+                   f"<i>{_method_record()}</i>"),
     }
 
 
@@ -797,6 +808,7 @@ def main():
         ctx["usdt_dom"] = g.get("usdt_dominance")
         ctx["btc_dom"] = g.get("btc_dominance")
         ctx["mode"] = mode
+        ctx["relax"] = pace.get("relax")   # هزینهٔ هدف ۱۵تایی باید سنجیدنی باشد (داور)
         # همان چیزی که موقع باز کردن معامله در دنیا می‌گذشت — بعداً حلقهٔ
         # یادگیری از روی همین قضاوت می‌کند که چه چیزی واقعاً مهم بوده.
         fnd = (world.get("funding") or {})

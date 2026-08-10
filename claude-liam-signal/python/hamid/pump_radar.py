@@ -349,6 +349,12 @@ def recommend(blocks, hot=None):
                             f"{' ' if c30 and c30 >= 10 and c24 and c24 >= 10 else ''}"
                             f"{'+%s٪/24س' % c24 if c24 and c24 >= 10 else ''}) — دیر است، سیگنال نیست")
             continue
+        # داور بیرونی: قول spec («فقط دنباله‌رو با ۲+ سابقه») در کد نبود —
+        # حالا شرط سخت است، همان‌طور که حمید گفت.
+        strong_leaders = [l for l in (b.get("leaders") or []) if (l.get("n") or 0) >= 2]
+        if b.get("role") != "دنباله‌رو" or not strong_leaders:
+            b["skipped"] = "رابطهٔ خوشه‌ای اثبات‌شده ندارد (۲+ سابقهٔ دنباله‌روی) — پیشنهاد نمی‌شود"
+            continue
         s, why = 0, []
         if b["symbol"].replace("USDT", "") and b.get("leaders") and \
                 any(l["symbol"] in hot for l in b["leaders"]):
@@ -676,6 +682,19 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     }
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(report, ensure_ascii=False, indent=1))
+    # دفتر نمرهٔ پیشنهادها (داور: precision پیشنهاد هیچ‌جا نمره نمی‌شد) —
+    # هر pick با قیمت لحظه ثبت می‌شود تا اسکریپت نمره‌دهی بعداً بسنجد چند
+    # درصدشان واقعاً در پنجره پریدند.
+    try:
+        with (ROOT / "brain" / "pump-picks.jsonl").open("a") as f:
+            for p in picks:
+                f.write(json.dumps({"t": report["generated"], "sym": p["symbol"],
+                                    "entry": p["entry"], "price": p["price"],
+                                    "score": p["score"],
+                                    "expires_at": p.get("expires_at")},
+                                   ensure_ascii=False) + "\n")
+    except Exception as e:                           # noqa: BLE001
+        print(f"دفتر پیشنهادها: {type(e).__name__}")
     print(f"خروجی: {OUT.relative_to(ROOT)} · {len(blocks)} ارز در ۳ لایه")
 
     try:
