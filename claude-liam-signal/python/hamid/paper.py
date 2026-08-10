@@ -96,9 +96,11 @@ def experience_index(min_n=12):
     for t in _read(CLOSED):
         if t.get("R") is None or t.get("outcome") == "expired":
             continue
-        # میز تمرین عمداً دروازهٔ شل دارد و قولش «دفتر جدا» بود — بازبینی کد:
-        # باخت‌های تمرینی نباید سیگنال واقعی همان ارز را وتو کنند.
-        if (t.get("why") or {}).get("stage") == "practice":
+        # داور بیرونی: وتو فقط از دفترهای هم‌جنسِ سیگنال واقعی — تمرینِ
+        # دروازه‌شل و آزمایش‌ها (پولبک اول/ایندوسمنت) و وتوشده‌ها معیار
+        # منصفانه‌ای برای رد سیگنال واقعی همان ارز نیستند.
+        if (t.get("why") or {}).get("stage") in ("practice", "first",
+                                                 "inducement", "vetoed"):
             continue
         idx.setdefault((t["sym"], t["dir"]), []).append(t["R"])
     out = {}
@@ -226,6 +228,13 @@ def mark():
             continue
 
         p["outcome"], p["R"] = done[0], round(done[1], 4)
+        # R خالص با کارمزد+لغزش ~۰.۰۵٪ هر طرف — روی استاپ تنگ چند دهم R است
+        try:
+            fee_r = 0.001 * p["entry"] / abs(p["entry"] - p["sl"])
+            p["fee_r"] = round(fee_r, 4)
+            p["R_net"] = round(p["R"] - fee_r, 4)
+        except Exception:                            # noqa: BLE001
+            pass
         p["closed"] = int(now)
         _append(CLOSED, p)
         closed += 1
@@ -318,15 +327,32 @@ def _equity():
 
 # ── learning from the right reasons ────────────────────────────────────────
 
-def _boot_diff(a, b, n=3000, alpha=0.05):
-    """Interval around mean(a) − mean(b), at the given alpha."""
+def _boot_diff(a, b, n=3000, alpha=0.05, days_a=None, days_b=None):
+    """Interval around mean(a) − mean(b), at the given alpha.
+
+    داور بیرونی: معامله‌های یک روز هم‌حرکت‌اند (بتای BTC، ستاپ تکراری) و
+    بوت‌استرپ i.i.d نمونهٔ متورم می‌سازد. وقتی روزها داده شوند، بلوکی
+    (به‌روز) نمونه‌گیری می‌شود؛ بدون روز، همان رفتار قبلی می‌ماند."""
     if len(a) < 8 or len(b) < 8:
         return None
+
+    def draw(vals, days):
+        if not days or len(set(days)) < 3:
+            return [random.choice(vals) for _ in range(len(vals))]
+        byday = {}
+        for v, d in zip(vals, days):
+            byday.setdefault(d, []).append(v)
+        keys = list(byday)
+        out = []
+        while len(out) < len(vals):
+            out += byday[random.choice(keys)]
+        return out[:len(vals)]
+
     diffs = []
     for _ in range(n):
-        ma = sum(random.choice(a) for _ in range(len(a))) / len(a)
-        mb = sum(random.choice(b) for _ in range(len(b))) / len(b)
-        diffs.append(ma - mb)
+        sa = draw(a, days_a)
+        sb = draw(b, days_b)
+        diffs.append(sum(sa) / len(sa) - sum(sb) / len(sb))
     diffs.sort()
     return diffs[int(n * alpha / 2)], diffs[int(n * (1 - alpha / 2))]
 
@@ -350,6 +376,8 @@ CONDITIONS = [
     ("نقدینگی خلاف جهت بود", lambda w: w.get("liq") == "against"),
     # پرسش پروندهٔ زاما: استاپ خیلی تنگ بیشتر استاپ می‌خورد؟
     ("استاپ زیر ۰.۶٪", lambda w: (w.get("stop_pct") or 9) < 0.6),
+    # هزینهٔ هدف «۱۵ در روز»: سیگنالی که با آستانهٔ شل‌شده باز شد بدتر است؟
+    ("با آستانهٔ شل باز شد", lambda w: (w.get("relax") or 0) >= 0.05),
     ("استاپ < ۲٪", lambda w: (w.get("stop_pct") or 99) < 2),
     ("ترس شدید (<۳۰)", lambda w: (w.get("fear") or 50) < 30),
     ("فاندینگ مثبت", lambda w: (w.get("funding") or 0) > 0),
@@ -369,7 +397,10 @@ def reasons(verbose=True):
     Both numbers are printed, because the uncorrected one is what a naive
     version of this would have believed, and seeing the gap is the point.
     """
-    trades = [t for t in _read(CLOSED) if t.get("R") is not None]
+    _siggrade = lambda st: (st not in ("practice", "first", "inducement", "vetoed"))  # noqa: E731
+    trades = [t for t in _read(CLOSED)
+              if t.get("R") is not None
+              and _siggrade((t.get("why") or {}).get("stage") or "")]
     if len(trades) < 20:
         if verbose:
             print(f"\nفقط {len(trades)} معاملهٔ بسته‌شده — برای نتیجه‌گیری کم است.")
@@ -386,16 +417,21 @@ def reasons(verbose=True):
         print(f"{'شرط':<26}{'با':>10}{'بدون':>10}{'تفاوت':>10}   تصحیح‌شده")
         print("─" * 84)
 
+    def _day(t):
+        return int((t.get("closed") or 0) // 86_400_000)
+
     for name, fn in CONDITIONS:
-        a = [t["R"] for t in trades if fn(t.get("why") or {})]
-        b = [t["R"] for t in trades if not fn(t.get("why") or {})]
+        ta = [t for t in trades if fn(t.get("why") or {})]
+        tb = [t for t in trades if not fn(t.get("why") or {})]
+        a, da = [t["R"] for t in ta], [_day(t) for t in ta]
+        b, db = [t["R"] for t in tb], [_day(t) for t in tb]
         if len(a) < 8 or len(b) < 8:
             if verbose:
                 print(f"{name:<26}{len(a):>10}{len(b):>10}       نمونهٔ کم")
             continue
         ea, eb = statistics.fmean(a), statistics.fmean(b)
-        raw = _boot_diff(a, b, alpha=0.05)
-        adj = _boot_diff(a, b, alpha=alpha_adj)
+        raw = _boot_diff(a, b, alpha=0.05, days_a=da, days_b=db)
+        adj = _boot_diff(a, b, alpha=alpha_adj, days_a=da, days_b=db)
         survives = adj and (adj[0] > 0 or adj[1] < 0)
         raw_only = raw and (raw[0] > 0 or raw[1] < 0) and not survives
         mark_s = "✓ دلیل واقعی" if survives else \
