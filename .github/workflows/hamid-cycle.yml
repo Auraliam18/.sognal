@@ -64,6 +64,11 @@ jobs:
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.selfcheck
 
+      # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
+      # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.
+      - name: matplotlib برای چارت سیگنال
+        run: pip -q install matplotlib
+
       - name: Run the cycle
         working-directory: claude-liam-signal/python
         env:

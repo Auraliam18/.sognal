@@ -136,6 +136,9 @@ def caption(s):
         L.append(f"🧠 <i>{s['memory']}</i>")
     if s.get("liq_note"):
         L.append(f"💧 <i>{s['liq_note']}</i>")
+    # نقشهٔ لیکوییدیشن — خوشه‌های تخمینی از کندل واقعی، سبک نقشهٔ kCEX
+    if s.get("liqmap_note"):
+        L.append(f"<i>{s['liqmap_note']}</i>")
     # ساعت تحلیل و ساعت ارسال، به وقت ایران — تا تأخیر قابل راستی‌آزمایی باشد
     an = s.get("analyzed_at")
     L.append((f"🕐 تحلیل <code>{tehran(an)}</code> · " if an else "🕐 ")
