@@ -250,7 +250,10 @@ def gather(deep=False, quiet=False):
                            "intel")
 
     if deep:
-        topics = ["crypto market outlook today", "bitcoin news last 24 hours"]
+        # kCEX API عمومی شناخته‌شده ندارد — گزارش‌های ۴ساعته‌اش را از وب
+        # شکار می‌کنیم؛ پوشش صادقانه است نه فید مستقیم.
+        topics = ["crypto market outlook today", "bitcoin news last 24 hours",
+                  "kcex exchange 4h market report"]
         tr = data.get("trending") or []
         if tr:
             topics.append(f"{tr[0]['symbol']} crypto news")
