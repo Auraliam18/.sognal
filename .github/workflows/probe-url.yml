@@ -1,0 +1,21 @@
+# ابزار تشخیص: یک URL را از رانر ابری امتحان می‌کند — برای وقتی که کانتینر
+# ایجنت به مقصدی راه ندارد ولی باید صادقانه بداند بالا هست یا نه.
+name: Probe URL
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "آدرس برای تست"
+        required: true
+permissions: {}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: تست
+        run: |
+          U=$(jq -r '.inputs.url' "$GITHUB_EVENT_PATH")
+          echo "GET $U"
+          curl -sS -o /tmp/body -w "HTTP %{http_code} · %{size_download}B · %{time_total}s\n" "$U" || true
+          head -c 300 /tmp/body; echo
