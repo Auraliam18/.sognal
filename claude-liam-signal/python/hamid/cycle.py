@@ -845,9 +845,10 @@ def main():
     if mode == "active" and report.get("setups"):
         try:
             import telegram
-            sent = telegram.send_signals(
-                [_for_telegram(x) for x in report["setups"] if not x.get("waiting")],
-                _tg_chart)                          # چارت ۵د با واترمارک Trade_Osuli
+            outs = [_for_telegram(x) for x in report["setups"] if not x.get("waiting")]
+            for s_ in outs:
+                s_["analyzed_at"] = report["generated"]
+            sent = telegram.send_signals(outs, _tg_chart)   # چارت ۵د + واترمارک
             report["telegram"] = sent
             if sent:
                 act(f"{sent} سیگنال با چارت به تلگرام فرستاده شد")
@@ -936,6 +937,7 @@ def main():
                            "tp1": round(px + sgn * 1.6 * av, 10),
                            "tp2": round(px + sgn * 2.4 * av, 10), "rr": 2.0,
                            "memory": mem_note,
+                           "analyzed_at": al.get("triggered_at"),
                            # همیشه «alarm» — بازبینی کد: با استراتژی اصلی (ibs/smc)
                            # سهمیهٔ پرشده آلارم را می‌انداخت و قول «رسید=سیگنال» می‌شکست
                            "strategy": "alarm",

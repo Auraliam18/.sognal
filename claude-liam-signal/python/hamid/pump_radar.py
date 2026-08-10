@@ -451,6 +451,7 @@ def tg_message(source, picks, blocks):
               if b["symbol"] not in {p["symbol"] for p in picks}][:6]
     if others:
         L.append("زیر نظر: " + "، ".join(others))
+    L.append(f"🕐 تحلیل و ارسال <code>{tg.tehran()}</code> — به وقت ایران")
     L.append("<i>آلارم روی نقطهٔ ورود ثبت شد — با رسیدن قیمت، بازبینی و سیگنال. "
              "نمونهٔ پامپ کم است؛ این مشاهده است، نه قانون.</i>")
     return "\n".join(L)
