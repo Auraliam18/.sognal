@@ -128,6 +128,8 @@ def caption(s):
     # عددی حافظه دربارهٔ همین ارز/جهت، روی خود پیام، تا تصمیم با تجربه باشد.
     if s.get("memory"):
         L.append(f"🧠 <i>{s['memory']}</i>")
+    if s.get("liq_note"):
+        L.append(f"💧 <i>{s['liq_note']}</i>")
     L.append("")
     L.append(f"ورود    <code>{s['entry']:.10g}</code>")
     L.append(f"استاپ   <code>{s['sl']:.10g}</code>")
@@ -180,6 +182,18 @@ def send_signals(signals, render_chart, limit=8):
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
+    # سهمیهٔ مشترک بین همهٔ فرستنده‌ها — ۱۰ در هر پنجرهٔ ۱۲ ساعته (~۲۰ در روز).
+    # بعد از فعال شدن Secrets، اسکن زنده در یک روز ۲۵ سیگنال IBS فرستاد؛ سیل
+    # سیگنال همان‌قدر بی‌ارزش است که سکوت. بالای سهمیه فقط الیت و آلارم می‌رود.
+    if len(sent) >= 10:
+        keep = [s for s in fresh
+                if s.get("elite") or s.get("strategy") in ("alarm", "pump-radar")]
+        if len(keep) < len(fresh):
+            print(f"telegram: سهمیهٔ روز پر است ({len(sent)} در ۱۲ ساعت) — "
+                  f"{len(fresh) - len(keep)} سیگنال غیرالیت نگه داشته شد", flush=True)
+        fresh = keep
+        if not fresh:
+            return 0
 
     ok = 0
     tmp = Path(__file__).resolve().parent / ".charts"
@@ -205,6 +219,18 @@ def send_signals(signals, render_chart, limit=8):
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
             _log_final(s)
+            # هر سیگنالِ رفته باید درس هم بشود — استاپ زاما در هیچ دفتری نبود
+            # چون ارسالی‌های اسکن کاغذی نمی‌شدند. حالا هر ارسال، اگر قبلاً در
+            # دفتر نیست، با برچسب sig-<استراتژی> ثبت و تا نتیجه دنبال می‌شود.
+            try:
+                from hamid import paper as _paper
+                _paper.open_from([{"symbol": s["sym"], "dir": s["dir"],
+                                   "entry": s["entry"], "sl": s["sl"],
+                                   "tp1": s.get("tp1") or s["entry"], "tp2": s.get("tp2"),
+                                   "stage_tag": f"sig-{s.get('strategy', '?')}"}],
+                                 {"sent_at": int(time.time() * 1000)})
+            except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
+                print(f"  paper log failed for {s['sym']}: {type(e).__name__}", flush=True)
         except urllib.error.HTTPError as e:
             print(f"  telegram rejected {s['sym']}: {e.code} {scrub(e.read()[:200])}", flush=True)
         except Exception as e:                        # noqa: BLE001 - one failure must not stop the rest

@@ -466,6 +466,27 @@ def reapply(backup_dir):
     if (bk / "pump-radar-sent.json").exists():
         SENT.parent.mkdir(exist_ok=True)
         shutil.copy(bk / "pump-radar-sent.json", SENT)
+    # درس‌های حافظه هم باید از reset جان به در ببرند — یافتهٔ بازبینی معماری:
+    # reset --hard هر بار درس‌های همین اجرا را می‌کشت و رادار هیچ‌وقت
+    # چیزی «یاد نمی‌گرفت» با اینکه می‌نوشت.
+    les_bk = bk / "lessons.json"
+    les = ROOT / "brain" / "memory" / "lessons.json"
+    if les_bk.exists():
+        try:
+            ours = json.loads(les_bk.read_text()).get("lessons", [])
+            theirs = json.loads(les.read_text()).get("lessons", []) if les.exists() else []
+            seen, union = set(), []
+            for e in sorted(ours + theirs, key=lambda x: -(x.get("at") or 0)):
+                k = (e.get("at"), e.get("sym"), e.get("text"))
+                if k not in seen:
+                    seen.add(k)
+                    union.append(e)
+            les.parent.mkdir(parents=True, exist_ok=True)
+            les.write_text(json.dumps({"lessons": union[:300],
+                                       "updated": int(time.time() * 1000)},
+                                      ensure_ascii=False, indent=1))
+        except Exception as e:                       # noqa: BLE001
+            print(f"اجتماع درس‌ها نشد: {type(e).__name__}")
     tglog_bk = bk / "telegram-log.json"
     tglog = ROOT / "signals" / "telegram-log.json"
     if tglog_bk.exists():

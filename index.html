@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.14 · حافظه و درس‌ها</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.15 · گرافی‌فای + نقشهٔ نقدینگی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -234,6 +234,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="tab" data-t="single">تحلیل تک‌نماد + الگو</button>
     <button class="tab" data-t="agent">فعالیت‌های ایجنت</button>
     <button class="tab" data-t="radar">رادار پامپ</button>
+    <button class="tab" data-t="graph">گرافی‌فای</button>
     <button class="tab" data-t="paper">ترید کاغذی<span class="b" id="cPaper">0</span></button>
     <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
     <button class="tab" data-t="playbook">پلی‌بوک و الگوها</button>
@@ -295,6 +296,15 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div id="raOut"></div>
   </section>
 
+  <section id="view-graph" style="display:none">
+    <div class="section-title"><span class="eyebrow">live engine graph</span><h2>گرافی‌فای — نقشهٔ زندهٔ انجین‌ها</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
+      هر سلول یک انجین است و خط‌ها مسیر واقعی جابه‌جایی اطلاعات. رنگ نقطهٔ هر سلول از تازگیِ آخرین
+      خروجی همان انجین می‌آید: سبز = تازه، کهربایی = دیر شده، قرمز = خوابیده. روی هر سلول کلیک کن تا کارش را بگوید.
+    </p>
+    <div id="graphOut" style="margin-top:12px"></div>
+    <div id="graphInfo" class="box" style="margin-top:10px;display:none"></div>
+  </section>
   <section id="view-paper" style="display:none">
     <div class="section-title"><span class="eyebrow">paper trading</span><h2>ترید کاغذی و مرور عملکرد</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px">هر سیگنال اینجا به یک پوزیشن تبدیل می‌شود و تا آخر دنبال می‌شود. هر دو ساعت، نتیجه‌ها از هر زاویه تفکیک و با بازهٔ اطمینان سنجیده می‌شوند تا شانس با یافته اشتباه گرفته نشود.</p>
@@ -3929,6 +3939,74 @@ function renderAgent(){
       ${r.bonus?`<span style="color:#f0d24e">پاداش ${r.bonus}+</span>`:""}
     </div>`).join("")}</div>`;})()}`;
 }
+/* گرافی‌فای — نقشهٔ زندهٔ انجین‌ها. هر سلول یک انجین، هر خط مسیر واقعی داده.
+   تازگی هر سلول از همان فایل‌هایی می‌آید که خود انجین منتشر می‌کند. */
+const GRAPH_NODES=[
+ {id:"src",x:400,y:16,w:200,h:46,label:"🌐 صرافی‌های جهانی",sub:"کندل و تیکر",fresh:null,
+  desc:"منابع داده: بیتیونیکس، MEXC و بقیه — کندل واقعی، پایهٔ همه‌چیز."},
+ {id:"scan",x:70,y:120,w:190,h:52,label:"📡 اسکن زنده",sub:"IBS + کانال/OB",fresh:()=>RELAY.data&&RELAY.data.generated,
+  desc:"هر ۳۰ دقیقه ۱۰۰ ارز را با دو استراتژی قدیمی اسکن می‌کند؛ قانون‌های تأییدشدهٔ بک‌تست رتبه می‌دهند."},
+ {id:"cycle",x:400,y:120,w:200,h:52,label:"🧭 چرخهٔ حمید",sub:"۴س ← ۱س ← ۱۵د",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"هر ۲۰ دقیقه: اول تسویه و یادگیری، بعد خوانش بازار، ستاپ به روش خود حمید، نقشهٔ نقدینگی، و تصمیم."},
+ {id:"radar",x:740,y:120,w:190,h:52,label:"🚀 رادار پامپ",sub:"خوشه‌ای ۱۵د",fresh:()=>PUMPR.data&&PUMPR.data.generated,
+  desc:"تاپ گینرز و شعله‌گیری ۳۰د؛ نقش سردسته/دنباله‌رو؛ فقط عضو نپریدهٔ خوشه پیشنهاد می‌شود."},
+ {id:"sup",x:290,y:236,w:180,h:48,label:"🚫 ناظر تجربه",sub:"وتو با ۱۲+ معامله",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"قبل از صدور، کارنامهٔ همان ارز/جهت را می‌پرسد؛ رکورد منفیِ کافی = سیگنال رد."},
+ {id:"mem",x:530,y:236,w:180,h:48,label:"🧠 حافظه",sub:"درس‌ها + ایندکس",fresh:()=>{const m=HAMID.data&&HAMID.data.memory;return m?HAMID.data.generated:null;},
+  desc:"هر معاملهٔ بسته با شرایطش هضم می‌شود؛ قبل از هر سیگنال مشورت می‌دهد و شباهت با گذشته را صریح می‌گوید."},
+ {id:"alarm",x:740,y:236,w:190,h:48,label:"⏰ آلارم‌ها",sub:"رسیدن قیمت",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"هر چرخه آلارم‌های مسلح چک می‌شوند؛ لمس ورود = بازبینی (RSI + ناظر) و سیگنال."},
+ {id:"paper",x:70,y:236,w:190,h:48,label:"📒 دفتر کاغذی",sub:"۶ دفتر جدا",fresh:()=>HAMID.data&&HAMID.data.paper&&HAMID.data.generated,
+  desc:"سیگنال‌شده، ارسالی اسکن، آلارم، تمرین و دو آزمایش — هر کدام رکورد جدا تا عددها قاطی نشوند."},
+ {id:"tg",x:400,y:352,w:200,h:48,label:"📨 تلگرام",sub:"سهمیه + ضدتکرار",fresh:()=>TGLOG.data&&TGLOG.data.generated,
+  desc:"ارسال لحظه‌ای با چارت ۵د و واترمارک Trade_Osuli؛ سهمیهٔ مشترک روزانه؛ نتیجهٔ تارگت/استاپ هم می‌آید."},
+ {id:"review",x:740,y:352,w:190,h:48,label:"🧾 مرور ۲ساعته",sub:"نمرهٔ دفترها",fresh:()=>{const r=HAMID.data&&HAMID.data.review;return r&&r.at;},
+  desc:"هر دو ساعت نمرهٔ هر دفتر ثبت می‌شود تا «یک تغییر در هر مرور» قابل نمره دادن باشد."},
+ {id:"panel",x:70,y:352,w:190,h:48,label:"🖥 پنل",sub:"همین صفحه",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0)||null,
+  desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور می‌خواند؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."},
+ {id:"medic",x:740,y:16,w:190,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
+  desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی را به تلگرام هشدار می‌دهد."}];
+const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],
+ ["cycle","sup"],["cycle","mem"],["mem","sup"],["sup","tg"],
+ ["scan","tg"],["scan","paper"],["cycle","paper"],["radar","alarm"],
+ ["alarm","tg"],["paper","mem"],["paper","review"],["tg","panel"],["medic","radar"]];
+function graphAge(n){
+  if(!n.fresh)return null;
+  const g=n.fresh();if(!g)return Infinity;
+  return (Date.now()-g)/60000;
+}
+function renderGraph(){
+  const el=$("#graphOut");if(el===null)return;
+  const dot=a=>a==null?"#8b98ab":a===Infinity?"#e74c3c":a<=45?"#2ecc71":a<=120?"#f0a92e":"#e74c3c";
+  const ageTxt=a=>a==null?"":a===Infinity?" · بی‌خبر":a<1?" · الان":` · ${Math.round(a)}د پیش`;
+  const P=id=>GRAPH_NODES.find(n=>n.id===id);
+  const edges=GRAPH_EDGES.map(([a,b])=>{const A=P(a),B=P(b);
+    const x1=A.x+A.w/2,y1=A.y+A.h,x2=B.x+B.w/2,y2=B.y;
+    const my=(y1+y2)/2;
+    return `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"
+      fill="none" stroke="rgba(140,160,190,.35)" stroke-width="1.4" marker-end="url(#gfArrow)"/>`;}).join("");
+  const nodes=GRAPH_NODES.map(n=>{const a=graphAge(n);
+    return `<g class="gfNode" data-id="${n.id}" style="cursor:pointer">
+      <rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10"
+        fill="#111a26" stroke="${dot(a)}" stroke-opacity=".55" stroke-width="1.3"/>
+      <circle cx="${n.x+16}" cy="${n.y+n.h/2}" r="4.5" fill="${dot(a)}"/>
+      <text x="${n.x+n.w/2+8}" y="${n.y+n.h/2-4}" text-anchor="middle" fill="#e6edf3"
+        font-size="13" font-weight="bold">${n.label}</text>
+      <text x="${n.x+n.w/2+8}" y="${n.y+n.h/2+13}" text-anchor="middle" fill="#8b98ab"
+        font-size="10">${n.sub}${ageTxt(a)}</text></g>`;}).join("");
+  el.innerHTML=`<div class="box" style="overflow-x:auto"><svg viewBox="0 0 1000 420"
+    style="width:100%;min-width:720px;direction:ltr">
+    <defs><marker id="gfArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.5)"/></marker></defs>
+    ${edges}${nodes}</svg>
+    <div class="dim" style="font-size:10.5px;margin-top:4px">
+      🟢 تازه · 🟡 دیر شده · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم — هر ۵ ثانیه به‌روز می‌شود</div></div>`;
+  el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
+    const n=P(g.dataset.id);const info=$("#graphInfo");
+    info.style.display="";
+    info.innerHTML=`<h3 style="margin:0 0 4px">${n.label}</h3>
+      <div style="font-size:12.5px;line-height:1.9">${n.desc}</div>`;});
+}
 function refreshServerTabs(){
   renderWhy();
   const j=RELAY.data;
@@ -3939,6 +4017,7 @@ function refreshServerTabs(){
   if($("#view-net").style.display!=="none")renderNet();
   const ag=$("#view-agent");if(ag&&ag.style.display!=="none")renderAgent();
   const ra=$("#view-radar");if(ra&&ra.style.display!=="none")renderPumpCloud();
+  const gf=$("#view-graph");if(gf&&gf.style.display!=="none")renderGraph();
 }
 setInterval(refreshServerTabs,5000);
 function diagHTML(){
@@ -4733,13 +4812,14 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","real","net","watch","single","agent","radar","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","real","net","watch","single","agent","radar","graph","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
   if(t==="ops")renderOps();
   if(t==="paper")renderReview();
   if(t==="real")renderReal();
   if(t==="net")renderNet();
   if(t==="agent")renderAgent();
   if(t==="radar")renderPumpCloud();
+  if(t==="graph")renderGraph();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
