@@ -41,6 +41,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # برای dispatch بازانتشار Pages بعد از پوش gh-pages
 
 concurrency:
   group: hamid-cycle
@@ -135,6 +136,7 @@ jobs:
       # مرحله، چرخه فقط روی main منتشر می‌شد و پنل حمید یک فایل ۳۹ ساعته
       # می‌دید — یعنی همهٔ این کار به دست کسی که باید ببیندش نمی‌رسید.
       - name: انتشار روی پنل
+        id: ghp
         if: github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages
@@ -146,12 +148,25 @@ jobs:
           git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }
           git commit -q -m "چرخهٔ حمید $(date -u '+%Y-%m-%d %H:%M') UTC"
           for a in 1 2 3 4 5; do
-            git push origin HEAD:gh-pages && exit 0
+            git push origin HEAD:gh-pages \
+              && { echo "deployed=1" >> "$GITHUB_OUTPUT"; exit 0; }
             git fetch origin gh-pages || true
             git rebase origin/gh-pages || { git rebase --abort; exit 1; }
             sleep $((a * 3))
           done
           exit 1
+
+      # پوش به شاخهٔ gh-pages به‌تنهایی سایت را عوض نمی‌کند — دیپلوی Pages از
+      # طریق pages.yml است و کرونش دیر است. بعد از هر انتشار واقعی، همان را
+      # صدا می‌زنیم تا پنل همان لحظه تازه شود.
+      - name: بازانتشار Pages
+        if: steps.ghp.outputs.deployed == '1'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pages.yml/dispatches" \
+            -d '{"ref":"main"}' || echo "dispatch نشد — کرون نیم‌ساعته جبران می‌کند"
 
       # دیده‌بان، این بار بعد از انتشار — تنها جایی که مقایسهٔ پنل با آخرین
       # چرخه معنی دارد. همین‌جاست که اگر انتشار روی gh-pages بشکند، فوراً
