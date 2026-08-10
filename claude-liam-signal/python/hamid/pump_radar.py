@@ -344,6 +344,71 @@ def crash_watch(kc, uni, trigger_pct=-2.0):
             "n_crashes": len(crash_ts)}
 
 
+HIST = ROOT / "brain" / "pump-history.json"
+
+
+def _teh_date(ms):
+    """تاریخ و ساعت تهران (UTC+3:30) — خوانا برای حمید، نه فقط timestamp."""
+    t = time.gmtime(ms / 1000 + 3.5 * 3600)
+    return time.strftime("%m-%d %H:%M", t)
+
+
+def update_history(blocks):
+    """دفتر ماندگار تاریخچهٔ پامپ‌ها — قرار حمید: «تاریخچهٔ ارزهای پامپ‌شده
+    را در بیاور».
+
+    کندل در دسترس فقط ~۴۱ روز است و هر روز یک روز از تهش می‌ریزد؛ این دفتر
+    هر رخداد را یک بار ثبت می‌کند و نگه می‌دارد، پس با گذر زمان از پنجرهٔ
+    کندل عمیق‌تر می‌شود. برای هر پامپِ سردسته، واکنش دنباله‌روها (که در همین
+    اجرا تحلیل شده‌اند) با فاصلهٔ ساعتی و اندازه ثبت می‌شود."""
+    try:
+        led = json.loads(HIST.read_text())
+    except Exception:                                # noqa: BLE001
+        led = {"symbols": {}}
+    syms = led.setdefault("symbols", {})
+    bmap = {b["symbol"]: b for b in blocks}
+    for b in blocks:
+        if not b.get("pumps"):
+            continue
+        rec = syms.setdefault(b["symbol"], {"events": []})
+        known = {e["t"] for e in rec["events"]}
+        fols = [f["symbol"] for f in (b.get("followers") or []) if f["symbol"] in bmap]
+        for e in b["pumps"]:
+            reacts = []
+            for fs in fols:
+                for fe in bmap[fs].get("pumps") or []:
+                    lag = (fe["t"] - e["t"]) / 3600e3
+                    if 0 < lag <= 48:
+                        reacts.append({"symbol": fs, "lag_h": round(lag, 1),
+                                       "ret_pct": fe["ret_4h_pct"]})
+                        break
+            if e["t"] in known:
+                # رخداد قدیمی: فقط واکنش‌های تازه‌فهمیده اضافه شود
+                old = next(x for x in rec["events"] if x["t"] == e["t"])
+                have = {r["symbol"] for r in old.get("reactions", [])}
+                old.setdefault("reactions", []).extend(
+                    r for r in reacts if r["symbol"] not in have)
+                continue
+            rec["events"].append({"t": e["t"], "date": _teh_date(e["t"]),
+                                  "ret_4h_pct": e["ret_4h_pct"],
+                                  "vol_z": e.get("vol_z"),
+                                  "reactions": reacts})
+        rec["events"] = sorted(rec["events"], key=lambda x: -x["t"])[:40]
+        rec["updated"] = int(time.time() * 1000)
+        # خلاصهٔ خوانا روی خود بلوک — پنل و تلگرام همین را نشان می‌دهند
+        b["history"] = [
+            {"date": ev["date"], "ret_4h_pct": ev["ret_4h_pct"],
+             "reactions": ev.get("reactions") or []}
+            for ev in rec["events"][:3]]
+    if len(syms) > 200:
+        for k in sorted(syms, key=lambda k: syms[k].get("updated", 0))[:len(syms) - 200]:
+            del syms[k]
+    led["updated"] = int(time.time() * 1000)
+    HIST.parent.mkdir(exist_ok=True)
+    HIST.write_text(json.dumps(led, ensure_ascii=False, indent=1))
+    return sum(len(r["events"]) for r in syms.values())
+
+
 def entry_point(c15):
     """همان قاعدهٔ تحلیل‌گر پامپ: تازه‌ترین اردر بلاک خرید مصرف‌نشده ≤۶۰ کندل."""
     if len(c15) < 60:
@@ -514,10 +579,22 @@ def tg_message(source, picks, blocks):
     L = [f"🏷 <b>{tg.PANEL_NAME}</b>",
          "🚀 <b>گزینه‌های پامپ — رادار خوشه‌ای</b>",
          f"<i>منبع تاپ گینرز: {source}</i>", ""]
+    bmap = {b["symbol"]: b for b in blocks}
     for rank, p in enumerate(picks, 1):
         head = "انتخاب اول" if rank == 1 else "جایگزین"
         L.append(f"<b>{head}: {p['symbol']}</b>  (امتیاز {p['score']})")
         L += [f"• {w}" for w in p["reasons"]]
+        # تاریخچهٔ درآورده‌شده — قرار حمید: سابقهٔ سردسته، با تاریخ و واکنش‌ها
+        b = bmap.get(p["symbol"]) or {}
+        leader = (b.get("leaders") or [{}])[0].get("symbol") or b.get("via")
+        lh = (bmap.get(leader) or {}).get("history") if leader else None
+        if lh:
+            L.append(f"📜 سابقهٔ {leader}:")
+            for ev in lh[:2]:
+                rx = "، ".join(f"{r['symbol'].replace('USDT','')} +{r['ret_pct']}٪ "
+                               f"({r['lag_h']}س بعد)" for r in ev["reactions"][:2])
+                L.append(f"  {ev['date']} پامپ +{ev['ret_4h_pct']}٪"
+                         + (f" → {rx}" if rx else " → واکنشی ثبت نشد"))
         L.append(f"ورود <code>{p['entry']:.10g}</code> · استاپ <code>{p['sl']:.10g}</code>"
                  f" · ریسک {p['risk_pct']}٪ · فاصله {p['dist_pct']}٪")
         L.append("")
@@ -603,6 +680,26 @@ def reapply(backup_dir):
     if (bk / "pump-radar-sent.json").exists():
         SENT.parent.mkdir(exist_ok=True)
         shutil.copy(bk / "pump-radar-sent.json", SENT)
+    # دفتر تاریخچهٔ پامپ — اجتماع رخدادها، تا reset چیزی از تاریخ نکشد
+    hist_bk = bk / "pump-history.json"
+    if hist_bk.exists():
+        try:
+            ours = json.loads(hist_bk.read_text()).get("symbols", {})
+            theirs = (json.loads(HIST.read_text()).get("symbols", {})
+                      if HIST.exists() else {})
+            for sym, rec in ours.items():
+                trec = theirs.setdefault(sym, {"events": []})
+                have = {e["t"] for e in trec["events"]}
+                trec["events"] = sorted(
+                    trec["events"] + [e for e in rec["events"] if e["t"] not in have],
+                    key=lambda x: -x["t"])[:40]
+                trec["updated"] = max(trec.get("updated", 0), rec.get("updated", 0))
+            HIST.parent.mkdir(exist_ok=True)
+            HIST.write_text(json.dumps({"symbols": theirs,
+                                        "updated": int(time.time() * 1000)},
+                                       ensure_ascii=False, indent=1))
+        except Exception as e:                       # noqa: BLE001
+            print(f"بازنشانی تاریخچهٔ پامپ: {type(e).__name__}")
     # درس‌های حافظه هم باید از reset جان به در ببرند — یافتهٔ بازبینی معماری:
     # reset --hard هر بار درس‌های همین اجرا را می‌کشت و رادار هیچ‌وقت
     # چیزی «یاد نمی‌گرفت» با اینکه می‌نوشت.
@@ -701,6 +798,14 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                 continue
             for f3 in (b2.get("followers") or [])[:2]:
                 add(f3["symbol"], 3, via=f["symbol"], with_related=False)
+
+    # دفتر ماندگار تاریخچهٔ پامپ‌ها — هر رخداد یک بار ثبت و برای همیشه نگه
+    # داشته می‌شود؛ خلاصهٔ خوانا هم روی بلوک می‌نشیند (پنل + تلگرام)
+    try:
+        n_h = update_history(blocks)
+        print(f"دفتر تاریخچهٔ پامپ: {n_h} رخداد ثبت‌شده تا امروز")
+    except Exception as e:                           # noqa: BLE001
+        print(f"دفتر تاریخچه: {type(e).__name__}: {e}")
 
     picks = recommend(blocks, hot=hot)[:3]
     picks = [p for p in picks if p["score"] >= 2]
