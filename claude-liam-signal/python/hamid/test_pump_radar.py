@@ -90,12 +90,16 @@ check("فقط دنباله‌رو دارد → خودش سردسته", role2 == 
 # ── پیشنهاد و دلایلش ───────────────────────────────────────────────────────
 blocks = [
     {"symbol": "AUSDT", "price": 1.0, "role": "دنباله‌رو",
-     "leaders": [{"symbol": "LEADUSDT", "pre_24h_pct": 30.0}], "followers": [],
+     "leaders": [{"symbol": "LEADUSDT", "pre_24h_pct": 30.0, "n": 3}], "followers": [],
      "pumps": [1, 2, 3, 4], "match": {"corr_pct": 80, "then_24h_pct": 20.0},
      "now": {"rsi_1h": 45.0}, "alarm": {"entry": 0.99, "sl": 0.95}},
-    {"symbol": "HOTUSDT", "price": 2.0, "role": "سردسته", "leaders": [], "followers": [],
+    {"symbol": "HOTUSDT", "price": 2.0, "role": "دنباله‌رو",
+     "leaders": [{"symbol": "LEADUSDT", "pre_24h_pct": 20.0, "n": 2}], "followers": [],
      "pumps": [1], "match": None,
      "now": {"rsi_1h": 88.0}, "alarm": {"entry": 1.6, "sl": 1.5}},
+    {"symbol": "LONEUSDT", "price": 2.0, "role": "سردسته", "leaders": [], "followers": [],
+     "pumps": [1, 2, 3], "match": None,
+     "now": {"rsi_1h": 40.0}, "alarm": {"entry": 1.9, "sl": 1.8}},
     {"symbol": "NOENTRYUSDT", "price": 3.0, "role": "سردسته", "leaders": [], "followers": [],
      "pumps": [], "match": None, "now": {"rsi_1h": 50.0}, "alarm": None},
 ]
@@ -104,10 +108,12 @@ check("بدون نقطهٔ ورود پیشنهاد نمی‌شود", all(p["symb
 check("دنباله‌روی نزدیک‌به‌ورود بالاتر از ارزِ اشباع", picks[0]["symbol"] == "AUSDT")
 check("هر امتیاز دلیل نوشته دارد", all(p["reasons"] for p in picks))
 check("ارز اشباع‌خرید امتیاز منفی خورد", next(p for p in picks if p["symbol"] == "HOTUSDT")["score"] < picks[0]["score"])
+check("بی‌رابطهٔ خوشه‌ای پیشنهاد نمی‌شود (قانون سخت)",
+      all(p["symbol"] != "LONEUSDT" for p in picks) and "رابطهٔ خوشه‌ای" in blocks[2].get("skipped", ""))
 
 # ── قانون حمید: پامپ‌خورده سیگنال نیست ────────────────────────────────────
 late30 = {"symbol": "L30USDT", "price": 1.0, "role": "دنباله‌رو",
-          "leaders": [{"symbol": "XUSDT", "pre_24h_pct": 30.0}], "followers": [],
+          "leaders": [{"symbol": "XUSDT", "pre_24h_pct": 30.0, "n": 3}], "followers": [],
           "pumps": [1, 2, 3], "match": None, "change_30m_pct": 12.0, "change_24h_pct": 5.0,
           "now": {"rsi_1h": 50.0}, "alarm": {"entry": 0.99, "sl": 0.95}}
 late24 = {**late30, "symbol": "L24USDT", "change_30m_pct": 2.0, "change_24h_pct": 40.0}
