@@ -581,11 +581,40 @@ def main():
         settled_open = settled_closed = 0
         print(f"تسویهٔ دفتر: {type(e).__name__}: {e}")
 
+    # 📰 انجین دسته‌بندی خبر — تیترهای داغ به دسته و اتاق مقصد مسیردهی می‌شوند
+    try:
+        from hamid import discovery
+        cls = discovery.classify_news(((world.get("news") or {}).get("hot")) or [])
+        routed = [c for c in cls if c["room"]]
+        report["news_classified"] = cls[:8]
+        for c in routed[:4]:
+            brain.room_log(c["room"], f"خبر [{c['cat']}]: {(c['title'] or '')[:80]}", "news")
+        if routed:
+            act(f"📰 {len(routed)} خبر مهم دسته‌بندی و به اتاق آمار/یادگیری مسیردهی شد")
+    except Exception as e:                           # noqa: BLE001 - خبر چرخه را نمی‌کشد
+        print(f"دسته‌بندی خبر: {type(e).__name__}: {e}")
+
     if mode == "active":
         try:
+            tick = sources.tickers()
             syms = [s["symbol"] for s in
-                    sorted(sources.tickers(), key=lambda x: -float(x["quoteVolume"] or 0))
+                    sorted(tick, key=lambda x: -float(x["quoteVolume"] or 0))
                     if s["symbol"].endswith("USDT")][:a.symbols]
+            # 🆕 انجین کشف لیست‌شدن — دیفِ نمادها با حافظهٔ اجرای قبل
+            try:
+                from hamid import discovery as _dv
+                nl = _dv.new_listings(tick)
+                report["new_listings"] = nl["new"]
+                if nl["new"]:
+                    act(f"🆕 ارز تازه‌لیست‌شده: {', '.join(nl['new'][:5])} — "
+                        "به حافظه رفت و زیر نظر رادار است")
+                    from hamid import memory as _dmem
+                    for s_ in nl["new"][:5]:
+                        _dmem.remember("کشف", s_,
+                                       f"ارز تازه در صرافی لیست شد: {s_} — نوپا و پرریسک؛ "
+                                       "فقط با ساختار تأییدشده سیگنال می‌شود")
+            except Exception as e:                   # noqa: BLE001
+                print(f"کشف لیست تازه: {type(e).__name__}: {e}")
         except Exception as e:                       # noqa: BLE001
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
