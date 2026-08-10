@@ -259,6 +259,23 @@ def related_cached(sym, eps, cd1h, universe, kc, window=24):
     return out
 
 
+def follower_lags(leader_eps, fol_eps, within_h=48):
+    """فاصلهٔ تاریخی پامپ سردسته تا پامپ دنباله‌رو — کلیدی که حمید گفت:
+    این فاصله می‌گوید چقدر وقت برای سیگنال هست، و اگر از پنجرهٔ تاریخی
+    بگذرد و نپرد، طبق سابقهٔ خودش دیگر احتمالاً نمی‌پرد."""
+    lags = []
+    for le in leader_eps or []:
+        after = [(fe["t"] - le["t"]) / 3600e3 for fe in fol_eps or []
+                 if 0 < (fe["t"] - le["t"]) / 3600e3 <= within_h]
+        if after:
+            lags.append(min(after))
+    if not lags:
+        return None
+    lags.sort()
+    return {"n": len(lags), "med_h": round(lags[len(lags) // 2], 1),
+            "max_h": round(max(lags), 1)}
+
+
 def entry_point(c15):
     """همان قاعدهٔ تحلیل‌گر پامپ: تازه‌ترین اردر بلاک خرید مصرف‌نشده ≤۶۰ کندل."""
     if len(c15) < 60:
@@ -282,10 +299,12 @@ def analyze_one(sym, kc, universe, with_related=True):
     role, leaders, followers = role_of(rel) if rel else ("نامشخص", [], [])
     ch1 = channel(c1h)
     c30 = (c15[-1]["c"] / c15[-3]["c"] - 1) * 100 if len(c15) >= 3 else None
+    c60 = (c15[-1]["c"] / c15[-5]["c"] - 1) * 100 if len(c15) >= 5 else None
     c24 = (c1h[-1]["c"] / c1h[-25]["c"] - 1) * 100 if len(c1h) >= 25 else None
     block = {
         "symbol": sym, "price": c1h[-1]["c"],
         "change_30m_pct": round(c30, 1) if c30 is not None else None,
+        "change_60m_pct": round(c60, 1) if c60 is not None else None,
         "change_24h_pct": round(c24, 1) if c24 is not None else None,
         "pumps": eps,
         "pump_note": (f"{len(eps)} پامپ در {len(c1h)//24} روز؛ بزرگ‌ترین "
@@ -321,6 +340,10 @@ def recommend(blocks, hot=None):
         if not al or not al.get("entry"):
             continue
         c30, c24 = b.get("change_30m_pct"), b.get("change_24h_pct")
+        c60 = b.get("change_60m_pct")
+        if c60 is not None and c60 >= 10:
+            b["skipped"] = f"در یک ساعت اخیر +{c60}٪ پامپ شده — قانون حمید: پامپ‌شده سیگنال نیست، فقط ماشه است"
+            continue
         if (c30 is not None and c30 >= 10) or (c24 is not None and c24 >= 10):
             b["skipped"] = (f"خودش پامپ خورده ({'+%s٪/30د' % c30 if c30 and c30 >= 10 else ''}"
                             f"{' ' if c30 and c30 >= 10 and c24 and c24 >= 10 else ''}"
@@ -398,6 +421,7 @@ def merge_alarms(picks):
                       "price": p["entry"], "now": p["price"],
                       "distancePct": p["dist_pct"],
                       "why": "؛ ".join(p["reasons"][:2]),
+                      "expires_at": p.get("expires_at"),
                       "stage": "ARMED"})
     brain.room_save("radar", {**st, "alarms": al[:80]})
 
@@ -576,8 +600,38 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             for f3 in (b2.get("followers") or [])[:2]:
                 add(f3["symbol"], 3, via=f["symbol"], with_related=False)
 
-    picks = recommend(blocks, hot=hot)[:2]
+    picks = recommend(blocks, hot=hot)[:3]
     picks = [p for p in picks if p["score"] >= 2]
+
+    # پنجرهٔ زمانی تاریخی — هستهٔ قانون جدید حمید: دنباله‌رو فقط تا وقتی
+    # پیشنهاد است که طبق فاصله‌های تاریخی خودش هنوز «وقت پریدن» دارد.
+    bmap = {b["symbol"]: b for b in blocks}
+    now_ms = int(time.time() * 1000)
+    timed = []
+    for p in picks:
+        b = bmap.get(p["symbol"]) or {}
+        leader = (b.get("leaders") or [{}])[0].get("symbol") or b.get("via")
+        lb = bmap.get(leader) if leader else None
+        if lb and lb.get("pumps"):
+            lg = follower_lags(lb["pumps"], b.get("pumps"))
+            last_lead_pump = max(e["t"] for e in lb["pumps"])
+            since_h = (now_ms - last_lead_pump) / 3600e3
+            if lg:
+                window_h = max(lg["max_h"], 2 * lg["med_h"])
+                left_h = round(window_h - since_h, 1)
+                if left_h <= 0:
+                    p["expired_reason"] = (f"طبق {lg['n']} سابقه، {p['symbol']} معمولاً "
+                                           f"{lg['med_h']}س بعد از {leader} می‌پرد؛ "
+                                           f"{since_h:.1f}س گذشته — پنجره بسته است، پیشنهاد نمی‌شود")
+                    continue
+                p["lag"] = {**lg, "leader": leader, "since_h": round(since_h, 1),
+                            "window_h": round(window_h, 1), "left_h": left_h}
+                p["expires_at"] = int(last_lead_pump + window_h * 3600e3)
+                p["reasons"].insert(0, (f"طبق {lg['n']} سابقه معمولاً ~{lg['med_h']}س بعد از "
+                                        f"{leader} می‌پرد — {left_h}س از پنجره باقی است"))
+        timed.append(p)
+    expired_picks = [p for p in picks if p.get("expired_reason")]
+    picks = timed[:2]
 
     skipped = [{"symbol": b["symbol"], "why": b["skipped"]}
                for b in blocks if b.get("skipped")]
@@ -611,6 +665,8 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         "universe_n": len(uni),
         "coins": blocks,
         "recommendation": picks,
+        "window_closed": [{"symbol": p["symbol"], "why": p["expired_reason"]}
+                          for p in expired_picks],
         "already_pumped": skipped,
         "verdict": verdict,
         "note": ("قانون: ارزِ ۱۰٪+ پریده سیگنال نیست — فقط عضو نپریدهٔ خوشه. "
