@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.16 · ۱۸ انجین + کشف لیست تازه + دسته‌بندی خبر</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.17 · اتاق دامیننس ۵د + پنجرهٔ تاریخی پامپ</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3579,6 +3579,16 @@ async function pumprFetch(){
   PUMPR.tried++;
 }
 setInterval(pumprFetch,120000);setTimeout(pumprFetch,5000);
+/* اتاق مستقل دامیننس — هر ~۵ دقیقه نظر تازه از سری زمانی خودش */
+const DOMJ={data:null};
+async function domjFetch(){
+  try{
+    const r=await fetch("./signals/dominance.json?t="+Date.now(),{cache:"no-store"});
+    if(r.ok){const j=await r.json();if(j&&j.generated){DOMJ.data=j;DB.set("domj_cache",j);}}
+  }catch(e){}
+}
+setInterval(domjFetch,120000);setTimeout(domjFetch,5500);
+(()=>{const d=DB.get("domj_cache");if(d&&!DOMJ.data)DOMJ.data=d;})();
 /* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
    صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
 (()=>{
@@ -3945,8 +3955,8 @@ const GRAPH_NODES=[
  // ── ردیف منابع ──
  {id:"src",x:60,y:14,w:190,h:46,label:"🌐 صرافی‌ها",sub:"کندل و تیکر",fresh:null,
   desc:"منابع داده: بیتیونیکس، MEXC و بقیه — کندل واقعی، پایهٔ همه‌چیز."},
- {id:"dom",x:300,y:14,w:190,h:46,label:"💹 دامیننس",sub:"USDT.D · BTC.D — مستقل",fresh:()=>{const d=HAMID.data&&HAMID.data.world&&HAMID.data.world.dominance;return d?HAMID.data.generated:null;},
-  desc:"انجین مستقل خوانش دامیننس تتر و بیت‌کوین در همان لحظه — پرچم جهت پول؛ روی هر معامله ثبت می‌شود تا اثرش اندازه بخورد."},
+ {id:"dom",x:300,y:14,w:190,h:46,label:"💹 دامیننس",sub:"مستقل — هر ۵ دقیقه",fresh:()=>DOMJ.data&&DOMJ.data.generated,
+  desc:"اتاق مستقل: هر ~۵ دقیقه USDT.D و BTC.D را می‌خواند، به سری زمانی خودش می‌چسباند و با تغییر ۱س/۴س + رویدادهای کلان (تورم/بیکاری/فدرال) نظر می‌دهد."},
  {id:"news",x:540,y:14,w:190,h:46,label:"📰 اخبار و وبگردی",sub:"دسته‌بندی → اتاق‌ها",fresh:()=>{const n=HAMID.data&&HAMID.data.world&&HAMID.data.world.news;return n?HAMID.data.generated:null;},
   desc:"جستجوی وب و تیترهای داغ؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
  {id:"medic",x:780,y:14,w:160,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
@@ -4041,8 +4051,16 @@ function renderGraph(){
   el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
     const n=P(g.dataset.id);const info=$("#graphInfo");
     info.style.display="";
+    let extra="";
+    if(n.id==="dom"&&DOMJ.data){
+      const d=DOMJ.data;
+      extra=`<div style="margin-top:6px;font-size:12.5px;line-height:1.9;border-top:1px solid rgba(140,160,190,.15);padding-top:6px">
+        <b>نظر همین لحظه:</b> ${d.verdict||"—"}<br>
+        <span class="mono dim" style="font-size:11px">USDT.D ${d.usdt_dominance}٪ (${d.chg_1h&&d.chg_1h.usdt!=null?(d.chg_1h.usdt>0?"+":"")+d.chg_1h.usdt+"/1س":"—"}) ·
+        BTC.D ${d.btc_dominance}٪ · ${d.points} نقطهٔ سری</span></div>`;
+    }
     info.innerHTML=`<h3 style="margin:0 0 4px">${n.label}</h3>
-      <div style="font-size:12.5px;line-height:1.9">${n.desc}</div>`;});
+      <div style="font-size:12.5px;line-height:1.9">${n.desc}</div>${extra}`;});
 }
 function refreshServerTabs(){
   renderWhy();
