@@ -1,0 +1,52 @@
+# اتاق مستقل دامیننس — «هر ۵ دقیقه نظر خودش را بگوید» (حمید).
+# کرون Actions رایگان زیر ۵ دقیقه تضمین ندارد؛ */5 می‌گذاریم و صادقانه:
+# در ساعات شلوغ ممکن است چند دقیقه بلغزد. سری زمانی فقط وقتی کامیت می‌شود
+# که واقعاً تغییر کرده باشد تا مخزن با ۲۸۸ کامیت در روز خفه نشود.
+name: Dominance room
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dominance
+  cancel-in-progress: false
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: خوانش دامیننس
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.dominance
+      - name: ثبت (فقط اگر تغییر معنادار)
+        run: |
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add brain/dominance-series.json signals/dominance.json 2>/dev/null || true
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -q -m "دامیننس $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do git push origin HEAD:main -q && break; git pull --rebase origin main -q || true; sleep $((i*2)); done
+          fi
+      - name: انتشار روی پنل
+        run: |
+          git fetch origin gh-pages -q || exit 0
+          rm -rf /tmp/ghd
+          git worktree add /tmp/ghd origin/gh-pages --detach -q || exit 0
+          mkdir -p /tmp/ghd/signals
+          cp signals/dominance.json /tmp/ghd/signals/ 2>/dev/null || true
+          cd /tmp/ghd
+          git add signals
+          if ! git diff --cached --quiet; then
+            git commit -q -m "دامیننس $(date -u '+%H:%M') UTC"
+            for i in 1 2 3; do git push origin HEAD:gh-pages -q && break; git fetch origin gh-pages -q||true; git rebase origin/gh-pages -q||{ git rebase --abort; break; }; done
+          fi
