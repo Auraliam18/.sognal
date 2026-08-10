@@ -74,7 +74,8 @@ def digest_closed(trades):
                      "r": t.get("R") or 0, "outcome": t.get("outcome"),
                      "trend_4h": why.get("trend_4h"), "fear": why.get("fear"),
                      "funding": why.get("funding"), "stop_pct": why.get("stop_pct"),
-                     "usdt_dom": why.get("usdt_dom"), "mode": why.get("mode")})
+                     "usdt_dom": why.get("usdt_dom"), "mode": why.get("mode"),
+                     "liq": why.get("liq")})
         won = (t.get("R") or 0) > 0
         ctx = "، ".join(f"{k}={why.get(k)}" for k in
                         ("stage", "trend_4h", "fear") if why.get(k) is not None)

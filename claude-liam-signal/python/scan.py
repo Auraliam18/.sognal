@@ -326,7 +326,13 @@ def main():
                          for s in signals])
     brain.room_save("scan", {"lastScan": int(time.time() * 1000),
                              "counts": counts, "per_strategy": per_strategy})
-    brain.room_save("radar", {"alarms": alarms[:80]})
+    # ادغام، نه بازنویسی. این خط قبلاً کل فایل رادار را عوض می‌کرد و هر
+    # نیم‌ساعت آلارم‌های پامپ‌رادار و آلارم‌های فعال‌شدهٔ چرخه را می‌شست —
+    # مسیر آلارم→بازبینی→سیگنال بی‌صدا خالی می‌ماند (یافتهٔ بازبینی معماری).
+    _old = brain.room_load("radar", {}) or {}
+    _keep = [a for a in (_old.get("alarms") or [])
+             if a.get("strategy") not in ("ibs", "smc")]
+    brain.room_save("radar", {**_old, "alarms": (alarms + _keep)[:80]})
     for s in signals:
         brain.room_log("watch", f"{s['sym']} {s['tf']} {s['dir']} — {s.get('strategyName','')}", "sig")
 

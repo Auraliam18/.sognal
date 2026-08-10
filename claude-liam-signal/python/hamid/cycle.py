@@ -187,6 +187,16 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
         r = read(sym, c4h, c1h, c15)
         reads.append(r)
         if r.setup:
+            # نقشهٔ نقدینگی — روی هر ستاپ ثبت می‌شود تا بک‌تست شبانه بسنجد
+            # هم‌جهتی با آهن‌ربای نقدینگی واقعاً انتظار را بالا می‌برد یا نه.
+            try:
+                from hamid import liquidity
+                lq = liquidity.read(c15, r.setup.get("dir"))
+                r.setup["liq"] = lq["side"]
+                if lq["note"]:
+                    r.setup["liq_note"] = lq["note"]
+            except Exception:                        # noqa: BLE001 - نقشه اختیاری است
+                pass
             setups.append((sym, r))
         try:
             ind = inducement.find(c15)
@@ -384,6 +394,54 @@ def watch_alarms():
     return fired
 
 
+def settle_books(report):
+    """اول تسویه، بعد تصمیم — یافتهٔ بازبینی معماری: تسویه و یادگیری در انتهای
+    چرخه بود، پس هر وتو و مشورتِ حافظه با تجربهٔ یک چرخه کهنه‌تر گرفته می‌شد.
+    حالا اول معامله‌های باز علامت می‌خورند، نتیجه به تلگرام می‌رود، حافظه هضم
+    و ایندکس دانش تازه می‌شود — بعد چرخه با دانشِ همین لحظه تصمیم می‌گیرد."""
+    from hamid import paper
+    t_mark = int(time.time() * 1000)
+    still, closed = paper.mark()
+    try:
+        just = [t for t in paper._read(paper.CLOSED)
+                if (t.get("closed") or 0) >= t_mark
+                and t.get("outcome") in ("target", "stop")
+                and (t.get("why") or {}).get("stage")
+                not in ("first", "practice", "inducement")]
+        if just:
+            import telegram as _tg
+            tok, chat = _tg.creds()
+            if tok:
+                L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
+                for t in just[:10]:
+                    won = t["outcome"] == "target"
+                    L.append(f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
+                             f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
+                             f"{'تارگت خورد' if won else 'استاپ خورد'} "
+                             f"(<code>{t['R']:+.2f}R</code>)")
+                _tg._post(tok, "sendMessage",
+                          {"chat_id": chat, "text": "\n".join(L),
+                           "parse_mode": "HTML"})
+                act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت")
+    except Exception as e:                           # noqa: BLE001 - اعلان تسویه را نمی‌کشد
+        print(f"اعلان نتیجه: {type(e).__name__}")
+    try:
+        from hamid import memory as _mem2
+        newly = [t for t in paper._read(paper.CLOSED)
+                 if (t.get("closed") or 0) >= t_mark]
+        fed = _mem2.digest_closed(newly)
+        if fed:
+            act(f"حافظه: {fed} معاملهٔ بسته هضم شد — تصمیم‌های همین چرخه با دانش تازه گرفته می‌شود")
+        report["memory"] = {"fed_now": fed, "lessons": _mem2.lessons(limit=6)}
+    except Exception as e:                           # noqa: BLE001
+        print(f"هضم حافظه: {type(e).__name__}: {e}")
+    try:
+        paper.reasons(verbose=False)
+    except Exception as e:                           # noqa: BLE001
+        print(f"reasons: {type(e).__name__}")
+    return still, closed
+
+
 def review_cycle():
     """مرور دوساعته، خودکار: چه بسته شد و هر دفتر چه کرد. جای قضاوت من نیست —
     ثبتِ قابل‌مقایسه است تا «یک تغییر کنترل‌شده در هر مرور» چیزی برای
@@ -451,6 +509,7 @@ def _for_telegram(x):
         "tp1": float(x["tp1"]), "tp2": float(x.get("tp2") or 0) or None,
         "rr": x["rr"],
         "memory": x.get("memory"),
+        "liq_note": x.get("liq_note"),
         "strategy": "hamid", "strategyName": "روش خود حمید (۴ساعته → ۱ساعته → ۱۵دقیقه)",
         "ob": {"low": x["block"]["low"], "high": x["block"]["high"]},
         "level": {"type": "R" if x["dir"] == "SHORT" else "S",
@@ -514,6 +573,14 @@ def main():
                         ("verdict", "fear_greed", "dominance", "funding",
                          "calendar", "news", "trending") if k in world}}
 
+    # اول تسویه و یادگیری، بعد تصمیم — تا وتو و مشورتِ حافظه با دانشِ همین
+    # لحظه باشد، نه یک چرخه کهنه‌تر.
+    try:
+        settled_open, settled_closed = settle_books(report)
+    except Exception as e:                           # noqa: BLE001
+        settled_open = settled_closed = 0
+        print(f"تسویهٔ دفتر: {type(e).__name__}: {e}")
+
     if mode == "active":
         try:
             syms = [s["symbol"] for s in
@@ -570,7 +637,7 @@ def main():
                     w = {"trend_4h": x.get("trend_4h"), "dir": x["dir"],
                          "impulse": x["block"]["impulse"], "returns": x["block"]["returns"],
                          "reactions": x["on_level"]["reactions"],
-                         "stop_pct": x.get("stop_pct"),
+                         "stop_pct": x.get("stop_pct"), "liq": x.get("liq"),
                          "stage": "second" if not x.get("waiting") else "first"}
                     sc = 0.0
                     for name, r in conds.items():
@@ -705,59 +772,15 @@ def main():
                         "فقط خوراک یادگیری، سیگنال نیست")
             except Exception as e:                   # noqa: BLE001 - تمرین چرخه را نمی‌کشد
                 print(f"میز تمرین: {type(e).__name__}: {e}")
-        t_mark = int(time.time() * 1000)
-        still, closed = paper.mark()
-        # اعلان نتیجه — قول داده شد: فقط ورود نبیند، خروج را هم ببیند. هر
-        # معاملهٔ سیگنال‌شده که همین چرخه بسته شد، با نتیجه به تلگرام می‌رود.
-        # آزمایش‌ها و میز تمرین نه — آن‌ها سیگنال نبودند و پیامشان فقط نویز است.
-        try:
-            just = [t for t in paper._read(paper.CLOSED)
-                    if (t.get("closed") or 0) >= t_mark
-                    and t.get("outcome") in ("target", "stop")
-                    and (t.get("why") or {}).get("stage")
-                    not in ("first", "practice", "inducement")]
-            if just:
-                import telegram as _tg
-                tok, chat = _tg.creds()
-                if tok:
-                    L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
-                    for t in just[:10]:
-                        won = t["outcome"] == "target"
-                        L.append(f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
-                                 f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
-                                 f"{'تارگت خورد' if won else 'استاپ خورد'} "
-                                 f"(<code>{t['R']:+.2f}R</code>)")
-                    _tg._post(tok, "sendMessage",
-                              {"chat_id": chat, "text": "\n".join(L),
-                               "parse_mode": "HTML"})
-                    act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت")
-        except Exception as e:                       # noqa: BLE001 - اعلان چرخه را نمی‌کشد
-            print(f"اعلان نتیجه: {_tg.scrub(e) if '_tg' in dir() else type(e).__name__}")
-        # هضم حافظه — یادگیری از «همهٔ» بسته‌شده‌های این چرخه (تمرین و آزمایش
-        # هم درس‌اند)، ثبت در دفتر درس‌ها، و بازسازی ایندکس تا چرخهٔ بعد
-        # با دانش به‌روزتر شروع کند. تحلیل → یادگیری → ذخیره → استفاده.
-        try:
-            from hamid import memory as _mem2
-            newly = [t for t in paper._read(paper.CLOSED)
-                     if (t.get("closed") or 0) >= t_mark]
-            fed = _mem2.digest_closed(newly)
-            if fed:
-                act(f"حافظه: {fed} معاملهٔ بسته هضم شد — ایندکس دانش به‌روز شد")
-            report["memory"] = {"fed_now": fed,
-                                "lessons": _mem2.lessons(limit=6)}
-        except Exception as e:                       # noqa: BLE001
-            print(f"هضم حافظه: {type(e).__name__}: {e}")
+        # تسویه اول چرخه انجام شده (settle_books) — اینجا فقط باز کردن و ترازو.
         eq = paper._equity()
-        report["paper"] = {"opened": opened, "open": still, "closed_now": closed,
-                           **eq}
-        act(f"دفتر کاغذی: {opened} سفارش تازه گذاشته شد، {closed} معامله بسته شد، "
-            f"{still} سفارش هنوز باز است")
-        act("تجربه‌گیری: نتیجهٔ معامله‌های بسته با شرایط لحظهٔ بازشدنشان به حافظهٔ یادگیری رفت")
-        print(f"دفتر کاغذی: {opened} سفارش جدید، {still} باز، {closed} بسته — "
+        report["paper"] = {"opened": opened, "open": settled_open + opened,
+                           "closed_now": settled_closed, **eq}
+        act(f"دفتر کاغذی: {opened} سفارش تازه گذاشته شد، {settled_closed} معامله "
+            f"اول چرخه بسته شد، {settled_open + opened} سفارش باز است")
+        print(f"دفتر کاغذی: {opened} سفارش جدید، {settled_open + opened} باز، "
+              f"{settled_closed} بسته — "
               f"${eq['balance']} ({eq['return_pct']:+.2f}٪) از {eq['trades']} معامله")
-        # Reasons are only recomputed when there is enough to say anything; the
-        # function refuses below twenty closed trades on its own.
-        paper.reasons(verbose=False)
     except Exception as e:                           # noqa: BLE001 - the book is not the analysis
         print(f"دفتر کاغذی: {type(e).__name__}: {e}")
 
@@ -811,6 +834,17 @@ def main():
         if fired:
             from hamid.analyze_pump import rsi as _rsi
             from hamid.structure import atr as _atr
+            # آلارم‌ها هم از همان دروازهٔ بقیه رد می‌شوند — یافتهٔ بازبینی
+            # معماری: این تنها مسیری بود که سیگنال بدون ناظر به حمید می‌رسید.
+            try:
+                from hamid import paper as _pgate
+                _exp_idx = _pgate.experience_index()
+            except Exception:                        # noqa: BLE001
+                _exp_idx = {}
+            try:
+                from hamid import memory as _amem
+            except Exception:                        # noqa: BLE001
+                _amem = None
             sigs = []
             for al in fired:
                 try:
@@ -828,12 +862,24 @@ def main():
                         act(f"آلارم {al['sym']} رسید ولی RSI پانزده‌دقیقه {r15} — "
                             "اشباع است، سیگنال نشد")
                         continue
+                    e_ = _exp_idx.get((al["sym"], d))
+                    if e_ and not e_["thin"] and e_["mean_r"] < 0 and e_["win_pct"] < 45:
+                        act(f"ناظر تجربه آلارم {al['sym']} را رد کرد — "
+                            f"{e_['n']} معاملهٔ قبلی، میانگین {e_['mean_r']}R")
+                        continue
+                    mem_note = None
+                    if _amem:
+                        try:
+                            mem_note = _amem.consult(al["sym"], d, "alarm")["note"]
+                        except Exception:            # noqa: BLE001
+                            pass
                     px = al["price"]
                     sgn = 1 if d == "LONG" else -1
                     sig = {"sym": al["sym"], "tf": "15m", "dir": d, "entry": px,
                            "sl": round(px - sgn * 0.8 * av, 10),
                            "tp1": round(px + sgn * 1.6 * av, 10),
                            "tp2": round(px + sgn * 2.4 * av, 10), "rr": 2.0,
+                           "memory": mem_note,
                            "strategy": al.get("strategy") or "alarm",
                            "strategyName": (al.get("strategyName") or "آلارم رادار")
                            + " — قیمت رسید",
