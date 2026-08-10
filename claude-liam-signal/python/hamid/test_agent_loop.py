@@ -141,6 +141,40 @@ ln = liqmap.note(lm, "LONG")
 check("جملهٔ کپشن ساخته می‌شود", ln and "لیکویید" in ln)
 check("دادهٔ کم → بدون ادعا", liqmap.build(lq_cd[:20]) is None)
 
+# ── بازجویی پیش از صدور — «اول ببین چه چیزی استاپت می‌کند» ────────────────
+from hamid import premortem                           # noqa: E402
+from pathlib import Path as _P                        # noqa: E402
+premortem.DOM = _P("/nonexistent/dominance.json")     # دامیننس واقعی در آزمون دخالت نکند
+
+Q = 900_000
+def _mk15(d_up, d_dn, n=120):
+    """زیگزاگ: کندل صعودی/نزولی یک‌درمیان — سوینگ و RSI واقعی می‌سازد."""
+    out, p = [], 100.0
+    for i in range(n):
+        d = d_up if i % 2 == 0 else d_dn
+        p *= 1 + d
+        out.append({"t": i * Q, "o": p / (1 + d), "h": p * 1.004,
+                    "l": p * 0.996, "c": p, "v": 100.0})
+    return out
+
+up15 = _mk15(0.006, -0.005)
+e = up15[-1]["c"]
+good = premortem.review({"sym": "TESTUPUSDT", "dir": "LONG",
+                         "entry": e, "sl": e * 0.97, "tp1": e * 1.03}, up15)
+check("ستاپ سالم: دلایل تارگت بیشتر و صادر می‌شود",
+      good["issue"] and len(good["pro"]) > len(good["con"]))
+check("استاپ بیرون نویز جزو دلایل تارگت است",
+      any("بیرون نویز" in w for w in good["pro"]))
+
+down15 = _mk15(-0.006, 0.005)
+e2 = down15[-1]["c"]
+bad = premortem.review({"sym": "TESTDNUSDT", "dir": "LONG",
+                        "entry": e2, "sl": e2 * 0.998, "tp1": e2 * 1.05}, down15)
+check("استاپ داخل نویز + روند مخالف → صادر نمی‌شود", not bad["issue"])
+check("دلیل استاپ داخل نویز صریح نوشته شده",
+      any("داخل نویز" in w for w in bad["con"]))
+check("حکم در یادداشت است", "صادر نشد" in bad["note"])
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
