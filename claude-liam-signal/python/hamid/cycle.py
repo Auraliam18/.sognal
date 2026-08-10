@@ -372,8 +372,17 @@ def watch_alarms():
     if not alarms:
         return []
     fired, keep = [], []
+    now_ms = int(time.time() * 1000)
     for a in alarms:
         if a.get("stage") != "ARMED":
+            keep.append(a)
+            continue
+        # پنجرهٔ تاریخی — قانون حمید: اگر از فاصلهٔ معمولِ پامپِ دنباله‌رو
+        # بگذرد و نپریده باشد، طبق سابقهٔ خودش دیگر احتمالاً نمی‌پرد.
+        if a.get("expires_at") and now_ms > a["expires_at"]:
+            a["stage"] = "DEAD"
+            a["why_dead"] = "پنجرهٔ تاریخی پامپ گذشت — طبق سابقهٔ خودش دیگر بعید است بپرد"
+            act(f"آلارم {a['sym']} منقضی شد — {a['why_dead']}")
             keep.append(a)
             continue
         try:
