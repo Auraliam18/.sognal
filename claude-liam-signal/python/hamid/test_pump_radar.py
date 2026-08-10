@@ -203,10 +203,50 @@ class NoCrashKc(CrashKc):
 check("بدون ریزش الان، هشداری نیست",
       pr.crash_watch(NoCrashKc(), ["BTCUSDT", "PANICUSDT"]) is None)
 
+# ── دفتر ماندگار تاریخچهٔ پامپ‌ها ──────────────────────────────────────────
+import json                                           # noqa: E402
+import tempfile                                       # noqa: E402
+pr.HIST = Path(tempfile.mkdtemp()) / "pump-history.json"
+hist_blocks = [
+    {"symbol": "LEADUSDT", "pumps": [{"i": 50, "t": 100 * H, "ret_4h_pct": 18.0, "vol_z": 4.1},
+                                     {"i": 90, "t": 200 * H, "ret_4h_pct": 25.0, "vol_z": 5.0}],
+     "followers": [{"symbol": "FOLUSDT", "n": 3}], "leaders": []},
+    {"symbol": "FOLUSDT", "pumps": [{"i": 53, "t": 103 * H, "ret_4h_pct": 9.0, "vol_z": 3.0}],
+     "followers": [], "leaders": [{"symbol": "LEADUSDT", "n": 3}]},
+]
+n1, fresh1 = pr.update_history(hist_blocks)
+check("رخدادها ثبت شدند", n1 == 3)
+check("رخدادهای تازه برای گزارش به ایجنت برگشتند",
+      len(fresh1) == 3 and all(s in ("LEADUSDT", "FOLUSDT") for s, _ in fresh1))
+led = json.loads(pr.HIST.read_text())
+ev = led["symbols"]["LEADUSDT"]["events"]
+check("جدیدترین اول و تاریخ تهران دارد", ev[0]["t"] == 200 * H and ev[0]["date"])
+old = next(e for e in ev if e["t"] == 100 * H)
+check("واکنش دنباله‌رو با فاصلهٔ ساعتی ثبت شد",
+      old["reactions"] and old["reactions"][0]["symbol"] == "FOLUSDT"
+      and old["reactions"][0]["lag_h"] == 3.0)
+n2, fresh2 = pr.update_history(hist_blocks)
+check("اجرای دوباره رخداد تکراری نمی‌سازد", n2 == 3 and not fresh2)
+check("خلاصهٔ تاریخچه روی بلوک نشست", hist_blocks[0].get("history"))
+# «پاک نشود» — ۶۰ رخداد قدیمی هم بعد از اجرای تازه باید سر جایشان بمانند
+many = {"symbols": {"OLDUSDT": {"events": [
+    {"t": i * H, "date": "x", "ret_4h_pct": 12.0, "reactions": []}
+    for i in range(60)], "updated": 1}}}
+pr.HIST.write_text(json.dumps(many))
+n3, _ = pr.update_history(hist_blocks)
+led3 = json.loads(pr.HIST.read_text())
+check("هیچ رخداد قدیمی‌ای پاک نمی‌شود (بدون سقف)",
+      len(led3["symbols"]["OLDUSDT"]["events"]) == 60 and n3 == 63)
+
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)
 check("سرتیتر پنل + گزینه‌های پامپ", "حمید کلود مکس پنل" in msg and "گزینه‌های پامپ" in msg)
 check("دلایل داخل پیام‌اند", "دنباله‌رو" in msg and "ورود" in msg)
+# پیک AUSDT سردسته‌اش LEADUSDT است — سابقهٔ درآورده‌شده باید در پیام باشد
+hb = {b["symbol"]: b for b in hist_blocks}
+msg_h = pr.tg_message("تست", picks[:1], blocks + hist_blocks)
+check("سابقهٔ سردسته با تاریخ و واکنش در پیام است",
+      "📜" in msg_h and "پامپ +" in msg_h and "س بعد" in msg_h)
 
 print()
 if FAIL:
