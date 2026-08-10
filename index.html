@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.18 · شکار خبر ۳ساعته + تریدینگ‌ویو</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.19 · حباب‌ها: شخصیت‌شناسی ارزها</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -235,6 +235,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="tab" data-t="agent">فعالیت‌های ایجنت</button>
     <button class="tab" data-t="radar">رادار پامپ</button>
     <button class="tab" data-t="graph">گرافی‌فای</button>
+    <button class="tab" data-t="bub">حباب‌ها</button>
     <button class="tab" data-t="paper">ترید کاغذی<span class="b" id="cPaper">0</span></button>
     <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
     <button class="tab" data-t="playbook">پلی‌بوک و الگوها</button>
@@ -304,6 +305,16 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     </p>
     <div id="graphOut" style="margin-top:12px"></div>
     <div id="graphInfo" class="box" style="margin-top:10px;display:none"></div>
+  </section>
+  <section id="view-bub" style="display:none">
+    <div class="section-title"><span class="eyebrow">coin personalities · every 15 min</span><h2>حباب‌ها — شخصیت‌شناسی ارزهای متحرک</h2></div>
+    <p class="muted" style="margin-top:-6px;max-width:760px;font-size:13.5px">
+      هر ۱۵ دقیقه، متحرک‌ترین ارزها (سبک کریپتو بابلز) با پروفایل صفر تا صد: <b>در جنگ</b> (افت بیت‌کوین)
+      چطور واکنش می‌دهد، <b>وقتی سردسته‌اش می‌پرد</b> معمولاً چند ساعت بعد دنبالش می‌رود، چند بار پامپ کرده،
+      نقدینگی کدام طرفش جمع است. اندازهٔ حباب = حرکت ۲۴ساعته؛ روی هر حباب کلیک کن.
+    </p>
+    <div id="bubOut" style="margin-top:12px"></div>
+    <div id="bubInfo" class="box" style="margin-top:10px;display:none"></div>
   </section>
   <section id="view-paper" style="display:none">
     <div class="section-title"><span class="eyebrow">paper trading</span><h2>ترید کاغذی و مرور عملکرد</h2></div>
@@ -3599,6 +3610,68 @@ async function newsjFetch(){
 }
 setInterval(newsjFetch,300000);setTimeout(newsjFetch,6000);
 (()=>{const n=DB.get("newsj_cache");if(n&&!NEWSJ.data)NEWSJ.data=n;})();
+/* حباب‌ها — شخصیت ارزهای متحرک، هر ۱۵ دقیقه از رادار */
+const BUBJ={data:null};
+async function bubjFetch(){
+  try{
+    const r=await fetch("./signals/bubbles.json?t="+Date.now(),{cache:"no-store"});
+    if(r.ok){const j=await r.json();if(j&&j.generated){BUBJ.data=j;DB.set("bubj_cache",j);
+      const v=$("#view-bub");if(v&&v.style.display!=="none")renderBubbles();}}
+  }catch(e){}
+}
+setInterval(bubjFetch,180000);setTimeout(bubjFetch,6500);
+(()=>{const b=DB.get("bubj_cache");if(b&&!BUBJ.data)BUBJ.data=b;})();
+function renderBubbles(){
+  const el=$("#bubOut");if(!el)return;
+  const j=BUBJ.data;
+  if(!j||!(j.coins||[]).length){el.innerHTML=`<div class="box"><div class="dim" style="font-size:12px">
+    اولین چرخهٔ حباب‌ها از سرور در راه است — هر ۱۵ دقیقه ساخته می‌شود.</div></div>`;return;}
+  const mins=Math.round((Date.now()-j.generated)/60000);
+  const W=1000,H=560,cx=W/2,cy=H/2;
+  const coins=j.coins.slice(0,25);
+  const maxC=Math.max(...coins.map(c=>Math.abs(c.chg_24h||0)),1);
+  // چیدمان مارپیچ ساده با دفع برخورد — حباب بزرگ وسط، بقیه دورش
+  const placed=[];
+  coins.forEach((c,i)=>{
+    const r=22+52*Math.sqrt(Math.abs(c.chg_24h||0)/maxC);
+    let a=i*2.4, d=0, x=cx, y=cy, tries=0;
+    while(tries++<400){
+      x=cx+d*Math.cos(a); y=cy+d*Math.sin(a)*0.72;
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+r+6)
+         &&x-r>8&&x+r<W-8&&y-r>8&&y+r<H-8)break;
+      a+=0.55; d+=2.2;
+    }
+    placed.push({...c,x,y,r});
+  });
+  const bub=placed.map((c,i)=>{
+    const up=(c.chg_24h||0)>=0;
+    const col=up?"#2ecc71":"#e74c3c";
+    const roleIcon=c.role==="سردسته"?"👑":c.role==="دنباله‌رو"?"🐕":"";
+    return `<g class="bubNode" data-i="${i}" style="cursor:pointer">
+      <circle cx="${c.x}" cy="${c.y}" r="${c.r}" fill="${col}" fill-opacity="${0.10+0.25*Math.abs(c.chg_24h||0)/maxC}"
+        stroke="${col}" stroke-opacity=".7" stroke-width="1.6"/>
+      <text x="${c.x}" y="${c.y-4}" text-anchor="middle" fill="#e6edf3"
+        font-size="${Math.max(10,c.r/3.2)}" font-weight="bold">${roleIcon}${c.symbol.replace("USDT","")}</text>
+      <text x="${c.x}" y="${c.y+Math.max(11,c.r/3)}" text-anchor="middle" fill="${col}"
+        font-size="${Math.max(9,c.r/4)}">${(c.chg_24h>0?"+":"")+(c.chg_24h??"?")}٪</text></g>`;
+  }).join("");
+  el.innerHTML=`<div class="box" style="overflow-x:auto">
+    <div class="dim" style="font-size:10.5px;margin-bottom:4px">👑 سردسته · 🐕 دنباله‌رو · اندازه و رنگ = حرکت ۲۴س · ${mins} دقیقه پیش</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:700px;direction:ltr">${bub}</svg></div>`;
+  el.querySelectorAll(".bubNode").forEach(g=>g.onclick=()=>{
+    const c=placed[+g.dataset.i];const info=$("#bubInfo");
+    info.style.display="";
+    const row=(k,v)=>v==null?"":`<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12.5px"><span class="dim">${k}</span><b class="mono">${v}</b></div>`;
+    info.innerHTML=`<h3 style="margin:0 0 4px">${c.symbol} — پروفایل شخصیت</h3>
+      <div style="font-size:12.5px;line-height:2;margin-bottom:6px">🧬 ${c.character||"—"}</div>
+      ${row("قیمت",c.price)}${row("تغییر ۲۴س / ۱س",(c.chg_24h??"؟")+"٪ / "+(c.chg_1h??"؟")+"٪")}
+      ${row("جهش حجم (z)",c.vol_z)}${row("بتای BTC / بتای جنگ",(c.beta??"؟")+" / "+(c.war_beta??"؟ (نمونه کم)"))}
+      ${row("پامپ‌های تاریخی",(c.pumps_n||0)+(c.pumps_max?" (بزرگ‌ترین +"+c.pumps_max+"٪)":""))}
+      ${row("نقش خوشه",(c.role||"؟")+(c.leader?" ← "+c.leader.replace("USDT",""):""))}
+      ${c.lag?row("فاصلهٔ دنباله‌روی","~"+c.lag.med_h+"س ("+c.lag.n+" سابقه)"):""}
+      ${row("RSI 1س / روند",(c.rsi_1h??"؟")+" / "+(c.trend_1h||"؟"))}
+      ${row("آهن‌ربای نقدینگی",c.liq_magnet==="above"?"بالای سر":c.liq_magnet==="below"?"زیر پا":"متعادل")}`;});
+}
 /* با باز شدن پنل، آخرین دادهٔ سروری که دیده‌ایم فوراً از حافظه برمی‌گردد —
    صفحه هیچ‌وقت خالی شروع نمی‌شود؛ فچ تازه چند ثانیه بعد جایش را می‌گیرد. */
 (()=>{
@@ -4883,7 +4956,7 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    ========================================================================= */
 function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","real","net","watch","single","agent","radar","graph","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
+  ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
   if(t==="ops")renderOps();
   if(t==="paper")renderReview();
   if(t==="real")renderReal();
@@ -4891,6 +4964,7 @@ function selectTab(t){
   if(t==="agent")renderAgent();
   if(t==="radar")renderPumpCloud();
   if(t==="graph")renderGraph();
+  if(t==="bub")renderBubbles();
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
