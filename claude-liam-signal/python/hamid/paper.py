@@ -96,6 +96,10 @@ def experience_index(min_n=12):
     for t in _read(CLOSED):
         if t.get("R") is None or t.get("outcome") == "expired":
             continue
+        # میز تمرین عمداً دروازهٔ شل دارد و قولش «دفتر جدا» بود — بازبینی کد:
+        # باخت‌های تمرینی نباید سیگنال واقعی همان ارز را وتو کنند.
+        if (t.get("why") or {}).get("stage") == "practice":
+            continue
         idx.setdefault((t["sym"], t["dir"]), []).append(t["R"])
     out = {}
     for k, rs in idx.items():
@@ -149,8 +153,12 @@ def open_from(setups, context):
 
 
 def _candles_since(sym, since_ms):
+    # پنجرهٔ ثابت ۲۰۰تایی (~۵۰ ساعت) بعد از قطعی رانر تاریخچه را گم می‌کرد و
+    # معاملهٔ پرشدهٔ برنده «منقضی» ثبت می‌شد — بازبینی کد. حالا عمق فچ از سنِ
+    # خود سفارش می‌آید، با سقف ۱۰۰۰ کندل.
+    n = min(1000, max(200, int((time.time() * 1000 - since_ms) / 900000) + 20))
     try:
-        rows = sources.klines(sym, "15m", 200)
+        rows = sources.klines(sym, "15m", n)
     except Exception:                                # noqa: BLE001 - skip this one
         return []
     return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4]}
@@ -260,7 +268,7 @@ def _equity():
     # چهار دفتر جدا: سیگنال‌شده (رکورد اصلی)، دو آزمایش، میز تمرین (دروازهٔ
     # شل برای چندبرابر کردن نمونهٔ یادگیری) و سیگنال‌های آلارم. قاطی کردنشان
     # رکورد استراتژی سیگنال‌شده را ناخوانا می‌کند.
-    _aside = ("first", "inducement", "practice", "alarm")
+    _aside = ("first", "inducement", "practice", "alarm", "vetoed")
 
     def _stage(t):
         return (t.get("why") or {}).get("stage") or ""
@@ -288,6 +296,7 @@ def _equity():
                          else {"first": "آزمایش پولبک اول",
                                "inducement": "آزمایش ایندوسمنت",
                                "practice": "میز تمرین",
+                               "vetoed": "وتوشدهٔ ناظر",
                                "alarm": "سیگنال آلارم"}.get(
                              (t.get("why") or {}).get("stage"), "سیگنال‌شده"))}
     recent = sorted([t for t in closed if t.get("closed")],
