@@ -1,20 +1,20 @@
-# رادار پامپ خوشه‌ای — تاپ گینرز بیتیونیکس، هر نیم‌ساعت.
+# رادار پامپ خوشه‌ای — بیتیونیکس + توبیت، واقعاً هر ۵ دقیقه.
 #
-# «هر لحظه» روی Actions رایگان یعنی همین سقف: کرون هر ۳۰ دقیقه (+dispatch
-# دستی). لایهٔ دوم پایشِ لحظه‌ای، رادارِ خود پنل است وقتی باز باشد.
+# اندازه‌گیری ۱۰ اوت: کرون */5 گیت‌هاب در ساعت شلوغی اصلاً شلیک نشد (یک
+# شکاف ۷۳ دقیقه‌ای ثبت شد). پس «هر ۵ دقیقه» را نمی‌شود به کرون سپرد: خود
+# job یک حلقهٔ ~۲۵ دقیقه‌ای است که ۵ بار رادار را می‌چرخاند و در پایان،
+# خودش را دوباره dispatch می‌کند — زنجیرهٔ پیوسته، مستقل از کرون. کرون و
+# مدیک فقط تور ایمنی برای وقتی‌اند که زنجیره پاره شود.
 #
 # پوش ضدتصادم: قبل از هر تلاش، درخت به origin/main برمی‌گردد و خروجی‌های
 # خودمان با --reapply دوباره می‌نشینند (آلارم‌ها merge، لاگ تلگرام اجتماع دو
-# نسخه). همان تصادمی که یک بار نتیجهٔ TUT را بی‌صدا انداخت، اینجا ممکن نیست.
+# نسخه، دفتر تاریخچه اجتماع کامل).
 name: Pump radar
 
 on:
   schedule:
-    # هر ۵ دقیقه — خواست حمید: بیتیونیکس و توبیت هر ۵ دقیقه چک شوند تا ارزی
-    # از دست نرود. این کف زمان‌بندی Actions است؛ در ساعت شلوغی گیت‌هاب ممکن
-    # است دیرتر شلیک شود — محدودیت سکوست نه کد، و concurrency نمی‌گذارد
-    # اجراها روی هم سوار شوند.
-    - cron: "*/5 * * * *"
+    # فقط تور ایمنی — سازوکار اصلی، زنجیرهٔ self-dispatch داخل خود job است
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       token:
@@ -29,7 +29,7 @@ on:
 
 permissions:
   contents: write
-  actions: write        # dispatch بازانتشار Pages بعد از پوش gh-pages
+  actions: write        # dispatch بازانتشار Pages + زنجیرهٔ خودِ رادار
 
 concurrency:
   group: pump-radar
@@ -38,7 +38,7 @@ concurrency:
 jobs:
   radar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 32
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,15 +54,30 @@ jobs:
           done
           true
 
+      # زنجیره + کرونِ تور ایمنی می‌توانند هم‌زمان برسند؛ فقط یک حلقه بچرخد.
+      - name: فقط یک حلقه
+        id: guard
+        run: |
+          n=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pump-radar.yml/runs?status=in_progress&per_page=10" \
+            | jq --argjson me ${{ github.run_id }} '[.workflow_runs[] | select(.id != $me)] | length')
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "حلقهٔ دیگری در حال چرخیدن است — این اجرا کنار می‌کشد"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: matplotlib برای چارت پیک و هشدار ریزش
+        if: steps.guard.outputs.skip != '1'
         run: pip -q install matplotlib
 
       - name: آزمون آفلاین
+        if: steps.guard.outputs.skip != '1'
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.test_pump_radar
 
-      - name: رادار خوشه‌ای
-        working-directory: claude-liam-signal/python
+      - name: حلقهٔ ۵ دقیقه‌ای (۵ دور در یک job)
+        if: steps.guard.outputs.skip != '1'
+        id: loop
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -70,59 +85,82 @@ jobs:
           export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")}"
           export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
           MIN=$(jq -r '.inputs.min_pct // empty' "$GITHUB_EVENT_PATH")
-          python3 -m hamid.pump_radar --min-pct "${MIN:-5}"
-
-      - name: ثبت روی main (ضدتصادم)
-        run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          BK=/tmp/pump-radar-backup; mkdir -p "$BK"
-          cp signals/pump-radar.json "$BK/" 2>/dev/null || true
-          cp signals/bubbles.json "$BK/" 2>/dev/null || true
-          cp signals/telegram-log.json "$BK/" 2>/dev/null || true
-          cp brain/pump-radar-sent.json "$BK/" 2>/dev/null || true
-          cp brain/pump-history.json "$BK/" 2>/dev/null || true
-          cp brain/memory/lessons.json "$BK/" 2>/dev/null || true
-          for i in 1 2 3 4; do
-            git fetch origin main -q
-            git reset --hard origin/main -q
-            (cd claude-liam-signal/python && python3 -m hamid.pump_radar --reapply "$BK")
-            git add signals brain 2>/dev/null || true
-            git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
-            git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
-            git push origin HEAD:main -q && { echo "ثبت شد (تلاش $i)"; break; }
-            sleep $((i*2))
+          for k in 1 2 3 4 5; do
+            t0=$(date +%s)
+            echo "── دور $k از ۵ · $(date -u '+%H:%M:%S UTC') ──"
+            (cd claude-liam-signal/python && python3 -m hamid.pump_radar --min-pct "${MIN:-5}") || true
+
+            # ثبت روی main (ضدتصادم)
+            BK=/tmp/pump-radar-backup; mkdir -p "$BK"
+            cp signals/pump-radar.json "$BK/" 2>/dev/null || true
+            cp signals/bubbles.json "$BK/" 2>/dev/null || true
+            cp signals/telegram-log.json "$BK/" 2>/dev/null || true
+            cp brain/pump-radar-sent.json "$BK/" 2>/dev/null || true
+            cp brain/pump-history.json "$BK/" 2>/dev/null || true
+            cp brain/memory/lessons.json "$BK/" 2>/dev/null || true
+            for i in 1 2 3 4; do
+              git fetch origin main -q
+              git reset --hard origin/main -q
+              (cd claude-liam-signal/python && python3 -m hamid.pump_radar --reapply "$BK")
+              git add signals brain 2>/dev/null || true
+              git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
+              git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
+              git push origin HEAD:main -q && { echo "ثبت شد (تلاش $i)"; break; }
+              sleep $((i*2))
+            done
+
+            # انتشار روی پنل (gh-pages)
+            if git fetch origin gh-pages -q; then
+              rm -rf /tmp/ghp
+              if git worktree add /tmp/ghp origin/gh-pages --detach -q; then
+                mkdir -p /tmp/ghp/signals
+                cp signals/pump-radar.json /tmp/ghp/signals/ 2>/dev/null || true
+                cp signals/bubbles.json /tmp/ghp/signals/ 2>/dev/null || true
+                cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
+                ( cd /tmp/ghp
+                  git add signals
+                  if ! git diff --cached --quiet; then
+                    git commit -q -m "پامپ رادار $(date -u '+%H:%M') UTC"
+                    for i in 1 2 3; do
+                      git push origin HEAD:gh-pages -q \
+                        && { echo "deployed=1" >> "$GITHUB_OUTPUT"; break; }
+                      git fetch origin gh-pages -q || true
+                      git rebase origin/gh-pages -q || { git rebase --abort; break; }
+                    done
+                  fi )
+                git worktree remove --force /tmp/ghp 2>/dev/null || true
+              fi
+            fi
+
+            # تا سرِ ۵ دقیقهٔ بعد صبر کن (دور آخر صبر ندارد)
+            if [ "$k" -lt 5 ]; then
+              took=$(( $(date +%s) - t0 ))
+              wait=$(( 300 - took )); [ "$wait" -lt 20 ] && wait=20
+              echo "دور $k در ${took}ثانیه — ${wait}ثانیه تا دور بعد"
+              sleep "$wait"
+            fi
           done
 
-      - name: انتشار روی پنل (gh-pages)
-        id: ghp
-        run: |
-          git fetch origin gh-pages -q || exit 0
-          rm -rf /tmp/ghp
-          git worktree add /tmp/ghp origin/gh-pages --detach -q || exit 0
-          mkdir -p /tmp/ghp/signals
-          cp signals/pump-radar.json /tmp/ghp/signals/ 2>/dev/null || true
-          cp signals/bubbles.json /tmp/ghp/signals/ 2>/dev/null || true
-          cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
-          cd /tmp/ghp
-          git add signals
-          if ! git diff --cached --quiet; then
-            git commit -q -m "پامپ رادار $(date -u '+%H:%M') UTC"
-            for i in 1 2 3; do
-              git push origin HEAD:gh-pages -q \
-                && { echo "deployed=1" >> "$GITHUB_OUTPUT"; break; }
-              git fetch origin gh-pages -q || true
-              git rebase origin/gh-pages -q || { git rebase --abort; break; }
-            done
-          fi
-
-      # سایت Pages فقط با dispatch یا کرون pages.yml تازه می‌شود — پوش شاخه
-      # کافی نیست. بعد از انتشار واقعی، همان لحظه صدایش می‌زنیم.
+      # سایت Pages فقط با dispatch یا کرون pages.yml تازه می‌شود
       - name: بازانتشار Pages
-        if: steps.ghp.outputs.deployed == '1'
+        if: steps.loop.outputs.deployed == '1'
         run: |
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pages.yml/dispatches" \
             -d '{"ref":"main"}' || echo "dispatch نشد — کرون نیم‌ساعته جبران می‌کند"
+
+      # زنجیره: حلقهٔ بعدی را خودمان صدا می‌زنیم — کرون گیت‌هاب قابل اتکا نیست
+      - name: زنجیرهٔ حلقهٔ بعد
+        if: always() && steps.guard.outputs.skip != '1'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pump-radar.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            && echo "حلقهٔ بعد صدا زده شد" \
+            || echo "dispatch نشد — کرون ربع‌ساعته و مدیک زنده‌اش می‌کنند"
