@@ -35,7 +35,6 @@ so a restarted runner does not start counting again.
 """
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -147,7 +146,6 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
                 for k in rows]
 
     btc4 = candles("BTCUSDT", "1h", limit_4h)        # 1h stands in for 4h below
-    btc15 = candles("BTCUSDT", "15m", limit_15m)
 
     # USDT.D and BTC.D are index series, not pairs — CoinGecko has the level but
     # not the history, so the channel work Hamid does on them needs a series we
@@ -255,13 +253,29 @@ def money_flow(fetched, z_gate=2.0, look=4):
 
 
 def resample(cd, k):
-    """k one-hour candles into one k-hour candle. Oldest-first in, oldest-first
-    out, and a trailing partial group is dropped rather than reported as a
-    closed candle — a half-formed 4H bar is the single easiest way to read a
-    structure that is not there yet."""
+    """k one-hour candles into one k-hour candle, anchored to the clock.
+
+    بازبینی کد دو عیب واقعی گرفت: گروه‌بندی از ایندکس صفرِ پنجرهٔ لغزان شروع
+    می‌شد، پس مرز کندل ۴ساعته هر ساعت یک ساعت جابه‌جا می‌شد و روند/بلاک‌های
+    ۴ساعته بدون هیچ تغییری در بازار بین دو چرخه عوض می‌شدند؛ و وقتی طول
+    پنجره مضرب k بود، «کندل بستهٔ» آخر شامل کندل یک‌ساعتهٔ هنوز-باز می‌شد.
+    حالا گروه‌ها به ساعت جهانی قفل‌اند، گروه ناقصِ ابتدای پنجره و گروه آخر
+    (که کندل باز در آن است) هر دو حذف می‌شوند."""
+    ms = k * 3600 * 1000
+    buckets, order = {}, []
+    for c in cd:
+        b = c["t"] // ms
+        if b not in buckets:
+            buckets[b] = []
+            order.append(b)
+        buckets[b].append(c)
+    if order:
+        order.pop()                    # گروه آخر = کندل باز؛ کندل بسته نیست
     out = []
-    for i in range(0, len(cd) - k + 1, k):
-        g = cd[i:i + k]
+    for b in order:
+        g = buckets[b]
+        if len(g) < k:                 # گروه ناقص ابتدای پنجره — OHLC ناقص است
+            continue
         out.append({"t": g[0]["t"], "o": g[0]["o"],
                     "h": max(x["h"] for x in g), "l": min(x["l"] for x in g),
                     "c": g[-1]["c"], "v": sum(x["v"] for x in g)})
@@ -603,7 +617,7 @@ def main():
             # 🆕 انجین کشف لیست‌شدن — دیفِ نمادها با حافظهٔ اجرای قبل
             try:
                 from hamid import discovery as _dv
-                nl = _dv.new_listings(tick)
+                nl = _dv.new_listings(tick, venue=sources.used().get("tickers"))
                 report["new_listings"] = nl["new"]
                 if nl["new"]:
                     act(f"🆕 ارز تازه‌لیست‌شده: {', '.join(nl['new'][:5])} — "
@@ -784,7 +798,11 @@ def main():
         cands = report.get("paper_candidates") or \
             [x for x in report.get("setups", []) if not x.get("waiting")]
         for c in cands:
-            c["stage_tag"] = "second" if not c.get("waiting") else "first"
+            # وتوشده دفتر جدا می‌گیرد — بازبینی کد: قبلاً با برچسب second در
+            # رکورد سرفصل می‌نشست و کارنامهٔ «سیگنال‌شده» را با معامله‌هایی که
+            # هرگز فرستاده نشدند آلوده می‌کرد.
+            c["stage_tag"] = ("vetoed" if c.get("vetoed")
+                              else "second" if not c.get("waiting") else "first")
         opened = paper.open_from(cands, ctx)
         ind_cands = [{"symbol": s_, "dir": x.dir, "entry": x.entry, "sl": x.sl,
                       "tp1": x.tp1, "tp2": x.tp2, "stage_tag": "inducement"}
@@ -909,7 +927,9 @@ def main():
                            "tp1": round(px + sgn * 1.6 * av, 10),
                            "tp2": round(px + sgn * 2.4 * av, 10), "rr": 2.0,
                            "memory": mem_note,
-                           "strategy": al.get("strategy") or "alarm",
+                           # همیشه «alarm» — بازبینی کد: با استراتژی اصلی (ibs/smc)
+                           # سهمیهٔ پرشده آلارم را می‌انداخت و قول «رسید=سیگنال» می‌شکست
+                           "strategy": "alarm",
                            "strategyName": (al.get("strategyName") or "آلارم رادار")
                            + " — قیمت رسید",
                            "footer": "<i>آلارمِ رسیدن قیمت به ناحیهٔ ازپیش‌ثبت‌شده — "
