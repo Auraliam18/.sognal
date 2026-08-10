@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.15 · گرافی‌فای + نقشهٔ نقدینگی</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.16 · ۱۸ انجین + کشف لیست تازه + دسته‌بندی خبر</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3942,37 +3942,57 @@ function renderAgent(){
 /* گرافی‌فای — نقشهٔ زندهٔ انجین‌ها. هر سلول یک انجین، هر خط مسیر واقعی داده.
    تازگی هر سلول از همان فایل‌هایی می‌آید که خود انجین منتشر می‌کند. */
 const GRAPH_NODES=[
- {id:"src",x:400,y:16,w:200,h:46,label:"🌐 صرافی‌های جهانی",sub:"کندل و تیکر",fresh:null,
+ // ── ردیف منابع ──
+ {id:"src",x:60,y:14,w:190,h:46,label:"🌐 صرافی‌ها",sub:"کندل و تیکر",fresh:null,
   desc:"منابع داده: بیتیونیکس، MEXC و بقیه — کندل واقعی، پایهٔ همه‌چیز."},
- {id:"scan",x:70,y:120,w:190,h:52,label:"📡 اسکن زنده",sub:"IBS + کانال/OB",fresh:()=>RELAY.data&&RELAY.data.generated,
-  desc:"هر ۳۰ دقیقه ۱۰۰ ارز را با دو استراتژی قدیمی اسکن می‌کند؛ قانون‌های تأییدشدهٔ بک‌تست رتبه می‌دهند."},
- {id:"cycle",x:400,y:120,w:200,h:52,label:"🧭 چرخهٔ حمید",sub:"۴س ← ۱س ← ۱۵د",fresh:()=>HAMID.data&&HAMID.data.generated,
-  desc:"هر ۲۰ دقیقه: اول تسویه و یادگیری، بعد خوانش بازار، ستاپ به روش خود حمید، نقشهٔ نقدینگی، و تصمیم."},
- {id:"radar",x:740,y:120,w:190,h:52,label:"🚀 رادار پامپ",sub:"خوشه‌ای ۱۵د",fresh:()=>PUMPR.data&&PUMPR.data.generated,
-  desc:"تاپ گینرز و شعله‌گیری ۳۰د؛ نقش سردسته/دنباله‌رو؛ فقط عضو نپریدهٔ خوشه پیشنهاد می‌شود."},
- {id:"sup",x:290,y:236,w:180,h:48,label:"🚫 ناظر تجربه",sub:"وتو با ۱۲+ معامله",fresh:()=>HAMID.data&&HAMID.data.generated,
-  desc:"قبل از صدور، کارنامهٔ همان ارز/جهت را می‌پرسد؛ رکورد منفیِ کافی = سیگنال رد."},
- {id:"mem",x:530,y:236,w:180,h:48,label:"🧠 حافظه",sub:"درس‌ها + ایندکس",fresh:()=>{const m=HAMID.data&&HAMID.data.memory;return m?HAMID.data.generated:null;},
-  desc:"هر معاملهٔ بسته با شرایطش هضم می‌شود؛ قبل از هر سیگنال مشورت می‌دهد و شباهت با گذشته را صریح می‌گوید."},
- {id:"alarm",x:740,y:236,w:190,h:48,label:"⏰ آلارم‌ها",sub:"رسیدن قیمت",fresh:()=>HAMID.data&&HAMID.data.generated,
-  desc:"هر چرخه آلارم‌های مسلح چک می‌شوند؛ لمس ورود = بازبینی (RSI + ناظر) و سیگنال."},
- {id:"paper",x:70,y:236,w:190,h:48,label:"📒 دفتر کاغذی",sub:"۶ دفتر جدا",fresh:()=>HAMID.data&&HAMID.data.paper&&HAMID.data.generated,
-  desc:"سیگنال‌شده، ارسالی اسکن، آلارم، تمرین و دو آزمایش — هر کدام رکورد جدا تا عددها قاطی نشوند."},
- {id:"tg",x:400,y:352,w:200,h:48,label:"📨 تلگرام",sub:"سهمیه + ضدتکرار",fresh:()=>TGLOG.data&&TGLOG.data.generated,
-  desc:"ارسال لحظه‌ای با چارت ۵د و واترمارک Trade_Osuli؛ سهمیهٔ مشترک روزانه؛ نتیجهٔ تارگت/استاپ هم می‌آید."},
- {id:"review",x:740,y:352,w:190,h:48,label:"🧾 مرور ۲ساعته",sub:"نمرهٔ دفترها",fresh:()=>{const r=HAMID.data&&HAMID.data.review;return r&&r.at;},
+ {id:"dom",x:300,y:14,w:190,h:46,label:"💹 دامیننس",sub:"USDT.D · BTC.D — مستقل",fresh:()=>{const d=HAMID.data&&HAMID.data.world&&HAMID.data.world.dominance;return d?HAMID.data.generated:null;},
+  desc:"انجین مستقل خوانش دامیننس تتر و بیت‌کوین در همان لحظه — پرچم جهت پول؛ روی هر معامله ثبت می‌شود تا اثرش اندازه بخورد."},
+ {id:"news",x:540,y:14,w:190,h:46,label:"📰 اخبار و وبگردی",sub:"دسته‌بندی → اتاق‌ها",fresh:()=>{const n=HAMID.data&&HAMID.data.world&&HAMID.data.world.news;return n?HAMID.data.generated:null;},
+  desc:"جستجوی وب و تیترهای داغ؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
+ {id:"medic",x:780,y:14,w:160,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
+  desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی به تلگرام هشدار می‌رود."},
+ // ── ردیف موتورهای تحلیل ──
+ {id:"scan",x:60,y:118,w:190,h:50,label:"📡 اسکن زنده",sub:"IBS + کانال/OB",fresh:()=>RELAY.data&&RELAY.data.generated,
+  desc:"هر ۳۰ دقیقه ۱۰۰ ارز با دو استراتژی؛ قانون‌های تأییدشدهٔ بک‌تست رتبه می‌دهند."},
+ {id:"cycle",x:300,y:118,w:190,h:50,label:"🧭 چرخهٔ حمید",sub:"۴س ← ۱س ← ۱۵د",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"هر ۲۰ دقیقه: اول تسویه و یادگیری، بعد خوانش بازار، نقشهٔ نقدینگی و ستاپ به روش خود حمید."},
+ {id:"radar",x:540,y:118,w:190,h:50,label:"🚀 رادار خوشه",sub:"همبستگی + شباهت چارت",fresh:()=>PUMPR.data&&PUMPR.data.generated,
+  desc:"هر ۱۵ دقیقه: تاپ گینرز و شعله‌گیری؛ دسته‌بندی ارزهای مرتبط با همبستگی (سردسته/دنباله‌رو) و شباهت چارت به قبلِ پامپ‌های تاریخی."},
+ {id:"newl",x:780,y:118,w:160,h:50,label:"🆕 ارزهای تازه",sub:"دیفِ لیست صرافی",fresh:()=>HAMID.data&&HAMID.data.new_listings!==undefined?HAMID.data.generated:null,
+  desc:"نمادی که امروز هست و دیروز نبود = لانچ تازه؛ به حافظه می‌رود و زیر نظر رادار می‌ماند. شبکه‌های اجتماعی بسته‌اند — سروصدایشان از مسیر جستجوی وب پوشش می‌گیرد."},
+ // ── ردیف قضاوت و یادگیری ──
+ {id:"paper",x:60,y:224,w:190,h:50,label:"📒 دفتر کاغذی",sub:"۶ دفتر جدا",fresh:()=>HAMID.data&&HAMID.data.paper&&HAMID.data.generated,
+  desc:"سیگنال‌شده، ارسالی اسکن، آلارم، تمرین و دو آزمایش — رکوردها جدا تا عددها قاطی نشوند."},
+ {id:"sup",x:300,y:224,w:190,h:50,label:"🚫 ناظر تجربه",sub:"وتو با ۱۲+ معامله",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"قبل از صدور هر سیگنال (حتی آلارم)، کارنامهٔ همان ارز/جهت را می‌پرسد؛ رکورد منفی کافی = رد."},
+ {id:"learn",x:540,y:224,w:190,h:50,label:"🎓 انجین یادگیری",sub:"چرخهٔ فعال هر ۲۰د",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"چرخهٔ فعال: از دفتر (نتیجه‌ها)، بک‌تست شبانه (سابقهٔ کندل واقعی)، خوشه/همبستگی، دامیننسِ لحظه و خبرها خوراک می‌گیرد؛ فقط شرطی که بازهٔ اطمینانش از صفر رد شود حق اثر بر تصمیم دارد."},
+ {id:"alarm",x:780,y:224,w:160,h:50,label:"⏰ آلارم‌ها",sub:"رسیدن قیمت",fresh:()=>HAMID.data&&HAMID.data.generated,
+  desc:"لمس نقطهٔ ورود = بازبینی (RSI + ناظر + حافظه) و سیگنال؛ ۷٪ آن‌طرف = باطل با دلیل."},
+ // ── ردیف حافظه و ایجنت ──
+ {id:"mem",x:60,y:330,w:190,h:50,label:"🧠 حافظه",sub:"درس‌ها + بررسی گذشته",fresh:()=>{const m=HAMID.data&&HAMID.data.memory;return m?HAMID.data.generated:null;},
+  desc:"بررسی سابقه در گذشته: هر معاملهٔ بسته با شرایطش هضم می‌شود؛ قبل از هر سیگنال، تاریخچهٔ همان ارز/جهت با عدد پرسیده و شباهت صریح ذکر می‌شود."},
+ {id:"agent",x:300,y:330,w:190,h:50,label:"🤖 ایجنت (کلود)",sub:"متصل به همه",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0,(PUMPR.data&&PUMPR.data.generated)||0)||null,
+  desc:"مغز هماهنگ‌کننده: همهٔ انجین‌ها را می‌سازد، می‌پاید و بهبود می‌دهد؛ وبگردی و مطالعهٔ منابع معتبر از همین‌جاست و خروجی نهایی به پنل می‌رسد."},
+ {id:"bt",x:540,y:330,w:190,h:50,label:"🔬 بک‌تست شبانه",sub:"سابقه روی کندل واقعی",fresh:()=>{const r=RELAY.data&&RELAY.data.learned_rules;return r?RELAY.data.generated:null;},
+  desc:"بررسی سابقه در گذشته با هزاران معامله روی کندل واقعی؛ قانون فقط با CI بالای صفر تأیید و با از دست دادنش خودکار حذف می‌شود."},
+ {id:"review",x:780,y:330,w:160,h:50,label:"🧾 مرور ۲ساعته",sub:"نمرهٔ دفترها",fresh:()=>{const r=HAMID.data&&HAMID.data.review;return r&&r.at;},
   desc:"هر دو ساعت نمرهٔ هر دفتر ثبت می‌شود تا «یک تغییر در هر مرور» قابل نمره دادن باشد."},
- {id:"panel",x:70,y:352,w:190,h:48,label:"🖥 پنل",sub:"همین صفحه",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0)||null,
-  desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور می‌خواند؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."},
- {id:"medic",x:740,y:16,w:190,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
-  desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی را به تلگرام هشدار می‌دهد."}];
-/* یال پزشک نقطه‌چین است: کنترل است نه داده. tg→panel حذف شد — پنل از
-   فایل‌های منتشرشدهٔ چرخه می‌خواند، نه از تلگرام (نقد طراح: فلش دروغ بود). */
-const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],
- ["cycle","sup"],["cycle","mem"],["mem","sup"],["sup","tg"],
- ["scan","tg"],["scan","paper"],["cycle","paper"],["radar","alarm"],
- ["alarm","tg"],["paper","mem"],["paper","review"],["cycle","panel"],
- ["medic","radar"],["medic","cycle"],["medic","scan"]];
+ // ── ردیف خروجی ──
+ {id:"tg",x:300,y:436,w:190,h:48,label:"📨 تلگرام",sub:"سهمیه + ضدتکرار",fresh:()=>TGLOG.data&&TGLOG.data.generated,
+  desc:"ارسال لحظه‌ای با چارت ۵د و واترمارک Trade_Osuli؛ نتیجهٔ تارگت/استاپ هم می‌آید."},
+ {id:"panel",x:540,y:436,w:190,h:48,label:"🖥 پنل",sub:"خروجی نهایی",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0)||null,
+  desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."}];
+/* نقطه‌چین کهربایی = پایش پزشک؛ نقطه‌چین آبی = دست ایجنت روی انجین‌ها.
+   tg→panel وجود ندارد — پنل از فایل‌های سرور می‌خواند (نقد طراح). */
+const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],["src","dom"],["src","newl"],
+ ["dom","cycle"],["news","cycle"],["news","learn"],
+ ["cycle","sup"],["mem","sup"],["sup","tg"],
+ ["scan","tg"],["scan","paper"],["cycle","paper"],["radar","alarm"],["radar","learn"],
+ ["newl","radar"],["alarm","tg"],["paper","mem"],["mem","learn"],["bt","learn"],
+ ["learn","sup"],["learn","cycle"],["paper","review"],["cycle","panel"],
+ ["medic","radar"],["medic","cycle"],["medic","scan"],
+ ["agent","cycle"],["agent","learn"],["agent","panel"]];
 function graphAge(n){
   if(!n.fresh)return null;
   const g=n.fresh();if(!g)return Infinity;
@@ -3988,8 +4008,8 @@ function renderGraph(){
   const inCount={},inSeen={};
   GRAPH_EDGES.forEach(([a,b])=>inCount[b]=(inCount[b]||0)+1);
   const edges=GRAPH_EDGES.map(([a,b])=>{const A=P(a),B=P(b);
-    const col=a==="medic"?"rgba(240,169,46,.55)":dot(graphAge(A));
-    const dash=a==="medic"?' stroke-dasharray="4 4"':'';
+    const col=a==="medic"?"rgba(240,169,46,.55)":a==="agent"?"rgba(61,139,253,.55)":dot(graphAge(A));
+    const dash=(a==="medic"||a==="agent")?' stroke-dasharray="4 4"':'';
     const k=(inSeen[b]=(inSeen[b]||0)+1)-1;
     if(A.y===B.y){ // هم‌ردیف: از پهلو، صاف — نه شیرجه از میان سلول دیگر
       const L=A.x<B.x, x1=L?A.x+A.w:A.x, x2=L?B.x:B.x+B.w, y=A.y+A.h/2;
@@ -4009,14 +4029,14 @@ function renderGraph(){
         font-size="13" font-weight="bold" direction="rtl" unicode-bidi="embed">${n.label}</text>
       <text x="${n.x+n.w/2+8}" y="${n.y+n.h/2+13}" text-anchor="middle" fill="#8b98ab"
         font-size="10" direction="rtl" unicode-bidi="embed">${n.sub}${ageTxt(a)}</text></g>`;}).join("");
-  el.innerHTML=`<div class="box" style="overflow-x:auto"><svg viewBox="0 0 1000 420"
+  el.innerHTML=`<div class="box" style="overflow-x:auto"><svg viewBox="0 0 1000 500"
     style="width:100%;min-width:720px;direction:ltr">
     <defs><marker id="gfArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
       <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.6)"/></marker></defs>
     ${edges}${nodes}</svg>
     <div class="dim" style="font-size:10.5px;margin-top:4px">
       🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
-      خط نقطه‌چین = پایش پزشک · رنگ هر خط از تازگیِ مبدأش می‌آید — هر ۵ ثانیه به‌روز</div></div>`;
+      نقطه‌چین کهربایی = پایش پزشک · نقطه‌چین آبی = دست ایجنت · رنگ هر خط از تازگیِ مبدأش — هر ۵ ثانیه به‌روز</div></div>`;
   const bx=el.querySelector("div.box");if(bx)bx.scrollLeft=0;
   el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
     const n=P(g.dataset.id);const info=$("#graphInfo");
