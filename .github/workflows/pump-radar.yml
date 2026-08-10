@@ -28,6 +28,7 @@ on:
 
 permissions:
   contents: write
+  actions: write        # dispatch بازانتشار Pages بعد از پوش gh-pages
 
 concurrency:
   group: pump-radar
@@ -51,6 +52,9 @@ jobs:
             [ -n "$v" ] && echo "::add-mask::$v"
           done
           true
+
+      - name: matplotlib برای چارت پیک و هشدار ریزش
+        run: pip -q install matplotlib
 
       - name: آزمون آفلاین
         working-directory: claude-liam-signal/python
@@ -89,6 +93,7 @@ jobs:
           done
 
       - name: انتشار روی پنل (gh-pages)
+        id: ghp
         run: |
           git fetch origin gh-pages -q || exit 0
           rm -rf /tmp/ghp
@@ -102,8 +107,20 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -q -m "پامپ رادار $(date -u '+%H:%M') UTC"
             for i in 1 2 3; do
-              git push origin HEAD:gh-pages -q && break
+              git push origin HEAD:gh-pages -q \
+                && { echo "deployed=1" >> "$GITHUB_OUTPUT"; break; }
               git fetch origin gh-pages -q || true
               git rebase origin/gh-pages -q || { git rebase --abort; break; }
             done
           fi
+
+      # سایت Pages فقط با dispatch یا کرون pages.yml تازه می‌شود — پوش شاخه
+      # کافی نیست. بعد از انتشار واقعی، همان لحظه صدایش می‌زنیم.
+      - name: بازانتشار Pages
+        if: steps.ghp.outputs.deployed == '1'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pages.yml/dispatches" \
+            -d '{"ref":"main"}' || echo "dispatch نشد — کرون نیم‌ساعته جبران می‌کند"

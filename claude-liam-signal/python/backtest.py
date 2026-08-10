@@ -291,6 +291,34 @@ def main():
         report["comparison"] = {"delta": round(gap, 3), "ci": [round(d[0], 3), round(d[1], 3)] if d else None,
                                 "verdict": verdict, "kept": len(b), "of": len(a)}
 
+    # «هزار بار تمرین» — هر ریپلی روی کندل واقعی، تجربهٔ قابل‌مشورت می‌شود.
+    # آمار هر ارز×جهت به brain/history-stats.json می‌رود و memory.consult قبل
+    # از هر سیگنال همان را کنار تجربهٔ زنده می‌گذارد. اثر روی رتبه فقط وقتی
+    # است که بازهٔ اطمینان از صفر رد شود — قانون همیشگی.
+    try:
+        hist = {}
+        for t in results.get("base", []):
+            k = f"{t['sym']}|{t['dir']}"
+            hist.setdefault(k, []).append(t["r"])
+        stats = {}
+        for k, rs in hist.items():
+            if len(rs) < 10:
+                continue
+            ci = boot(rs)
+            stats[k] = {"n": len(rs), "ev": round(statistics.fmean(rs), 3),
+                        "win": round(100 * sum(1 for r in rs if r > 0) / len(rs), 1),
+                        "ci": [round(ci[0], 3), round(ci[1], 3)] if ci else None}
+        bp = ROOT / "brain" / "history-stats.json"
+        bp.parent.mkdir(exist_ok=True)
+        bp.write_text(json.dumps({"generated": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+                                  "source": "real klines replay (backtest.py, base variant)",
+                                  "trades": sum(s["n"] for s in stats.values()),
+                                  "stats": stats}, indent=1))
+        print(f"history-stats: {len(stats)} symbol×direction corpora "
+              f"({sum(s['n'] for s in stats.values())} replayed trades) → brain/history-stats.json")
+    except Exception as e:                           # noqa: BLE001 - آمار تمرین، بک‌تست را نمی‌کشد
+        print(f"history-stats failed: {type(e).__name__}: {e}")
+
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%d-%H%M", time.gmtime())
     (OUT / f"backtest-{stamp}.json").write_text(json.dumps(

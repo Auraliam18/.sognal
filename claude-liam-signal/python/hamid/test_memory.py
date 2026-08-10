@@ -73,6 +73,25 @@ brain.recall = lambda **k: {"verdict": "thin"}
 mA = memory.consult("AUSDT", "LONG")
 check("بدون آمار، آخرین درس ذکر می‌شود", mA["note"] and "آخرین تجربه" in mA["note"])
 
+# ── تمرین تاریخی — «هزار بار استفاده کن و یاد بگیر» ───────────────────────
+memory.HISTORY = tmp / "history-stats.json"
+memory.HISTORY.write_text(json.dumps({"stats": {
+    "HUSDT|LONG": {"n": 120, "ev": 0.21, "win": 34.0, "ci": [0.09, 0.33]},
+    "HUSDT|SHORT": {"n": 80, "ev": -0.15, "win": 18.0, "ci": [-0.28, -0.03]},
+    "THINUSDT|LONG": {"n": 12, "ev": 0.5, "win": 60.0, "ci": [0.1, 0.9]},
+    "SPANUSDT|LONG": {"n": 90, "ev": 0.02, "win": 25.0, "ci": [-0.05, 0.09]},
+}}))
+hn, ha = memory.history("HUSDT", "LONG")
+check("ریپلی با CI بالای صفر → ذکر + رتبهٔ مثبت", hn and "120 ریپلی" in hn and ha > 0)
+hn2, ha2 = memory.history("HUSDT", "SHORT")
+check("CI زیر صفر → احتیاط و رتبهٔ منفی", "احتیاط" in (hn2 or "") and ha2 < 0)
+check("زیر ۳۰ ریپلی حرفی نمی‌زند", memory.history("THINUSDT", "LONG") == (None, 0.0))
+hn4, ha4 = memory.history("SPANUSDT", "LONG")
+check("CI دربرگیرندهٔ صفر: ذکر بدون اثر رتبه", hn4 and ha4 == 0.0)
+brain.recall = lambda **k: {"verdict": "thin"}
+mh = memory.consult("HUSDT", "LONG")
+check("مشورت، تمرین تاریخی را هم می‌آورد", "تمرین تاریخی" in (mh["note"] or ""))
+
 brain.learn, brain.build_index, brain.recall = _orig
 
 print()
