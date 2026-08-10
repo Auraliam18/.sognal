@@ -109,8 +109,57 @@ def _parse_bitunix(rows):
     return out
 
 
+TOOBIT_TICKERS = "https://api.toobit.com/quote/v1/ticker/24hr"
+
+
+def _parse_toobit(rows):
+    """پارس تیکر توبیت — شکل واقعی از لاگ اجرای زنده:
+    ['c','h','l','o','pc','pcp','qv','s','si','t','v'].
+
+    درس اجرای اول: محاسبه از c/o جفت‌های بی‌عمقِ تازه‌لیست را با +۲۹۰۰٪ صدر
+    جدول می‌کرد و گینر واقعی را بیرون می‌انداخت. حالا pcp خود صرافی + فیلتر
+    حجم qv و تشخیص مقیاس (کسری/درصد) مثل بیتیونیکس."""
+    raw = []
+    for t in rows:
+        s = str(t.get("s") or t.get("symbol") or "")
+        if not s.endswith("USDT"):
+            continue
+        try:
+            last = float(t.get("c") or 0)
+            qv = float(t.get("qv") or 0)
+            pcp = float(t.get("pcp"))
+        except (TypeError, ValueError):
+            continue
+        if last <= 0 or qv < 100_000:                # کتاب کم‌عمق، گینر واقعی نیست
+            continue
+        raw.append({"symbol": s, "pcp": pcp, "last": last, "vol": qv})
+    if not raw:
+        return []
+    vals = sorted(abs(x["pcp"]) for x in raw)
+    frac = len(raw) >= 20 and vals[int(len(vals) * 0.9)] <= 0.5
+    out = []
+    for x in raw:
+        chg = x["pcp"] * 100 if frac else x["pcp"]
+        if abs(chg) > 300:                           # لیستِ امروز/دادهٔ بی‌معنا
+            continue
+        out.append({"symbol": x["symbol"], "change_pct": round(chg, 1),
+                    "last": x["last"], "venue": "توبیت"})
+    return out
+
+
+def _toobit_gainers():
+    """تاپ گینرز توبیت — خواست حمید: بیتیونیکس و توبیت هر دو زیر نظر باشند."""
+    r = sources._json(TOOBIT_TICKERS)
+    rows = r if isinstance(r, list) else (r.get("data") or r.get("result") or [])
+    if rows:
+        print("کلیدهای تیکر توبیت:", sorted((rows[0] or {}).keys()))
+    return _parse_toobit(rows)
+
+
 def gainers(top=6, min_pct=5.0):
-    """(نام منبع، لیست گینرها) — بیتیونیکس اول، چون حمید همان‌جا معامله می‌کند."""
+    """(نام منبع، لیست گینرها) — بیتیونیکس + توبیت با هم؛ حمید هر دو را
+    می‌خواهد زیر نظر داشته باشد تا ارزی از دست نرود."""
+    merged, names = {}, []
     try:
         rows = sources._rows(sources._json(BITUNIX_TICKERS))
         g = _parse_bitunix(rows)
@@ -120,13 +169,36 @@ def gainers(top=6, min_pct=5.0):
         # اگر هیچ‌کس «حرکت» ندارد، داده تغییرِ واقعی ندارد — ادعای بیتیونیکس
         # نمی‌کنیم و صادقانه به منبع بعدی می‌رویم (درس اجرای دوم: همه +0.0٪).
         if len(g) >= 20 and len(moved) >= 5:
-            g.sort(key=lambda x: -x["change_pct"])
+            for x in g:
+                x["venue"] = "بیتیونیکس"
+                merged[x["symbol"]] = x
+            names.append("بیتیونیکس")
             print("بیتیونیکس، ۵ تغییر بزرگ ۲۴س: " +
-                  ", ".join(f"{x['symbol']} {x['change_pct']:+}%" for x in g[:5]))
-            return "بیتیونیکس (فیوچرز)", [x for x in g if x["change_pct"] >= min_pct][:top]
-        print(f"تیکر بیتیونیکس تغییرِ قابل‌استفاده ندارد ({len(g)} جفت، {len(moved)} متحرک)")
+                  ", ".join(f"{x['symbol']} {x['change_pct']:+}%"
+                            for x in sorted(g, key=lambda x: -x["change_pct"])[:5]))
+        else:
+            print(f"تیکر بیتیونیکس تغییرِ قابل‌استفاده ندارد ({len(g)} جفت، {len(moved)} متحرک)")
     except Exception as e:                           # noqa: BLE001 - صرافی بعدی
         print(f"بیتیونیکس جواب نداد: {type(e).__name__}")
+    try:
+        tb = _toobit_gainers()
+        moved_t = [x for x in tb if abs(x["change_pct"]) >= 0.5]
+        if len(tb) >= 20 and len(moved_t) >= 5:
+            for x in tb:
+                # هر دو صرافی داشتندش → تغییرِ بزرگ‌تر می‌ماند (زودتر دیدن مهم است)
+                if x["symbol"] not in merged or x["change_pct"] > merged[x["symbol"]]["change_pct"]:
+                    merged[x["symbol"]] = x
+            names.append("توبیت")
+            print("توبیت، ۵ تغییر بزرگ ۲۴س: " +
+                  ", ".join(f"{x['symbol']} {x['change_pct']:+}%"
+                            for x in sorted(tb, key=lambda x: -x["change_pct"])[:5]))
+        else:
+            print(f"تیکر توبیت تغییرِ قابل‌استفاده ندارد ({len(tb)} جفت)")
+    except Exception as e:                           # noqa: BLE001
+        print(f"توبیت جواب نداد: {type(e).__name__}")
+    if merged:
+        allg = sorted(merged.values(), key=lambda x: -x["change_pct"])
+        return " + ".join(names), [x for x in allg if x["change_pct"] >= min_pct][:top]
     r = sources._json("https://api.mexc.com/api/v3/ticker/24hr")
     out = []
     for t in r:
