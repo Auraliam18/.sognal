@@ -26,6 +26,7 @@ import brain                                                  # noqa: E402
 
 ROOT = HERE.parent.parent.parent
 LESSONS = ROOT / "brain" / "memory" / "lessons.json"
+HISTORY = ROOT / "brain" / "history-stats.json"
 CAP = 300
 
 
@@ -93,6 +94,32 @@ def digest_closed(trades):
     return fed
 
 
+def history(sym, direction):
+    """تمرین تاریخی — آمار ریپلیِ همین ارز/جهت روی کندل واقعی (backtest.py).
+
+    «هزار بار استفاده کن و یاد بگیر»: بک‌تست شبانه همین استراتژی را هزاران
+    بار روی تاریخچهٔ واقعی اجرا می‌کند؛ اینجا حاصلش قبل از هر سیگنال خوانده
+    می‌شود. اثر روی رتبه فقط با CI رد‌شده از صفر — قانون همیشگی."""
+    try:
+        j = json.loads(HISTORY.read_text())
+        s = (j.get("stats") or {}).get(f"{sym}|{direction}")
+    except Exception:                                # noqa: BLE001 - بدون فایل، بدون ادعا
+        return None, 0.0
+    if not s or s["n"] < 30:
+        return None, 0.0
+    note = (f"تمرین تاریخی: {s['n']} ریپلی همین ارز/جهت روی کندل واقعی — "
+            f"برد {s['win']}٪، میانگین {s['ev']:+.2f}R")
+    adj = 0.0
+    ci = s.get("ci")
+    if ci and ci[0] > 0:
+        adj = 0.05
+        note += " (بازه بالای صفر)"
+    elif ci and ci[1] < 0:
+        adj = -0.08
+        note += " (بازه زیر صفر — احتیاط)"
+    return note, adj
+
+
 def consult(sym, direction, strategy="second"):
     """قبل از صدور سیگنال: حافظه دربارهٔ همین موقعیت چه می‌گوید.
 
@@ -117,5 +144,10 @@ def consult(sym, direction, strategy="second"):
                 adj, verdict = -0.08, "bad"
     elif ls:
         note = "حافظهٔ آماری نازک؛ آخرین تجربهٔ این ارز: " + ls[0]["text"][:90]
+    # تمرین تاریخی — تجربهٔ زنده کم باشد یا نه، ریپلی واقعی هم حرفش را می‌زند
+    h_note, h_adj = history(sym, direction)
+    if h_note:
+        note = f"{note} · {h_note}" if note else h_note
+        adj += h_adj
     return {"note": note, "adj": adj, "verdict": verdict,
             "lessons": [l["text"] for l in ls]}

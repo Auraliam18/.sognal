@@ -195,6 +195,20 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
                     r.setup["liq_note"] = lq["note"]
             except Exception:                        # noqa: BLE001 - نقشه اختیاری است
                 pass
+            # نقشهٔ لیکوییدیشن (سبک kCEX، تخمین از کندل واقعی) — خوشه‌های
+            # لیکویید بالا/پایین و هم‌جهتی آهن‌ربا با ستاپ
+            try:
+                from hamid import liqmap
+                lm = liqmap.build(c1h)
+                if lm:
+                    r.setup["liq_map"] = {"magnet": lm["magnet"],
+                                          "above": lm["above"][:2],
+                                          "below": lm["below"][:2]}
+                    ln = liqmap.note(lm, r.setup.get("dir"))
+                    if ln:
+                        r.setup["liqmap_note"] = ln
+            except Exception:                        # noqa: BLE001 - نقشه اختیاری است
+                pass
             setups.append((sym, r))
         try:
             ind = inducement.find(c15)
@@ -546,6 +560,7 @@ def _for_telegram(x):
         "rr": x["rr"],
         "memory": x.get("memory"),
         "liq_note": x.get("liq_note"),
+        "liqmap_note": x.get("liqmap_note"),
         "strategy": "hamid", "strategyName": "روش خود حمید (۴ساعته → ۱ساعته → ۱۵دقیقه)",
         "ob": {"low": x["block"]["low"], "high": x["block"]["high"]},
         "level": {"type": "R" if x["dir"] == "SHORT" else "S",

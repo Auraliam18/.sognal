@@ -116,12 +116,6 @@ check("قبل از ۲ ساعت دوباره مرور نمی‌کند", rv2 is No
 cycle.brain.room_load, cycle.brain.room_save = _orig[0], _orig[1]
 paper.CLOSED = _closed_orig
 
-print()
-if FAIL:
-    print(f"✗ {FAIL} آزمون شکست")
-    sys.exit(1)
-print("✓ همهٔ آزمون‌های حلقهٔ ایجنت گذشتند")
-
 # ── resample قفل به ساعت (اصلاح بازبینی کد) ───────────────────────────────
 H=3600_000
 cd1h=[{"t":i*H,"o":1,"h":2,"l":0.5,"c":1.5,"v":1} for i in range(1,302)]  # از ۰۱:۰۰
@@ -130,3 +124,25 @@ check("مرز ۴ساعته به ساعت جهانی قفل است", all(x["t"]%(
 check("کندل باز آخر داخل هیچ گروهی نیست", r4[-1]["t"] < cd1h[-1]["t"] - 3*H)
 r4b=cycle.resample(cd1h[1:],4)  # پنجره یک کندل لغزید
 check("لغزش پنجره فاز گروه‌ها را عوض نمی‌کند", r4b[0]["t"]%(4*H)==0 and r4b[-1]["t"]==r4[-1]["t"])
+
+# ── نقشهٔ لیکوییدیشن (تخمین سبک kCEX از کندل واقعی) ────────────────────────
+from hamid import liqmap                              # noqa: E402
+lq_cd = [{"t": i * H, "o": 100, "h": 100.5, "l": 99.5, "c": 100.0,
+          "v": 500.0 if i >= 250 else 50.0} for i in range(300)]
+lm = liqmap.build(lq_cd)
+check("نقشه ساخته شد و دو طرف خوشه دارد", lm and lm["above"] and lm["below"])
+check("خوشه‌های بالا واقعاً بالای قیمت‌اند",
+      lm and all(c["pct_away"] > 0 for c in lm["above"])
+      and all(c["pct_away"] < 0 for c in lm["below"]))
+check("نزدیک‌ترین خوشهٔ بالا حوالی +۱٪ است (اهرم ۱۰۰×)",
+      lm and abs(lm["above"][0]["pct_away"] - 1.0) < 0.5)
+check("قیمت متقارن → آهن‌ربا متعادل", lm and lm["magnet"] == "balanced")
+ln = liqmap.note(lm, "LONG")
+check("جملهٔ کپشن ساخته می‌شود", ln and "لیکویید" in ln)
+check("دادهٔ کم → بدون ادعا", liqmap.build(lq_cd[:20]) is None)
+
+print()
+if FAIL:
+    print(f"✗ {FAIL} آزمون شکست")
+    sys.exit(1)
+print("✓ همهٔ آزمون‌های حلقهٔ ایجنت گذشتند")

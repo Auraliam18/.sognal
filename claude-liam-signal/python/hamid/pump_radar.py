@@ -531,7 +531,20 @@ def tg_message(source, picks, blocks):
     return "\n".join(L)
 
 
-def send_telegram(source, picks, blocks):
+def _pick_chart(kc, p):
+    """چارت ۵ دقیقه با واترمارک برای انتخاب اول — قانون حمید: سیگنال بی‌چارت نرود."""
+    try:
+        from tg_batch import chart as _c
+        cd = kc.get(p["symbol"], "5m", 120)
+        if len(cd) < 20:
+            return None
+        return _c(p["symbol"], cd, p.get("entry"), p.get("sl"), None, None, "LONG")
+    except Exception as e:                           # noqa: BLE001 - چارت اختیاری، سیگنال نه
+        print(f"چارت پیک: {type(e).__name__}")
+        return None
+
+
+def send_telegram(source, picks, blocks, kc=None):
     import telegram as tg
     token, chat = tg.creds()
     if not token:
@@ -542,10 +555,24 @@ def send_telegram(source, picks, blocks):
     if key in sent:
         print("تلگرام: همین نتیجه قبلاً رفته — تکرار نمی‌کنیم")
         return False
+    msg = tg_message(source, picks, blocks)
+    buf = _pick_chart(kc, picks[0]) if (kc and picks) else None
     try:
-        tg._post(token, "sendMessage",
-                 {"chat_id": chat, "text": tg_message(source, picks, blocks),
-                  "parse_mode": "HTML", "disable_web_page_preview": "true"})
+        if buf and len(msg) <= 1024:
+            # سقف کپشن تلگرام ۱۰۲۴ است — پیام کوتاه با خود عکس می‌رود
+            tg._post(token, "sendPhoto",
+                     {"chat_id": chat, "caption": msg, "parse_mode": "HTML"},
+                     {"photo": (f"{picks[0]['symbol']}.png", buf.read())})
+        else:
+            tg._post(token, "sendMessage",
+                     {"chat_id": chat, "text": msg,
+                      "parse_mode": "HTML", "disable_web_page_preview": "true"})
+            if buf:
+                tg._post(token, "sendPhoto",
+                         {"chat_id": chat, "parse_mode": "HTML",
+                          "caption": (f"📈 چارت ۵ دقیقهٔ <b>{picks[0]['symbol']}</b> — "
+                                      f"انتخاب اول رادار")},
+                         {"photo": (f"{picks[0]['symbol']}.png", buf.read())})
     except Exception as e:                           # noqa: BLE001
         print(f"تلگرام نفرستاد: {tg.scrub(e)}")
         return False
@@ -719,6 +746,18 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                     elif sim["corr_pct"] <= 20:
                         p["reasons"].append((f"هشدار معاینه: چارت الان فقط {sim['corr_pct']}٪ "
                                              f"شبیه قبلِ واکنش‌های قبلی‌اش است — الگو فرق دارد"))
+        # نقشهٔ لیکوییدیشن — خوشهٔ بالای قیمت یعنی سوخت حرکت خرید
+        try:
+            from hamid import liqmap
+            lm = liqmap.build(kc.get(p["symbol"], "1h", 1000))
+            if lm:
+                p["liq_map"] = {"magnet": lm["magnet"], "above": lm["above"][:2],
+                                "below": lm["below"][:2]}
+                ln = liqmap.note(lm, "LONG")
+                if ln:
+                    p["reasons"].append(ln)
+        except Exception:                            # noqa: BLE001
+            pass
         timed.append(p)
     expired_picks = [p for p in picks if p.get("expired_reason")]
     picks = timed[:2]
@@ -823,16 +862,34 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                     f"· <b>{f['symbol'].replace('USDT','')}</b> — در {f['hit_pct']}٪ از "
                     f"{f['n']} ریزش مشابه BTC ریخته (الان {f['chg_now']:+}٪)"
                     for f in cw["followers"]) or "دنباله‌روی تاریخی معناداری پیدا نشد"
-                _tg._post(tok, "sendMessage",
-                          {"chat_id": chat, "parse_mode": "HTML",
-                           "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
-                                    f"🔻 <b>هشدار ریزش بیت‌کوین</b>\n\n"
-                                    f"BTC در یک ساعت <b>{cw['btc_1h']}٪</b> ریخت "
-                                    f"(از {cw['n_crashes']} ریزش مشابه در تاریخچه).\n"
-                                    f"{why}\n\n"
-                                    f"طبق سابقه، این‌ها بعد از ریزش‌های مشابه ریخته‌اند —\n"
-                                    f"<b>آقای حمید حواست به این‌ها باشد:</b>\n{rows}\n\n"
-                                    f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                text = (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
+                        f"🔻 <b>هشدار ریزش بیت‌کوین</b>\n\n"
+                        f"BTC در یک ساعت <b>{cw['btc_1h']}٪</b> ریخت "
+                        f"(از {cw['n_crashes']} ریزش مشابه در تاریخچه).\n"
+                        f"{why}\n\n"
+                        f"طبق سابقه، این‌ها بعد از ریزش‌های مشابه ریخته‌اند —\n"
+                        f"<b>آقای حمید حواست به این‌ها باشد:</b>\n{rows}\n\n"
+                        f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")
+                bbuf = None
+                try:
+                    from tg_batch import chart as _c
+                    b5 = kc.get("BTCUSDT", "5m", 120)
+                    if len(b5) >= 20:
+                        bbuf = _c("BTCUSDT", b5, None, None, None, None, "DUMP")
+                except Exception:                    # noqa: BLE001
+                    bbuf = None
+                if bbuf and len(text) <= 1024:
+                    _tg._post(tok, "sendPhoto",
+                              {"chat_id": chat, "parse_mode": "HTML", "caption": text},
+                              {"photo": ("BTCUSDT.png", bbuf.read())})
+                else:
+                    _tg._post(tok, "sendMessage",
+                              {"chat_id": chat, "parse_mode": "HTML", "text": text})
+                    if bbuf:
+                        _tg._post(tok, "sendPhoto",
+                                  {"chat_id": chat,
+                                   "caption": "📉 چارت ۵ دقیقهٔ BTCUSDT — لحظهٔ ریزش"},
+                                  {"photo": ("BTCUSDT.png", bbuf.read())})
                 sent[key] = time.time() * 1000
                 SENT.parent.mkdir(exist_ok=True)
                 SENT.write_text(json.dumps(sent, indent=1))
@@ -841,7 +898,7 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             print(f"هشدار ریزش تلگرام: {type(e).__name__}")
 
     if picks and not no_telegram:
-        send_telegram(source, picks, blocks)
+        send_telegram(source, picks, blocks, kc=kc)
     elif not picks:
         print("هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است")
         # نتیجهٔ «دیر رسیدیم» هم برای حمید نتیجه است — با ضدتکرار ۶ساعته
