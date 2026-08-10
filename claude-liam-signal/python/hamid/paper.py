@@ -135,6 +135,7 @@ def open_from(setups, context):
                 "reactions": (s.get("on_level") or {}).get("reactions"),
                 "flipped": (s.get("on_level") or {}).get("flipped"),
                 "stop_pct": s.get("stop_pct"),
+                "liq": s.get("liq"),
                 "dir": s["dir"],
                 "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),
                 **context,
@@ -260,12 +261,19 @@ def _equity():
     # شل برای چندبرابر کردن نمونهٔ یادگیری) و سیگنال‌های آلارم. قاطی کردنشان
     # رکورد استراتژی سیگنال‌شده را ناخوانا می‌کند.
     _aside = ("first", "inducement", "practice", "alarm")
+
+    def _stage(t):
+        return (t.get("why") or {}).get("stage") or ""
+
     signalled = [t for t in closed
-                 if (t.get("why") or {}).get("stage") not in _aside]
+                 if _stage(t) not in _aside and not _stage(t).startswith("sig-")]
     experiments = [t for t in closed if (t.get("why") or {}).get("stage") == "first"]
     inducements = [t for t in closed if (t.get("why") or {}).get("stage") == "inducement"]
     practices = [t for t in closed if (t.get("why") or {}).get("stage") == "practice"]
     alarm_trades = [t for t in closed if (t.get("why") or {}).get("stage") == "alarm"]
+    # سیگنال‌های ارسالی اسکن (IBS/SMC) — بعد از استاپ زاما اضافه شد: هر چه به
+    # تلگرام می‌رود باید تا نتیجه دنبال شود وگرنه ضررِ واقعی درس نمی‌شود.
+    sent_scan = [t for t in closed if _stage(t).startswith("sig-")]
 
     # شفافیت یعنی خود لیست، نه فقط جمع‌بندی — آخرین نتیجه‌ها تک‌به‌تک به پنل
     # می‌روند تا حمید ببیند دقیقاً کدام معامله چه شد. سفارش منقضی هم می‌آید،
@@ -275,11 +283,13 @@ def _equity():
                 "entry": t.get("entry"), "sl": t.get("sl"), "tp1": t.get("tp1"),
                 "outcome": t.get("outcome"), "R": t.get("R"),
                 "closed": t.get("closed"),
-                "kind": {"first": "آزمایش پولبک اول",
-                         "inducement": "آزمایش ایندوسمنت",
-                         "practice": "میز تمرین",
-                         "alarm": "سیگنال آلارم"}.get(
-                             (t.get("why") or {}).get("stage"), "سیگنال‌شده")}
+                "kind": ("سیگنال ارسالی اسکن"
+                         if str((t.get("why") or {}).get("stage") or "").startswith("sig-")
+                         else {"first": "آزمایش پولبک اول",
+                               "inducement": "آزمایش ایندوسمنت",
+                               "practice": "میز تمرین",
+                               "alarm": "سیگنال آلارم"}.get(
+                             (t.get("why") or {}).get("stage"), "سیگنال‌شده"))}
     recent = sorted([t for t in closed if t.get("closed")],
                     key=lambda t: t["closed"], reverse=True)[:40]
 
@@ -289,6 +299,7 @@ def _equity():
          "experiments_inducement": run_book(inducements),
          "practice_desk": run_book(practices),
          "alarm_signals": run_book(alarm_trades),
+         "sent_scan_signals": run_book(sent_scan),
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
@@ -324,6 +335,12 @@ CONDITIONS = [
     ("بلاک ۳ بار یا بیشتر", lambda w: (w.get("returns") or 0) >= 3),
     ("سطح با ≥ ۵ واکنش", lambda w: (w.get("reactions") or 0) >= 5),
     ("سطح نقش‌عوض‌کرده", lambda w: bool(w.get("flipped"))),
+    # نقشهٔ نقدینگی (درخواست حمید): معامله در جهت آهن‌ربای نقدینگی بهتر است؟
+    # فرض نمی‌کنیم — همین شرط با بوت‌استرپ و تصحیح بونفرونی جواب می‌دهد.
+    ("نقدینگی هم‌جهت بود", lambda w: w.get("liq") == "with"),
+    ("نقدینگی خلاف جهت بود", lambda w: w.get("liq") == "against"),
+    # پرسش پروندهٔ زاما: استاپ خیلی تنگ بیشتر استاپ می‌خورد؟
+    ("استاپ زیر ۰.۶٪", lambda w: (w.get("stop_pct") or 9) < 0.6),
     ("استاپ < ۲٪", lambda w: (w.get("stop_pct") or 99) < 2),
     ("ترس شدید (<۳۰)", lambda w: (w.get("fear") or 50) < 30),
     ("فاندینگ مثبت", lambda w: (w.get("funding") or 0) > 0),
