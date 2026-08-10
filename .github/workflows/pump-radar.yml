@@ -73,6 +73,7 @@ jobs:
           git config user.email "noreply@anthropic.com"
           BK=/tmp/pump-radar-backup; mkdir -p "$BK"
           cp signals/pump-radar.json "$BK/" 2>/dev/null || true
+          cp signals/bubbles.json "$BK/" 2>/dev/null || true
           cp signals/telegram-log.json "$BK/" 2>/dev/null || true
           cp brain/pump-radar-sent.json "$BK/" 2>/dev/null || true
           cp brain/memory/lessons.json "$BK/" 2>/dev/null || true
@@ -94,6 +95,7 @@ jobs:
           git worktree add /tmp/ghp origin/gh-pages --detach -q || exit 0
           mkdir -p /tmp/ghp/signals
           cp signals/pump-radar.json /tmp/ghp/signals/ 2>/dev/null || true
+          cp signals/bubbles.json /tmp/ghp/signals/ 2>/dev/null || true
           cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
           cd /tmp/ghp
           git add signals

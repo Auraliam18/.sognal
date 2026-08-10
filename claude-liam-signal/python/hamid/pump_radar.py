@@ -500,11 +500,11 @@ def reapply(backup_dir):
     انداخت. این تابع خروجی‌های ما را روی وضعیت تازه دوباره می‌نشاند:
     فایل‌های خودمان کپی، لاگ تلگرام اجتماع دو نسخه، آلارم‌ها merge."""
     bk = Path(backup_dir)
-    for name in ("pump-radar.json",):
+    for name in ("pump-radar.json", "bubbles.json"):
         src = bk / name
         if src.exists():
             OUT.parent.mkdir(exist_ok=True)
-            shutil.copy(src, OUT)
+            shutil.copy(src, OUT.parent / name)
     if (bk / "pump-radar-sent.json").exists():
         SENT.parent.mkdir(exist_ok=True)
         shutil.copy(bk / "pump-radar-sent.json", SENT)
@@ -702,10 +702,39 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     except Exception as e:                           # noqa: BLE001
         print(f"ثبت آلارم رادار نشد: {type(e).__name__}")
 
+    # حباب‌ها — شخصیت صفر تا صد متحرک‌ها، سوار بر همین دادهٔ کش‌شده (۱۵ دقیقه)
+    try:
+        from hamid import bubbles
+        moving = sorted({g["symbol"] for g in gs} | {x["symbol"] for x in ign}
+                        | set(uni[:20]) | {b["symbol"] for b in blocks})
+        n_b = bubbles.build(kc, moving, blocks)
+        print(f"حباب‌ها: {n_b} پروفایل شخصیت ساخته شد")
+    except Exception as e:                           # noqa: BLE001 - حباب رادار را نمی‌کشد
+        print(f"حباب‌ها: {type(e).__name__}: {e}")
+
     if picks and not no_telegram:
         send_telegram(source, picks, blocks)
     elif not picks:
         print("هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است")
+        # نتیجهٔ «دیر رسیدیم» هم برای حمید نتیجه است — با ضدتکرار ۶ساعته
+        if verdict and not no_telegram:
+            try:
+                import telegram as _tg
+                tok, chat = _tg.creds()
+                sent = _load_sent()
+                key = "late|" + "|".join(sorted(t["symbol"] for t in triggers)[:3])
+                if tok and key not in sent:
+                    _tg._post(tok, "sendMessage",
+                              {"chat_id": chat, "parse_mode": "HTML",
+                               "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
+                                        f"⏱ <b>نتیجهٔ رادار پامپ</b>\n\n{verdict}\n"
+                                        f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                    sent[key] = time.time() * 1000
+                    SENT.parent.mkdir(exist_ok=True)
+                    SENT.write_text(json.dumps(sent, indent=1))
+                    print("تلگرام: نتیجهٔ «دیر رسیدیم» فرستاده شد")
+            except Exception as e:                   # noqa: BLE001
+                print(f"ارسال نتیجهٔ رادار: {type(e).__name__}")
     print(f"تمام شد در {time.time() - t0:.0f} ثانیه")
     return report
 
