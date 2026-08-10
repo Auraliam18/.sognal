@@ -55,7 +55,9 @@ def _age_min(ms):
 def c_panel_loads():
     """آیا خود صفحه بالا می‌آید؟ اگر نه، بقیهٔ بررسی‌ها بی‌معنی‌اند."""
     html = _get(f"{PAGES}/index.html", as_json=False)
-    if "Hamid Signal Agent" not in html:
+    # نشانهٔ قدیمی «Hamid Signal Agent» با تغییر نام پنل حذف شد و همین چک
+    # هر چرخه به دروغ «پنل خراب» می‌فرستاد — نشانه‌های واقعی امروز:
+    if ("حمید کلود مکس پنل" not in html) and ("cycle v" not in html):
         return "down", "صفحه بالا آمد ولی محتوایش پنل نیست"
     ver = ""
     i = html.find("cycle v")
