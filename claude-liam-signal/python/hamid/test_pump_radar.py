@@ -49,6 +49,19 @@ mixed = [{"symbol": f"D{i}USDT", "lastPrice": "1",
 gm = pr._parse_bitunix(mixed)
 check("وقتی درصد واقعی است دست نمی‌خورد", max(x["change_pct"] for x in gm) == 3.0)
 
+# ── پارس توبیت (شکل واقعی از لاگ زنده: pcp کسری + qv) ─────────────────────
+tb_rows = ([{"s": f"T{i}USDT", "c": "1", "qv": "500000", "pcp": str(0.01 * i)}
+            for i in range(24)]
+           + [{"s": "JUNKUSDT", "c": "1", "qv": "5000", "pcp": "29.15"},     # بی‌عمق
+              {"s": "WILDUSDT", "c": "1", "qv": "900000", "pcp": "0.31"}])
+gt = pr._parse_toobit(tb_rows)
+check("pcp کسری ×۱۰۰ شد", any(x["symbol"] == "WILDUSDT" and x["change_pct"] == 31.0 for x in gt))
+check("جفت کم‌حجم حذف شد (درس +۲۹۰۰٪)", all(x["symbol"] != "JUNKUSDT" for x in gt))
+tb_pct = [{"s": f"P{i}USDT", "c": "1", "qv": "500000", "pcp": str(2.0 + i)}
+          for i in range(24)]
+gp = pr._parse_toobit(tb_pct)
+check("وقتی pcp خودش درصد است دست نمی‌خورد", max(x["change_pct"] for x in gp) == 25.0)
+
 # ── همبستگی ────────────────────────────────────────────────────────────────
 a = [math.sin(i / 5) + 2 for i in range(48)]
 check("همبستگی سری با خودش = ۱", abs(pr._corr(a, a) - 1) < 1e-9)
