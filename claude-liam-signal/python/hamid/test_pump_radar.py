@@ -144,6 +144,65 @@ em = pr.early_movers(FakeKc(), ["IGNUSDT", "FLATUSDT"])
 check("شعله‌گیری با حجم پیدا شد و ارز آرام نه",
       [x["symbol"] for x in em] == ["IGNUSDT"] and em[0]["change_pct"] >= 4)
 
+# ── معاینهٔ چارت: الانِ دنباله‌رو در برابر قبل از واکنش‌های قبلی‌اش ───────
+H = 3600_000
+
+
+class ReactKc:
+    """دنباله‌رویی که چارت ۲۴ساعت اخیرش عین چارتِ قبل از واکنش قبلی است."""
+    def get(self, s, tf, n):
+        pat = [1 + 0.1 * math.sin(i / 3) for i in range(24)]
+        cs = [1.0] * 300
+        cs[100:124] = pat          # پنجرهٔ قبل از واکنشِ i=124
+        cs[276:300] = pat          # همین الگو، الان
+        return [bar(i * H, c) for i, c in enumerate(cs)]
+
+
+sim = pr.react_similarity(ReactKc(), "FOLUSDT",
+                          fol_eps=[{"t": 124 * H}],
+                          leader_eps=[{"t": 120 * H}])
+check("الگوی تکراری → شباهت نزدیک ۱۰۰٪", sim is not None and sim["corr_pct"] >= 95)
+check("تعداد واکنش‌های شمرده درست است", sim and sim["n_reacts"] == 1)
+sim_none = pr.react_similarity(ReactKc(), "FOLUSDT",
+                               fol_eps=[{"t": 124 * H}],
+                               leader_eps=[{"t": 200 * H}])   # واکنش قبل از سردسته
+check("واکنشِ بی‌ربط به سردسته شمرده نمی‌شود", sim_none is None)
+
+# ── آینهٔ ریزش: BTC ریخت → دنباله‌روهای تاریخی ریزش ───────────────────────
+
+
+class CrashKc:
+    def get(self, s, tf, n):
+        cs = [100.0] * 100
+        if s == "BTCUSDT":
+            for i in (30, 50, 70, 99):
+                cs[i] = 97.0       # -۳٪ در آن ساعت؛ آخری = ریزش الان
+        elif s == "PANICUSDT":
+            for i in (31, 51, 71):
+                cs[i] = 96.0       # یک ساعت بعد از هر ریزش BTC، -۴٪
+        return [bar(i * H, c) for i, c in enumerate(cs)]
+
+
+cw = pr.crash_watch(CrashKc(), ["BTCUSDT", "PANICUSDT", "CALMUSDT"])
+check("ریزش BTC تشخیص داده شد", cw is not None and cw["btc_1h"] <= -2)
+check("دنباله‌روی تاریخی ریزش پیدا شد",
+      cw and [f["symbol"] for f in cw["followers"]] == ["PANICUSDT"]
+      and cw["followers"][0]["hit_pct"] == 100)
+check("ارز آرام در فهرست هشدار نیست",
+      cw and all(f["symbol"] != "CALMUSDT" for f in cw["followers"]))
+
+
+class NoCrashKc(CrashKc):
+    def get(self, s, tf, n):
+        rows = super().get(s, tf, n)
+        if s == "BTCUSDT":
+            rows[-1] = bar(99 * H, 100.0)   # ساعت آخر آرام
+        return rows
+
+
+check("بدون ریزش الان، هشداری نیست",
+      pr.crash_watch(NoCrashKc(), ["BTCUSDT", "PANICUSDT"]) is None)
+
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)
 check("سرتیتر پنل + گزینه‌های پامپ", "حمید کلود مکس پنل" in msg and "گزینه‌های پامپ" in msg)

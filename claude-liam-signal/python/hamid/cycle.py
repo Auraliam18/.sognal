@@ -615,6 +615,17 @@ def main():
         settled_open = settled_closed = 0
         print(f"تسویهٔ دفتر: {type(e).__name__}: {e}")
 
+    # 📨 پل ناتیفیکیشن بیت‌یونیکس — حمید ناتیف صرافی را به ربات فوروارد
+    # می‌کند، همین‌جا صندوق خوانده و تحقیق فوری همان ارز جواب داده می‌شود.
+    try:
+        from hamid import notif_bridge
+        from hamid.pump_radar import Kcache
+        n_ans = notif_bridge.poll(kc=Kcache())
+        if n_ans:
+            act(f"📨 {n_ans} ناتیف فورواردشدهٔ بیت‌یونیکس تحقیق و جواب داده شد")
+    except Exception as e:                           # noqa: BLE001 - پل چرخه را نمی‌کشد
+        print(f"پل ناتیف: {type(e).__name__}: {e}")
+
     # 📰 انجین دسته‌بندی خبر — تیترهای داغ به دسته و اتاق مقصد مسیردهی می‌شوند
     try:
         from hamid import discovery

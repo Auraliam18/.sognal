@@ -276,6 +276,74 @@ def follower_lags(leader_eps, fol_eps, within_h=48):
             "max_h": round(max(lags), 1)}
 
 
+def react_similarity(kc, sym, fol_eps, leader_eps, window=24):
+    """معاینهٔ خود حمید: چارت الانِ دنباله‌رو در برابر چارتش درست قبل از
+    واکنش‌های قبلی‌اش به همین سردسته. شباهت بالا = دارد همان رفتار را تکرار
+    می‌کند؛ شباهت پایین = این دفعه فرق دارد و باید گفته شود."""
+    c1h = kc.get(sym, "1h", 1000)
+    if len(c1h) < window + 2:
+        return None
+    idx = {c["t"]: k for k, c in enumerate(c1h)}
+    lead_ts = [e["t"] for e in leader_eps or []]
+    reacts = [e for e in fol_eps or []
+              if any(0 < (e["t"] - lt) / 3600e3 <= 48 for lt in lead_ts)]
+    now = [c["c"] for c in c1h[-window:]]
+    best = None
+    for e in reacts:
+        k = idx.get(e["t"])
+        if k is None or k - window < 0:
+            continue
+        cc = round(_corr(now, [c["c"] for c in c1h[k - window:k]]) * 100)
+        if best is None or cc > best["corr_pct"]:
+            best = {"corr_pct": cc, "react_t": e["t"], "n_reacts": len(reacts)}
+    return best
+
+
+def crash_watch(kc, uni, trigger_pct=-2.0):
+    """آینهٔ ریزش — مثال خود حمید: «بیت‌کوین ریخت؟ سریع علتش را پیدا کن و
+    بفرست؛ بعد ببین در گذشته بعد از ریزش‌هایش چه ارزهایی ریخته‌اند و همان‌ها
+    را با الان مقایسه کن و بگو حواست به این‌ها باشد.»"""
+    btc = kc.get("BTCUSDT", "1h", 1000)
+    if len(btc) < 50:
+        return None
+    r1 = (btc[-1]["c"] / btc[-2]["c"] - 1) * 100
+    if r1 > trigger_pct:
+        return None
+    crash_ts = [btc[i]["t"] for i in range(1, len(btc) - 1)
+                if (btc[i]["c"] / btc[i - 1]["c"] - 1) * 100 <= trigger_pct]
+    followers = []
+    for sym in uni[:25]:
+        if sym == "BTCUSDT":
+            continue
+        c = kc.get(sym, "1h", 1000)
+        if len(c) < 50:
+            continue
+        idx = {x["t"]: k for k, x in enumerate(c)}
+        drops = tot = 0
+        for t in crash_ts:
+            k = idx.get(t)
+            if k is None or k + 1 >= len(c):
+                continue
+            tot += 1
+            if (c[k + 1]["c"] / c[k]["c"] - 1) * 100 <= -3:
+                drops += 1
+        if tot >= 3 and drops / tot >= 0.5:
+            followers.append({"symbol": sym, "n": tot,
+                              "hit_pct": round(100 * drops / tot),
+                              "chg_now": round((c[-1]["c"] / c[-2]["c"] - 1) * 100, 1)})
+    followers.sort(key=lambda f: -f["hit_pct"])
+    why = None
+    try:
+        nj = json.loads((ROOT / "signals" / "news.json").read_text())
+        hot = [x.get("title") for x in (nj.get("classified") or [])
+               if x.get("cat") != "عمومی"]
+        why = hot[0] if hot else None
+    except Exception:                                # noqa: BLE001
+        pass
+    return {"btc_1h": round(r1, 2), "why": why, "followers": followers[:6],
+            "n_crashes": len(crash_ts)}
+
+
 def entry_point(c15):
     """همان قاعدهٔ تحلیل‌گر پامپ: تازه‌ترین اردر بلاک خرید مصرف‌نشده ≤۶۰ کندل."""
     if len(c15) < 60:
@@ -636,6 +704,21 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                 p["expires_at"] = int(last_lead_pump + window_h * 3600e3)
                 p["reasons"].insert(0, (f"طبق {lg['n']} سابقه معمولاً ~{lg['med_h']}س بعد از "
                                         f"{leader} می‌پرد — {left_h}س از پنجره باقی است"))
+                # معاینهٔ چارت — قانون حمید: چارتِ الانِ دنباله‌رو را با چارتش
+                # درست قبل از واکنش‌های قبلی به همین سردسته مقایسه کن؛ شباهت
+                # بالا یعنی همان الگو دارد تکرار می‌شود، شباهت پایین گفتنی است.
+                try:
+                    sim = react_similarity(kc, p["symbol"], b.get("pumps"), lb["pumps"])
+                except Exception:                    # noqa: BLE001
+                    sim = None
+                if sim:
+                    p["react_sim"] = sim
+                    if sim["corr_pct"] >= 60:
+                        p["reasons"].insert(1, (f"چارت الان {sim['corr_pct']}٪ شبیه قبلِ "
+                                                f"{sim['n_reacts']} واکنش قبلی‌اش به {leader} است"))
+                    elif sim["corr_pct"] <= 20:
+                        p["reasons"].append((f"هشدار معاینه: چارت الان فقط {sim['corr_pct']}٪ "
+                                             f"شبیه قبلِ واکنش‌های قبلی‌اش است — الگو فرق دارد"))
         timed.append(p)
     expired_picks = [p for p in picks if p.get("expired_reason")]
     picks = timed[:2]
@@ -664,9 +747,22 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     except Exception as e:                           # noqa: BLE001 - حافظه تحلیل را نمی‌کشد
         print(f"ثبت حافظه: {type(e).__name__}")
 
+    # آینهٔ ریزش — قانون حمید: بیت‌کوین که ریخت، سریع علت را پیدا کن، ارزهایی
+    # که طبق سابقه بعد از ریزش‌های مشابه ریخته‌اند را با الان مقایسه کن و
+    # هشدار بده: «آقای حمید حواست به این‌ها باشد».
+    try:
+        cw = crash_watch(kc, uni)
+    except Exception as e:                           # noqa: BLE001
+        print(f"آینهٔ ریزش: {type(e).__name__}")
+        cw = None
+    if cw:
+        print(f"⚠️ ریزش BTC {cw['btc_1h']}٪ در یک ساعت — "
+              f"{len(cw['followers'])} دنباله‌روی تاریخی ریزش پیدا شد")
+
     report = {
         "generated": int(time.time() * 1000),
         "source": source,
+        "crash": cw,
         "gainers": gs,
         "ignitions": ign[:6],
         "universe_n": len(uni),
@@ -711,6 +807,38 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         print(f"حباب‌ها: {n_b} پروفایل شخصیت ساخته شد")
     except Exception as e:                           # noqa: BLE001 - حباب رادار را نمی‌کشد
         print(f"حباب‌ها: {type(e).__name__}: {e}")
+
+    # هشدار ریزش — فوری، جدا از پیشنهادهای پامپ؛ ضدتکرار با سطل ۲ساعته تا
+    # در ریزش ادامه‌دار هر ۱۵ دقیقه پیام تکراری نرود.
+    if cw and not no_telegram:
+        try:
+            import telegram as _tg
+            tok, chat = _tg.creds()
+            sent = _load_sent()
+            key = f"crash|{int(time.time() // 7200)}"
+            if tok and key not in sent:
+                why = f"علت احتمالی: {cw['why']}" if cw.get("why") else \
+                      "علت هنوز در خبرها پیدا نشد — شکار خبر ادامه دارد"
+                rows = "\n".join(
+                    f"· <b>{f['symbol'].replace('USDT','')}</b> — در {f['hit_pct']}٪ از "
+                    f"{f['n']} ریزش مشابه BTC ریخته (الان {f['chg_now']:+}٪)"
+                    for f in cw["followers"]) or "دنباله‌روی تاریخی معناداری پیدا نشد"
+                _tg._post(tok, "sendMessage",
+                          {"chat_id": chat, "parse_mode": "HTML",
+                           "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
+                                    f"🔻 <b>هشدار ریزش بیت‌کوین</b>\n\n"
+                                    f"BTC در یک ساعت <b>{cw['btc_1h']}٪</b> ریخت "
+                                    f"(از {cw['n_crashes']} ریزش مشابه در تاریخچه).\n"
+                                    f"{why}\n\n"
+                                    f"طبق سابقه، این‌ها بعد از ریزش‌های مشابه ریخته‌اند —\n"
+                                    f"<b>آقای حمید حواست به این‌ها باشد:</b>\n{rows}\n\n"
+                                    f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                sent[key] = time.time() * 1000
+                SENT.parent.mkdir(exist_ok=True)
+                SENT.write_text(json.dumps(sent, indent=1))
+                print("تلگرام: هشدار ریزش فرستاده شد")
+        except Exception as e:                       # noqa: BLE001
+            print(f"هشدار ریزش تلگرام: {type(e).__name__}")
 
     if picks and not no_telegram:
         send_telegram(source, picks, blocks)
