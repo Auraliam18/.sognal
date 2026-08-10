@@ -139,6 +139,13 @@ def caption(s):
     # نقشهٔ لیکوییدیشن — خوشه‌های تخمینی از کندل واقعی، سبک نقشهٔ kCEX
     if s.get("liqmap_note"):
         L.append(f"<i>{s['liqmap_note']}</i>")
+    # بازجویی پیش از صدور — سیگنال فقط با دلایلِ تارگتِ بیشتر رسیده اینجا
+    pm = s.get("premortem")
+    if pm:
+        L.append(f"⚖️ <i>{len(pm['pro'])} دلیل تارگت / {len(pm['con'])} دلیل استاپ"
+                 + (f" — مهم‌ترین: {pm['pro'][0]}" if pm["pro"] else "") + "</i>")
+        if pm["con"]:
+            L.append(f"⚠️ <i>ریسک شمرده‌شده: {pm['con'][0]}</i>")
     # ساعت تحلیل و ساعت ارسال، به وقت ایران — تا تأخیر قابل راستی‌آزمایی باشد
     an = s.get("analyzed_at")
     L.append((f"🕐 تحلیل <code>{tehran(an)}</code> · " if an else "🕐 ")
@@ -212,6 +219,42 @@ def send_signals(signals, render_chart, limit=8):
     tmp = Path(__file__).resolve().parent / ".charts"
     tmp.mkdir(exist_ok=True)
     for s in fresh:
+        # بازجویی پیش از صدور — قانون حمید: اول در ۱۵ دقیقه ببین چه چیزهایی
+        # می‌تواند استاپت کند؛ فقط با دلایلِ تارگتِ بیشتر صادر کن. سیگنالِ
+        # ردشده به دفتر vetoed می‌رود تا خود دروازه نمره بگیرد. خطای زیرساخت
+        # (شبکه/ایمپورت) جلوی ارسال را نمی‌گیرد — دروازه تحلیل است نه بهانه.
+        try:
+            import sources as _src
+            from hamid import premortem as _pm
+            _c15 = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+                    for k in _src.klines(s["sym"], "15m", 120)]
+            pm = _pm.review(s, _c15) if len(_c15) >= 40 else None
+        except Exception as e:                        # noqa: BLE001
+            pm = None
+            print(f"  بازجویی {s['sym']} در دسترس نبود ({type(e).__name__}) — "
+                  f"سیگنال بدون دروازه می‌رود", flush=True)
+        if pm:
+            s["premortem"] = pm
+            if not pm["issue"]:
+                print(f"  ⚖️ {s['sym']} صادر نشد — {len(pm['con'])} دلیل استاپ در برابر "
+                      f"{len(pm['pro'])} دلیل تارگت: {pm['con'][0] if pm['con'] else ''}",
+                      flush=True)
+                sent[_key(s)] = time.time() * 1000    # تا هر ده دقیقه دوباره بازجویی نشود
+                try:
+                    from hamid import paper as _paper
+                    _paper.open_from([{"symbol": s["sym"], "dir": s["dir"],
+                                       "entry": s["entry"], "sl": s["sl"],
+                                       "tp1": s.get("tp1") or s["entry"],
+                                       "tp2": s.get("tp2"), "stage_tag": "vetoed"}],
+                                     {"veto_why": "premortem", "pm_con": pm["con"][:3],
+                                      "pm_pro": pm["pro"][:3]})
+                    from hamid import memory as _mem
+                    _mem.remember("بررسی", s["sym"],
+                                  f"بازجویی ۱۵د جلوی {s['sym']} {s['dir']} را گرفت: "
+                                  + "؛ ".join(pm["con"][:2]))
+                except Exception:                     # noqa: BLE001
+                    pass
+                continue
         png = None
         try:
             png = render_chart(s, str(tmp / f"{s['sym']}-{s['tf']}.png"))
