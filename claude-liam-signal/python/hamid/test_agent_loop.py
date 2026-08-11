@@ -175,6 +175,43 @@ check("دلیل استاپ داخل نویز صریح نوشته شده",
       any("داخل نویز" in w for w in bad["con"]))
 check("حکم در یادداشت است", "صادر نشد" in bad["note"])
 
+# ── دروازهٔ هم‌زمانی + ضدتکرار بین‌استراتژی (شکایت حمید) ──────────────────
+import json as _json                                  # noqa: E402
+import tempfile as _tf                                # noqa: E402
+import telegram as tg                                 # noqa: E402
+import sources as _sources                            # noqa: E402
+from hamid import premortem as _pm2, paper as _paper2  # noqa: E402
+
+_tmp2 = Path(_tf.mkdtemp())
+tg.SENT, tg.TGLOG = _tmp2 / "sent.json", _tmp2 / "tglog.json"
+_orig_env = (tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from)
+tg.creds = lambda: ("tok", "chat")
+posts = []
+tg._post = lambda tok, m, f, files=None: posts.append(f.get("caption") or f.get("text", ""))
+PX = {"PASSEDUSDT": 0.97, "FARUSDT": 1.06, "OKUSDT": 1.0}
+_sources.klines = lambda sym, tf, n, **kw: [
+    [i * 300000, 1, 1.001, 0.999, PX.get(sym, 1.0), 1.0] for i in range(n)]
+_pm2.review = lambda s, c15: {"pro": ["x"], "con": [], "issue": True,
+                              "note": "⚖️", "price": 1.0}
+_paper2.open_from = lambda *a, **k: 0
+
+
+def _sig(sym, strat="ibs"):
+    return {"sym": sym, "tf": "15m", "dir": "LONG", "entry": 1.0, "sl": 0.99,
+            "tp1": 1.02, "tp2": 1.03, "rr": 2.0,
+            "strategy": strat, "strategyName": strat}
+
+
+n_ok = tg.send_signals([_sig("PASSEDUSDT"), _sig("FARUSDT"), _sig("OKUSDT")],
+                       lambda s, p: None)
+check("ردشده از ورود و دورافتاده صادر نشدند، هم‌زمانِ سالم رفت",
+      n_ok == 1 and len(posts) == 1 and "OKUSDT" in posts[0])
+check("قیمت لحظهٔ ارسال و فاصله در پیام است",
+      "⏱" in posts[0] and "فاصله تا ورود" in posts[0])
+n2 = tg.send_signals([_sig("OKUSDT", strat="alarm")], lambda s, p: None)
+check("همان ستاپ با برچسب استراتژی دیگر دوباره نمی‌رود", n2 == 0)
+tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
