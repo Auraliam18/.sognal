@@ -255,6 +255,27 @@ check("رابطهٔ معکوس (خودش سردسته) رد می‌شود", rev 
 check("جملهٔ فارسی دلیل ساخته می‌شود",
       "لگ-کورولیشن" in lagcorr.reason_fa("LEADUSDT", lf[0]))
 
+# ── واکنش-بازار: BTC ریخت، این ارز طبق سابقه چه می‌کند؟ (قانون حمید) ──────
+# سری آرام (σ=۰.۳٪) تا تنها «حرکت بزرگ»، ریزش تزریقی -۳٪ باشد — سری
+# پرنوسان قبلی خودش حرکت‌های ±۳٪ تصادفی داشت و تست را شکننده می‌کرد
+random.seed(23)
+mr_lead = [random.gauss(0, 0.003) for _ in range(500)]
+mr_lead[400] = -0.03          # ریزش بزرگ قبلی BTC
+mr_lead[-1] = -0.02           # ریزش جاری
+mr_btc = _mkcd(mr_lead)
+random.seed(24)
+mr_fol = _mkcd([0.0] * LAG + [r * 0.8 + random.gauss(0, 0.001)
+                              for r in mr_lead[:-LAG]])
+mr = lagcorr.market_reaction(mr_btc, mr_fol)
+check("حرکت جاری BTC درست خوانده شد", mr and abs(mr["btc_1h_pct"] - (-2.0)) < 0.1)
+check("رابطهٔ لگ-کورولیشنی BTC→ارز پیدا شد",
+      mr and mr["follow"] and mr["follow"]["lag_bars"] == LAG)
+check("در ریزش بزرگ قبلی BTC، ریزش ارز هم ثبت شد",
+      mr and mr["last_move"] and mr["last_move"]["btc_pct"] <= -2.5
+      and mr["last_move"]["sym_pct"] < -1.0)
+rfa = lagcorr.reaction_fa("LTCUSDT", mr)
+check("جملهٔ واکنش فارسی و عددی است", "BTC الان" in rfa and "حرکت بزرگ قبلی" in rfa)
+
 # پیک فقط-لگ‌کورولیشنی از قانون سخت خوشه رد می‌شود
 lc_block = {"symbol": "LCUSDT", "price": 1.0, "role": "نامشخص", "leaders": [],
             "followers": [], "pumps": [], "match": None,
@@ -304,6 +325,46 @@ n3, _ = pr.update_history(hist_blocks)
 led3 = json.loads(pr.HIST.read_text())
 check("هیچ رخداد قدیمی‌ای پاک نمی‌شود (بدون سقف)",
       len(led3["symbols"]["OLDUSDT"]["events"]) == 60 and n3 == 63)
+
+# ── علت‌یابی حرکت BTC — «ریخت یا پرید، فوری علت اعلام شود» ────────────────
+
+
+class CauseKc:
+    """ریزش ۲٪ که کف برابرِ سه‌برخوردی را جارو کرده."""
+    def get(self, s, tf, n):
+        if tf == "1h":
+            cs = [100.0] * 60
+            cs[-1] = 98.0
+            return [bar(i * H, c) for i, c in enumerate(cs)]
+        cd = []
+        for i in range(260):
+            # سه کف برابر در ۹۹.۵ — بعد کندل آخر زیرش می‌رود
+            lo = 99.5 if i in (200, 215, 230) else 99.8
+            c = 100.0 if i < 256 else 99.0
+            cd.append({"t": i * 900_000, "o": c, "h": c + 0.3,
+                       "l": min(lo, c - 0.3), "c": c, "v": 100.0})
+        return cd
+
+
+mc = pr.btc_move_cause(CauseKc())
+check("حرکت بزرگ تشخیص و جهتش درست است", mc and mc["dir"] == "down"
+      and abs(mc["btc_1h_pct"] + 2.0) < 0.1)
+check("جاروی نقدینگی به‌عنوان عامل تکنیکال ثبت شد",
+      mc and any("جاروی نقدینگی" in t for t in mc["tech"]))
+txt = pr.move_cause_fa(mc)
+check("متن علت‌یابی فارسی و صادق است",
+      "ریخت" in txt and ("علت خبری" in txt))
+
+
+class QuietKc(CauseKc):
+    def get(self, s, tf, n):
+        rows = super().get(s, tf, n)
+        if tf == "1h":
+            rows[-1] = bar(59 * H, 100.0)
+        return rows
+
+
+check("حرکت کوچک → علت‌یابی ساکت", pr.btc_move_cause(QuietKc()) is None)
 
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)

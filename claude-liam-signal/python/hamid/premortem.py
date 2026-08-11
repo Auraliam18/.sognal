@@ -114,7 +114,29 @@ def review(s, c15):
     except Exception:                                # noqa: BLE001
         pass
 
-    # ۸) فاصله تا تارگت در برابر مسیر رفته — تارگتِ دور با مومنتوم خرج‌شده
+    # ۸) واکنش-بازار (قانون حمید): وقتی حرکت بزرگی در BTC جریان دارد، اول
+    # لگ-کورولیشنِ همین ارز با BTC و رفتارش در حرکت بزرگ قبلی بررسی شود —
+    # بعد سیگنال. لانگ وسط ریزشی که این ارز تاریخاً دنبالش می‌ریزد، دلیل
+    # استاپ است؛ هم‌جهتی، دلیل تارگت.
+    try:
+        import sources as _src
+        from hamid import lagcorr
+        _b1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+                for k in _src.klines("BTCUSDT", "1h", 500)]
+        _s1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+                for k in _src.klines(s["sym"], "1h", 500)]
+        mr = lagcorr.market_reaction(_b1h, _s1h)
+        if mr and abs(mr["btc_1h_pct"]) >= 1.0 and mr["follow"]:
+            line = lagcorr.reaction_fa(s["sym"], mr)
+            btc_down = mr["btc_1h_pct"] < 0
+            if btc_down == (d == "LONG"):
+                con.append(line)
+            else:
+                pro.append(line)
+    except Exception:                                # noqa: BLE001 - شبکه، دروازه را نمی‌کشد
+        pass
+
+    # ۹) فاصله تا تارگت در برابر مسیر رفته — تارگتِ دور با مومنتوم خرج‌شده
     if s.get("tp1"):
         tp_pct = abs(s["tp1"] - s["entry"]) / s["entry"] * 100
         if atr and tp_pct > 6 * atr:
