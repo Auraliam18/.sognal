@@ -474,7 +474,7 @@ def settle_books(report):
     try:
         just = [t for t in paper._read(paper.CLOSED)
                 if (t.get("closed") or 0) >= t_mark
-                and t.get("outcome") in ("target", "stop")
+                and t.get("outcome") in ("target", "stop", "trail")
                 and (t.get("why") or {}).get("stage")
                 not in ("first", "practice", "inducement")]
         if just:
@@ -548,11 +548,17 @@ def settle_books(report):
                 rest = []
                 for t in dd[:10]:
                     won = t["outcome"] == "target"
-                    line = (f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
+                    trailed = t["outcome"] == "trail"
+                    icon = "✅" if won else ("🟡" if trailed else "❌")
+                    verdict = ("تارگت خورد" if won else
+                               "تریل شد — سود سیو شد" if trailed else "استاپ خورد")
+                    line = (f"{icon} <b>{t['sym']}</b> "
                             f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
-                            f"{'تارگت خورد' if won else 'استاپ خورد'} "
-                            f"(<code>{t['R']:+.2f}R</code>)")
-                    a = rmap.get(t["sym"] + t["dir"]) if not won else None
+                            f"{verdict} (<code>{t['R']:+.2f}R</code>)")
+                    if trailed and t.get("mfe_r") is not None:
+                        line += (f"\n   <i>قانون تریل اجرا شد: تا +{t['mfe_r']:.2f}R رفت، "
+                                 f"استاپِ تریل‌شده در سود بست — برگشتِ کامل دیگر ضرر نمی‌سازد</i>")
+                    a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
                     mid = (t.get("why") or {}).get("tg_msg_id")
                     if mid:
                         cap = ("📊 <b>نتیجهٔ همین سیگنال</b>\n" + line

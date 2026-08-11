@@ -212,31 +212,55 @@ def mark():
         # ورود زود بود — نه فقط برد/باخت خام.
         mfe = mae = 0.0
         end_t = p["filled"]
+        # تریل — قانون حمید (EURI درس شد): «هر ارزی که یک‌سوم مسیر تارگت را
+        # رفت، استاپ بیاید در سود با حساب کارمزد؛ سود که بالاتر رفت، استاپ هم
+        # در سود بیشتر.» نردبان: ⅓ مسیر → استاپ = ورود + کارمزد دو سر؛
+        # ⅔ مسیر → استاپ = ⅓ مسیر. تریل از اکسترمم کندل‌های *قبلی* حساب
+        # می‌شود، نه همان کندل — محافظه‌کار، بدون خوش‌بینی درون-کندلی.
+        tp_dist = abs(p["tp1"] - p["entry"])
+        fee_px = p["entry"] * 0.0015              # ~۰.۱٪ کارمزد دو سر + لغزش
+        sgn = 1 if long else -1
+        sl_eff = p["sl"]
+        best = p["entry"]
         for c in after:
+            if tp_dist > 0:
+                prog = sgn * (best - p["entry"]) / tp_dist
+                if prog >= 2 / 3:
+                    lvl = p["entry"] + sgn * tp_dist / 3
+                elif prog >= 1 / 3:
+                    lvl = p["entry"] + sgn * fee_px
+                else:
+                    lvl = None
+                if lvl is not None:
+                    sl_eff = max(sl_eff, lvl) if long else min(sl_eff, lvl)
             fav = ((c["h"] - p["entry"]) if long else (p["entry"] - c["l"])) / risk
             adv = ((p["entry"] - c["l"]) if long else (c["h"] - p["entry"])) / risk
             mfe, mae = max(mfe, fav), max(mae, adv)
             end_t = c["t"]
-            hit_sl = (c["l"] <= p["sl"]) if long else (c["h"] >= p["sl"])
+            hit_sl = (c["l"] <= sl_eff) if long else (c["h"] >= sl_eff)
             hit_tp = (c["h"] >= p["tp1"]) if long else (c["l"] <= p["tp1"])
-            if hit_sl and hit_tp:
-                done = ("stop", -1.0)    # cannot order them within a bar
-                break
-            if hit_sl:
-                done = ("stop", -1.0)
+            trailed = (sl_eff > p["sl"]) if long else (sl_eff < p["sl"])
+            if hit_sl:                                # هم‌زمانی با تارگت → محافظه‌کار: استاپ اول
+                R = sgn * (sl_eff - p["entry"]) / risk if trailed else -1.0
+                done = ("trail" if trailed else "stop", R)
                 break
             if hit_tp:
                 done = ("target", abs(p["tp1"] - p["entry"]) / risk)
                 break
+            best = max(best, c["h"]) if long else min(best, c["l"])
         if done is None and now - p["filled"] > HOLD_HOURS * 3600_000:
             last = after[-1]["c"] if after else p["entry"]
             R = ((last - p["entry"]) if long else (p["entry"] - last)) / risk
             done = ("timeout", R)
         if done is None:
+            if sl_eff != p["sl"]:
+                p["sl_eff"] = round(sl_eff, 10)       # تریلِ تا این لحظه، ثبت‌شده
             still.append(p)
             continue
 
         p["outcome"], p["R"] = done[0], round(done[1], 4)
+        if sl_eff != p["sl"]:
+            p["sl_eff"] = round(sl_eff, 10)
         p["mfe_r"], p["mae_r"] = round(mfe, 3), round(mae, 3)
         p["held_h"] = round((end_t - p["filled"]) / 3600e3, 1)
         # R خالص با کارمزد+لغزش ~۰.۰۵٪ هر طرف — روی استاپ تنگ چند دهم R است
