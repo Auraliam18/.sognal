@@ -1,0 +1,51 @@
+# Strategy Registry — AuraLiam369 §9
+# استخراج‌شده از کد واقعی؛ طبق قانون سند: «بازنویسی حدسی ممنوع».
+# منبع حقیقت هر استراتژی، خود کد است — این فایل Contract و نسخه است.
+
+ibs_pullback:
+  strategy_id: ibs
+  version: "21.20"          # هم‌نسخه با پنل؛ موتور از index.html استخراج می‌شود
+  source_of_truth: [index.html (engine), claude-liam-signal/agent/engine.js, scan.py]
+  required_timeframes: [15m, 5m]
+  hard_gates: [premortem(pro>con), sync_entry(<=2.5% & not passed), dedupe, quota]
+  entry_trigger: "IBS<=0.30 لانگ / IBS>=0.70 شورت + پولبک — کد مرجع"
+  status: LIVE_SIGNAL
+  measured: "backtest.py real klines · ev=+0.033R CI[-0.028,+0.091] (30d/70sym)"
+
+smc_channel:
+  strategy_id: smc
+  version: "21.20"
+  source_of_truth: [index.html (engine), scan.py]
+  required_timeframes: [15m, 5m]
+  hard_gates: [same as ibs]
+  status: LIVE_SIGNAL
+  measured: "ev=+0.089R CI[+0.012,+0.165] · فیلتر جهت BTC منفی قطعی (۴ شرط)"
+
+ibs_pullback_plus:            # روش خود حمید — پولبک دوم
+  strategy_id: hamid
+  version: "21.20"
+  source_of_truth: [.claude/rules/ibs-pullback-plus.md, hamid/cycle.py, hamid/structure.py]
+  required_timeframes: [4h, 1h, 15m, 5m]
+  hard_gates: [سلسله‌مراتب ۴س→۱س→۱۵د, premortem, sync, trail_ladder]
+  status: LIVE_SIGNAL
+  measured: "n=23 برد43٪ +0.07R CI[-0.38,+0.61] — دربرگیرندهٔ صفر؛ ادعای برتری ممنوع"
+
+one_idm_wick_15:
+  strategy_id: inducement
+  version: "21.20"
+  source_of_truth: [hamid/inducement.py]
+  required_timeframes: [15m]
+  status: EXPERIMENT_ONLY     # دفتر جدا؛ هرگز سیگنال زنده نشده
+  measured: "n=83 برد25٪ −0.11R CI[-0.48,+0.28] · DD 19٪ — نزدیک حذف، حکم با CI"
+
+s1:
+  status: NOT_IN_CODE         # سند تعریف کامل نمی‌دهد؛ Canonical در ریپو نیست
+  note: "طبق قانون سند بازنویسی حدسی ممنوع — منتظر تعریف Canonical از حمید"
+s2:
+  status: NOT_IN_CODE
+  note: "همان"
+liam_s:
+  status: NOT_IN_CODE
+  note: "چک‌لیست §9 سند موجود است ولی آستانه/ماشهٔ دقیق ندارد — بدون تعریف، کد نمی‌شود"
+
+promotion_path: "Hypothesis → Backtest → Walk-forward → Paper → Shadow → Review → Versioned Promotion"
