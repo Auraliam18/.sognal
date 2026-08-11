@@ -529,21 +529,50 @@ def settle_books(report):
                                          "reason": r})
             report["stop_reasons"] = stop_reasons[:10]
             if tok:
-                L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
                 rmap = {s["sym"] + s["dir"]: s["reason"] for s in stop_reasons}
-                for t in just[:10]:
+                # خواست حمید: نتیجهٔ هر سیگنال «ریپلایِ» پیام خودش باشد تا با
+                # سیگنال دیگری اشتباه نشود — هر معامله‌ای که شناسهٔ پیام دارد،
+                # جوابش جدا و ریپلای می‌رود؛ بقیه در پیام جمعی.
+                # یکتاسازی: معاملهٔ آلارمی در دو دفتر (alarm + sig-alarm) ثبت
+                # می‌شود؛ برای اعلام فقط یکی — نسخهٔ دارای شناسهٔ پیام مقدم
+                dd, seen_k = [], {}
+                for t in just:
+                    k = (t["sym"], t["dir"], round(float(t["entry"]), 10))
+                    has_mid = bool((t.get("why") or {}).get("tg_msg_id"))
+                    if k in seen_k:
+                        if has_mid and not (dd[seen_k[k]].get("why") or {}).get("tg_msg_id"):
+                            dd[seen_k[k]] = t
+                        continue
+                    seen_k[k] = len(dd)
+                    dd.append(t)
+                rest = []
+                for t in dd[:10]:
                     won = t["outcome"] == "target"
-                    L.append(f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
-                             f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
-                             f"{'تارگت خورد' if won else 'استاپ خورد'} "
-                             f"(<code>{t['R']:+.2f}R</code>)")
+                    line = (f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
+                            f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
+                            f"{'تارگت خورد' if won else 'استاپ خورد'} "
+                            f"(<code>{t['R']:+.2f}R</code>)")
                     a = rmap.get(t["sym"] + t["dir"]) if not won else None
-                    if a:
-                        L.append(f"   🔎 <i>{a}</i>")
-                _tg._post(tok, "sendMessage",
-                          {"chat_id": chat, "text": "\n".join(L),
-                           "parse_mode": "HTML"})
-                act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت")
+                    mid = (t.get("why") or {}).get("tg_msg_id")
+                    if mid:
+                        try:
+                            _tg._post(tok, "sendMessage",
+                                      {"chat_id": chat, "parse_mode": "HTML",
+                                       "reply_to_message_id": mid,
+                                       "allow_sending_without_reply": "true",
+                                       "text": ("📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
+                                                + (f"\n🔎 <i>{a}</i>" if a else "")
+                                                + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                            continue
+                        except Exception:            # noqa: BLE001 - ریپلای نشد → جمعی
+                            pass
+                    rest.append(line + (f"\n   🔎 <i>{a}</i>" if a else ""))
+                if rest:
+                    _tg._post(tok, "sendMessage",
+                              {"chat_id": chat, "parse_mode": "HTML",
+                               "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
+                                        f"📊 <b>نتیجهٔ معامله‌ها</b>\n\n" + "\n".join(rest))})
+                act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت (ریپلای روی پیام خود سیگنال)")
     except Exception as e:                           # noqa: BLE001 - اعلان تسویه را نمی‌کشد
         print(f"اعلان نتیجه: {type(e).__name__}")
     # پرونده‌سازی (بند ۲۲ منشور): هر بستهٔ سیگنال‌گرید یک case یکتا —
