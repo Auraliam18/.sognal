@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.19 · حباب‌ها: شخصیت‌شناسی ارزها</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.20 · تب‌های مقاوم + دلیل استاپ‌ها</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -239,6 +239,23 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <button class="tab" data-t="paper">ترید کاغذی<span class="b" id="cPaper">0</span></button>
     <button class="tab" data-t="calib">یادگیری و کالیبراسیون<span class="b" id="cFb">0</span></button>
     <button class="tab" data-t="playbook">پلی‌بوک و الگوها</button>
+  </div>
+  <script>
+  /* شبکهٔ ایمنی تب‌ها — بلافاصله بعد از خود تب‌ها وصل می‌شود، قبل از اسکریپت
+     اصلی. اگر جایی از اسکریپت بزرگ پایین با خطا بمیرد، سوییچ تب‌ها زنده
+     می‌ماند: کلاس active + نمایش view درست، و اگر selectTab کامل موجود بود
+     همان صدا زده می‌شود. (شکایت واقعی: تب‌ها مرده بودند و تب فعالیت‌ها
+     «وجود نداشت» — چون کلیک هیچ کاری نمی‌کرد.) */
+  document.getElementById("tabs").addEventListener("click",function(e){
+    var b=e.target.closest(".tab");if(!b)return;
+    if(window.selectTab){try{window.selectTab(b.dataset.t);return;}catch(x){}}
+    var t=b.dataset.t;
+    document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x.dataset.t===t);});
+    ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
+      .forEach(function(k){var el=document.getElementById("view-"+k);if(el)el.style.display=k===t?"":"none";});
+  });
+  </script>
+  <div style="display:none">
   </div>
 </header>
 
@@ -3978,6 +3995,20 @@ function renderAgent(){
       <span>⚙ ${a.text}</span></div>`).join(""):
       `<div class="dim" style="font-size:12px;margin-top:6px">لیست قدم‌ها از چرخهٔ بعدی سرور می‌رسد</div>`}
   </div>
+  <div class="box" style="margin-bottom:12px">
+    <h3 style="margin:0 0 4px">🔎 چرا استاپ‌ها خوردند؟</h3>
+    <div class="dim" style="font-size:11px;margin-bottom:4px">
+      برای هر استاپِ چرخهٔ اخیر، دلیل از دادهٔ ثبت‌شده ساخته می‌شود: مسیر واقعی
+      قیمت بعد از ورود (MFE/MAE)، تنگی استاپ، نقدینگی و کالبدشکافی BTC — نه حدس.</div>
+    ${(j.stop_reasons||[]).length?(j.stop_reasons||[]).map(s=>`
+      <div style="padding:6px 0;border-top:1px solid rgba(140,160,190,.10);font-size:12.5px">
+        <b class="mono">${s.sym}</b> ${s.dir==="LONG"?"خرید":"فروش"}
+        <span class="chip">${(s.R??0).toFixed(2)}R</span>
+        ${s.mfe!=null?`<span class="dim mono" style="font-size:10.5px">MFE ${s.mfe>=0?"+":""}${s.mfe} · MAE ${s.mae}</span>`:""}
+        <div class="dim" style="font-size:12px;margin-top:2px">${s.reason}</div>
+      </div>`).join(""):
+      `<div class="dim" style="font-size:12px">در چرخهٔ اخیر استاپی نبود — یا هنوز چرخهٔ بعدِ این قابلیت نیامده</div>`}
+  </div>
   <div class="box">
     <h3 style="margin:0 0 4px">💧 ورود و خروج پول — با واکنش گذشتهٔ خود ارز</h3>
     <div class="dim" style="font-size:11px;margin-bottom:4px">
@@ -4955,17 +4986,16 @@ function renderAll(){renderSignals();renderWatch();renderCalib();renderRegime();
    TABS / SETTINGS / AUTO
    ========================================================================= */
 function selectTab(t){
+  /* مقاوم‌سازی (شکایت حمید: «تب‌ها درست کار نمی‌کنند»): یک view غایب یا
+     یک خطای رندر نباید کل سوییچ تب‌ها را بکشد — هر قدم جدا محافظت شده. */
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
-  ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"].forEach(k=>$("#view-"+k).style.display=k===t?"":"none");
-  if(t==="ops")renderOps();
-  if(t==="paper")renderReview();
-  if(t==="real")renderReal();
-  if(t==="net")renderNet();
-  if(t==="agent")renderAgent();
-  if(t==="radar")renderPumpCloud();
-  if(t==="graph")renderGraph();
-  if(t==="bub")renderBubbles();
+  ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
+    .forEach(k=>{const el=$("#view-"+k);if(el)el.style.display=k===t?"":"none";});
+  const R={ops:"renderOps",paper:"renderReview",real:"renderReal",net:"renderNet",
+           agent:"renderAgent",radar:"renderPumpCloud",graph:"renderGraph",bub:"renderBubbles"};
+  if(R[t])try{window[R[t]]&&window[R[t]]();}catch(err){console.error("render",t,err);}
 }
+window.selectTab=selectTab;
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
 $("#scanBtn").onclick=runScan;
 $("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
