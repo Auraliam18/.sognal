@@ -431,6 +431,38 @@ def watch_alarms():
     return fired
 
 
+def _stop_reason(t, autopsy=None):
+    """دلیل خوانای هر استاپ — خواست حمید: «ایجنت دلیل استاپ‌ها را توضیح بده».
+
+    از دادهٔ ثبت‌شده ساخته می‌شود، نه از حدس: MFE/MAE (مسیر واقعی قیمت بعد
+    از ورود)، تنگی استاپ نسبت به نویز، جهت نقدینگی و روند لحظهٔ باز شدن،
+    و کالبدشکافی BTC اگر انجام شده. دادهٔ ناقص، صادقانه گفته می‌شود."""
+    w = t.get("why") or {}
+    bits = []
+    if autopsy:
+        bits.append(autopsy)
+    mfe = t.get("mfe_r")
+    if mfe is not None:
+        if mfe < 0.15:
+            bits.append(f"از لحظهٔ پر شدن تقریباً هیچ‌وقت به نفع نرفت "
+                        f"(MFE {mfe:+.2f}R) — ورود دیر یا جهت غلط")
+        elif mfe >= 0.8:
+            bits.append(f"تا +{mfe:.2f}R به نفع رفت ولی به تارگت نرسید و برگشت "
+                        f"— تارگت دور بود یا خروج مدیریت نشد")
+    sp = w.get("stop_pct")
+    if sp is not None and sp < 0.6:
+        bits.append(f"استاپ فقط {sp}٪ — داخل نویز بازار (همان درس ZAMA)")
+    if w.get("liq") == "against":
+        bits.append("آهن‌ربای نقدینگی از لحظهٔ باز شدن خلاف جهت بود")
+    t4 = w.get("trend_4h")
+    if t4 in ("up", "down") and (t4 == "down") == (t.get("dir") == "LONG"):
+        bits.append(f"روند ۴ساعته مخالف بود ({t4})")
+    if not bits:
+        bits.append("شرایط لحظهٔ باز شدن این معامله ناقص ثبت شده بود — از این "
+                    "چرخه به بعد آلارم‌ها هم نقدینگی و تنگی استاپ را ثبت می‌کنند")
+    return "؛ ".join(bits)
+
+
 def settle_books(report):
     """اول تسویه، بعد تصمیم — یافتهٔ بازبینی معماری: تسویه و یادگیری در انتهای
     چرخه بود، پس هر وتو و مشورتِ حافظه با تجربهٔ یک چرخه کهنه‌تر گرفته می‌شد.
@@ -486,15 +518,26 @@ def settle_books(report):
                                    {"R": t.get("R"), "btc_1h": mr["btc_1h_pct"]})
             except Exception as e:                   # noqa: BLE001
                 print(f"کالبدشکافی استاپ: {type(e).__name__}")
+            # دلیل برای هر استاپ — نه فقط استاپ‌های مرتبط با BTC
+            stop_reasons = []
+            for t in just:
+                if t["outcome"] == "stop":
+                    r = _stop_reason(t, autopsies.get(t["sym"] + t["dir"]))
+                    stop_reasons.append({"sym": t["sym"], "dir": t["dir"],
+                                         "R": t.get("R_net", t.get("R")),
+                                         "mfe": t.get("mfe_r"), "mae": t.get("mae_r"),
+                                         "reason": r})
+            report["stop_reasons"] = stop_reasons[:10]
             if tok:
                 L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
+                rmap = {s["sym"] + s["dir"]: s["reason"] for s in stop_reasons}
                 for t in just[:10]:
                     won = t["outcome"] == "target"
                     L.append(f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
                              f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
                              f"{'تارگت خورد' if won else 'استاپ خورد'} "
                              f"(<code>{t['R']:+.2f}R</code>)")
-                    a = autopsies.get(t["sym"] + t["dir"])
+                    a = rmap.get(t["sym"] + t["dir"]) if not won else None
                     if a:
                         L.append(f"   🔎 <i>{a}</i>")
                 _tg._post(tok, "sendMessage",
@@ -1046,6 +1089,14 @@ def main():
                            + " — قیمت رسید",
                            "footer": "<i>آلارمِ رسیدن قیمت به ناحیهٔ ازپیش‌ثبت‌شده — "
                                      "رکورد این مسیر جدا اندازه‌گیری می‌شود.</i>"}
+                    # شرایط لحظهٔ باز شدن — بدون این، دلیل استاپِ آلارم‌ها
+                    # بعداً قابل توضیح نبود (استاپ‌های ۱۱ اوت همه ctx خالی داشتند)
+                    sig["_stop_pct"] = round(abs(px - sig["sl"]) / px * 100, 2)
+                    try:
+                        from hamid import liquidity as _lq2
+                        sig["_liq"] = _lq2.read(cs, d)["side"]
+                    except Exception:                # noqa: BLE001
+                        sig["_liq"] = None
                     sigs.append(sig)
                 except Exception as e:               # noqa: BLE001 - یک آلارم بقیه را نمی‌کشد
                     print(f"بازبینی آلارم {al.get('sym')}: {type(e).__name__}")
@@ -1057,7 +1108,9 @@ def main():
                 from hamid import paper as _pp
                 _pp.open_from([{"symbol": x["sym"], "dir": x["dir"],
                                 "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],
-                                "tp2": x["tp2"], "stage_tag": "alarm"} for x in sigs],
+                                "tp2": x["tp2"], "stage_tag": "alarm",
+                                "stop_pct": x.get("_stop_pct"),
+                                "liq": x.get("_liq")} for x in sigs],
                               {"mode": mode})
                 act(f"⏰ {len(sigs)} آلارم فعال‌شده سیگنال شد"
                     + (f"، {sent_al} به تلگرام رفت" if sent_al else "")
