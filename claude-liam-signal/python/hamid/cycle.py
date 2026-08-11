@@ -448,6 +448,44 @@ def settle_books(report):
         if just:
             import telegram as _tg
             tok, chat = _tg.creds()
+            # کالبدشکافی استاپ (قانون حمید): استاپ که خورد، همان لحظه ایجنت
+            # وارد شود — BTC چه می‌کرد؟ این ارز طبق لگ-کورولیشن دنبالش
+            # می‌ریزد؟ در ریزش بزرگ قبلی BTC هم ریخته بود؟ حکم: استاپ
+            # سیستمی بود یا ضعف خود ستاپ — و همین حکم درس می‌شود.
+            autopsies = {}
+            try:
+                from hamid import lagcorr as _lagc
+                from hamid import memory as _mem0
+                _b1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+                        for k in sources.klines("BTCUSDT", "1h", 500)]
+                for t in [x for x in just if x["outcome"] == "stop"][:4]:
+                    try:
+                        _s1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
+                                 "c": k[4], "v": k[5]}
+                                for k in sources.klines(t["sym"], "1h", 500)]
+                        mr = _lagc.market_reaction(_b1h, _s1h)
+                    except Exception:                # noqa: BLE001
+                        continue
+                    if not mr:
+                        continue
+                    btc_against = ((mr["btc_1h_pct"] <= -1.0 and t["dir"] == "LONG")
+                                   or (mr["btc_1h_pct"] >= 1.0 and t["dir"] == "SHORT"))
+                    if btc_against and mr["follow"]:
+                        verdict = ("استاپ سیستمی بود، نه ضعف ستاپ: "
+                                   + _lagc.reaction_fa(t["sym"], mr))
+                    elif btc_against:
+                        verdict = (f"BTC خلاف جهت بود ({mr['btc_1h_pct']:+}٪/۱س) ولی "
+                                   f"رابطهٔ لگ-کورولیشنی این ارز با BTC قانع‌کننده نیست "
+                                   "— سهم ستاپ از ضعف خودش است")
+                    else:
+                        verdict = ("ربطی به حرکت BTC نداشت — ضعف خود ستاپ؛ "
+                                   "در بازبینی شرط‌ها دیده شود")
+                    autopsies[t["sym"] + t["dir"]] = verdict
+                    _mem0.remember("بررسی", t["sym"],
+                                   f"کالبدشکافی استاپ {t['sym']} {t['dir']}: {verdict}",
+                                   {"R": t.get("R"), "btc_1h": mr["btc_1h_pct"]})
+            except Exception as e:                   # noqa: BLE001
+                print(f"کالبدشکافی استاپ: {type(e).__name__}")
             if tok:
                 L = [f"🏷 <b>{_tg.PANEL_NAME}</b>", "📊 <b>نتیجهٔ معامله‌ها</b>", ""]
                 for t in just[:10]:
@@ -456,6 +494,9 @@ def settle_books(report):
                              f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
                              f"{'تارگت خورد' if won else 'استاپ خورد'} "
                              f"(<code>{t['R']:+.2f}R</code>)")
+                    a = autopsies.get(t["sym"] + t["dir"])
+                    if a:
+                        L.append(f"   🔎 <i>{a}</i>")
                 _tg._post(tok, "sendMessage",
                           {"chat_id": chat, "text": "\n".join(L),
                            "parse_mode": "HTML"})
