@@ -317,13 +317,16 @@ def send_signals(signals, render_chart, limit=8):
             if png:
                 with open(png, "rb") as f:
                     blob = f.read()
-                _post(token, "sendPhoto",
-                      {"chat_id": chat, "caption": caption(s), "parse_mode": "HTML"},
-                      {"photo": (f"{s['sym']}.png", blob)})
+                resp = _post(token, "sendPhoto",
+                             {"chat_id": chat, "caption": caption(s), "parse_mode": "HTML"},
+                             {"photo": (f"{s['sym']}.png", blob)})
             else:
-                _post(token, "sendMessage",
-                      {"chat_id": chat, "text": caption(s), "parse_mode": "HTML",
-                       "disable_web_page_preview": "true"})
+                resp = _post(token, "sendMessage",
+                             {"chat_id": chat, "text": caption(s), "parse_mode": "HTML",
+                              "disable_web_page_preview": "true"})
+            # شناسهٔ پیام — خواست حمید: اعلام نتیجه باید «ریپلایِ» همین پیام
+            # باشد تا با سیگنال دیگری اشتباه نشود
+            tg_mid = ((resp or {}).get("result") or {}).get("message_id")
             sent[_key(s)] = time.time() * 1000
             sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = time.time() * 1000
             ok += 1
@@ -338,7 +341,8 @@ def send_signals(signals, render_chart, limit=8):
                                    "entry": s["entry"], "sl": s["sl"],
                                    "tp1": s.get("tp1") or s["entry"], "tp2": s.get("tp2"),
                                    "stage_tag": f"sig-{s.get('strategy', '?')}"}],
-                                 {"sent_at": int(time.time() * 1000)})
+                                 {"sent_at": int(time.time() * 1000),
+                                  "tg_msg_id": tg_mid})
             except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
                 print(f"  paper log failed for {s['sym']}: {type(e).__name__}", flush=True)
         except urllib.error.HTTPError as e:
