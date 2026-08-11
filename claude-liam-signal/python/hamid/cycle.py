@@ -503,6 +503,13 @@ def settle_books(report):
                 act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت")
     except Exception as e:                           # noqa: BLE001 - اعلان تسویه را نمی‌کشد
         print(f"اعلان نتیجه: {type(e).__name__}")
+    # پرونده‌سازی (بند ۲۲ منشور): هر بستهٔ سیگنال‌گرید یک case یکتا —
+    # با کالبدشکافی استاپ اگر انجام شده باشد
+    try:
+        from hamid import cases as _cases
+        _cases.write_cases(just, autopsies=locals().get("autopsies") or {})
+    except Exception as e:                           # noqa: BLE001
+        print(f"پرونده‌سازی: {type(e).__name__}")
     try:
         from hamid import memory as _mem2
         newly = [t for t in paper._read(paper.CLOSED)
