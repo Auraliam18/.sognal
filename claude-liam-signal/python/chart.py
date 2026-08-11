@@ -46,7 +46,7 @@ def _fmt(v):
 
 def _watermark(ax):
     """امضای کانال حمید — Trade_Osuli — پشت کندل‌ها، کم‌رنگ، بدون شلوغی."""
-    ax.text(0.5, 0.5, "Trade_Osuli", transform=ax.transAxes,
+    ax.text(0.5, 0.5, "@Trade_Osuli", transform=ax.transAxes,
             fontsize=34, color=DIM, alpha=0.12, ha="center", va="center",
             rotation=15, fontweight="bold", zorder=0)
 
