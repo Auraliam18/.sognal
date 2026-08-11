@@ -474,7 +474,7 @@ def settle_books(report):
     try:
         just = [t for t in paper._read(paper.CLOSED)
                 if (t.get("closed") or 0) >= t_mark
-                and t.get("outcome") in ("target", "stop")
+                and t.get("outcome") in ("target", "stop", "trail")
                 and (t.get("why") or {}).get("stage")
                 not in ("first", "practice", "inducement")]
         if just:
@@ -548,21 +548,49 @@ def settle_books(report):
                 rest = []
                 for t in dd[:10]:
                     won = t["outcome"] == "target"
-                    line = (f"{'✅' if won else '❌'} <b>{t['sym']}</b> "
+                    trailed = t["outcome"] == "trail"
+                    icon = "✅" if won else ("🟡" if trailed else "❌")
+                    verdict = ("تارگت خورد" if won else
+                               "تریل شد — سود سیو شد" if trailed else "استاپ خورد")
+                    line = (f"{icon} <b>{t['sym']}</b> "
                             f"{'خرید' if t['dir'] == 'LONG' else 'فروش'} — "
-                            f"{'تارگت خورد' if won else 'استاپ خورد'} "
-                            f"(<code>{t['R']:+.2f}R</code>)")
-                    a = rmap.get(t["sym"] + t["dir"]) if not won else None
+                            f"{verdict} (<code>{t['R']:+.2f}R</code>)")
+                    if trailed and t.get("mfe_r") is not None:
+                        line += (f"\n   <i>قانون تریل اجرا شد: تا +{t['mfe_r']:.2f}R رفت، "
+                                 f"استاپِ تریل‌شده در سود بست — برگشتِ کامل دیگر ضرر نمی‌سازد</i>")
+                    a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
                     mid = (t.get("why") or {}).get("tg_msg_id")
                     if mid:
+                        cap = ("📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
+                               + (f"\n🔎 <i>{a}</i>" if a else "")
+                               + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")
+                        # خواست حمید: ریپلای نتیجه حتماً با عکس چارت باشد —
+                        # چارت ۵د لحظهٔ بسته شدن با سطوح ورود/استاپ/تارگت
+                        buf = None
                         try:
-                            _tg._post(tok, "sendMessage",
-                                      {"chat_id": chat, "parse_mode": "HTML",
-                                       "reply_to_message_id": mid,
-                                       "allow_sending_without_reply": "true",
-                                       "text": ("📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
-                                                + (f"\n🔎 <i>{a}</i>" if a else "")
-                                                + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                            from tg_batch import chart as _c
+                            cd5 = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
+                                    "c": k[4], "v": k[5]}
+                                   for k in sources.klines(t["sym"], "5m", 120)]
+                            if len(cd5) >= 20:
+                                buf = _c(t["sym"], cd5, t.get("entry"), t.get("sl"),
+                                         t.get("tp1"), t.get("tp2"), t["dir"])
+                        except Exception:            # noqa: BLE001 - چارت اختیاری
+                            buf = None
+                        try:
+                            if buf and len(cap) <= 1024:
+                                _tg._post(tok, "sendPhoto",
+                                          {"chat_id": chat, "parse_mode": "HTML",
+                                           "reply_to_message_id": mid,
+                                           "allow_sending_without_reply": "true",
+                                           "caption": cap},
+                                          {"photo": (f"{t['sym']}.png", buf.read())})
+                            else:
+                                _tg._post(tok, "sendMessage",
+                                          {"chat_id": chat, "parse_mode": "HTML",
+                                           "reply_to_message_id": mid,
+                                           "allow_sending_without_reply": "true",
+                                           "text": cap})
                             continue
                         except Exception:            # noqa: BLE001 - ریپلای نشد → جمعی
                             pass

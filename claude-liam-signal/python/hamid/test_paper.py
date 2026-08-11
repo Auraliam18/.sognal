@@ -115,12 +115,56 @@ def t_expired_not_scored():
         paper.CLOSED, paper.EQUITY = old
 
 
+def t_trailing_stop():
+    """قانون تریل حمید (درس EURI): ⅓ مسیر تارگت → استاپ در سودِ کارمزددار؛
+    ⅔ → استاپ در ⅓؛ برگشتِ کامل دیگر ضرر نمی‌سازد."""
+    import tempfile, time as _t
+    d = Path(tempfile.mkdtemp())
+    old = (paper.CLOSED, paper.OPEN, paper.EQUITY, paper._candles_since)
+    paper.CLOSED, paper.OPEN, paper.EQUITY = d / "c.jsonl", d / "o.jsonl", d / "e.json"
+    now = int(_t.time() * 1000)
+    H5 = 300_000
+
+    def bar(i, h, l):
+        return {"t": now - (40 - i) * H5, "o": (h + l) / 2, "h": h, "l": l,
+                "c": (h + l) / 2, "v": 1.0}
+
+    # سناریوی EURI: ورود ۱۰۰، استاپ ۹۹، تارگت ۱۰۳؛ قیمت تا ۱۰۱.۲ (>⅓=۱۰۱)
+    # می‌رود و بعد تا ۹۸ برمی‌گردد → باید تریل در سود ببندد، نه استاپ کامل
+    euri = [bar(0, 100.2, 99.8), bar(1, 101.2, 100.0), bar(2, 100.4, 99.6),
+            bar(3, 99.8, 98.0)]
+    # سناریوی ⅔: تا ۱۰۲.۱ می‌رود (>⅔=۱۰۲) بعد کامل برمی‌گردد → استاپ در ⅓=۱۰۱
+    deep = [bar(0, 100.2, 99.8), bar(1, 102.1, 100.0), bar(2, 101.5, 100.8),
+            bar(3, 99.5, 98.0)]
+    series = {"EURIUSDT": euri, "DEEPUSDT": deep}
+    paper._candles_since = lambda sym, since: series[sym]
+    try:
+        for sym in series:
+            paper._append(paper.OPEN, {"sym": sym, "dir": "LONG", "entry": 100.0,
+                                       "sl": 99.0, "tp1": 103.0, "tp2": None,
+                                       "opened": now - 40 * H5,
+                                       "filled": now - 40 * H5, "why": {"stage": "second"}})
+        paper.mark()
+        closed = paper._read(paper.CLOSED)
+        e = next(t for t in closed if t["sym"] == "EURIUSDT")
+        check("EURI: تریل در سودِ کارمزددار بست، نه استاپ کامل",
+              e["outcome"] == "trail" and 0 < e["R"] < 0.3,
+              f"outcome={e['outcome']} R={e['R']}")
+        dp = next(t for t in closed if t["sym"] == "DEEPUSDT")
+        check("⅔ مسیر → استاپ در ⅓ مسیر (R≈+۱)",
+              dp["outcome"] == "trail" and 0.9 <= dp["R"] <= 1.1,
+              f"outcome={dp['outcome']} R={dp['R']}")
+    finally:
+        paper.CLOSED, paper.OPEN, paper.EQUITY, paper._candles_since = old
+
+
 def main():
     print("\nیادگیری از دلیل درست — تست خصمانه\n")
     t_small_sample_refuses()
     t_noise_finds_nothing()
     t_real_effect_is_found()
     t_expired_not_scored()
+    t_trailing_stop()
     bad = [(n, d) for ok, n, d in R if not ok]
     print(f"\n{'=' * 74}")
     print(f"{len(R)-len(bad)} از {len(R)} تست قبول")
