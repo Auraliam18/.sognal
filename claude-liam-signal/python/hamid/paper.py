@@ -207,7 +207,16 @@ def mark():
 
         after = [c for c in cd if c["t"] >= p["filled"]]
         done = None
+        # MFE/MAE — منشور LIAM بند ۲۲: هر معامله باید بگوید تا کجا به نفعش
+        # رفت و تا کجا علیه‌اش، تا بازبینی بفهمد «جهت درست بود و تایم غلط» یا
+        # ورود زود بود — نه فقط برد/باخت خام.
+        mfe = mae = 0.0
+        end_t = p["filled"]
         for c in after:
+            fav = ((c["h"] - p["entry"]) if long else (p["entry"] - c["l"])) / risk
+            adv = ((p["entry"] - c["l"]) if long else (c["h"] - p["entry"])) / risk
+            mfe, mae = max(mfe, fav), max(mae, adv)
+            end_t = c["t"]
             hit_sl = (c["l"] <= p["sl"]) if long else (c["h"] >= p["sl"])
             hit_tp = (c["h"] >= p["tp1"]) if long else (c["l"] <= p["tp1"])
             if hit_sl and hit_tp:
@@ -228,6 +237,8 @@ def mark():
             continue
 
         p["outcome"], p["R"] = done[0], round(done[1], 4)
+        p["mfe_r"], p["mae_r"] = round(mfe, 3), round(mae, 3)
+        p["held_h"] = round((end_t - p["filled"]) / 3600e3, 1)
         # R خالص با کارمزد+لغزش ~۰.۰۵٪ هر طرف — روی استاپ تنگ چند دهم R است
         try:
             fee_r = 0.001 * p["entry"] / abs(p["entry"] - p["sl"])
