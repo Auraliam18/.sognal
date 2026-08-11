@@ -103,6 +103,54 @@ def followers_of(kc, sym, universe, top=5):
     return out[:top]
 
 
+def market_reaction(btc_1h, sym_1h, threshold=1.0):
+    """واکنش تاریخی یک ارز به حرکت‌های بزرگ بیت‌کوین — قانون حمید:
+
+    «وقتی بیت می‌ریزد و ال‌تی‌سی استاپ می‌خورد، ایجنت باید دلیل‌ها را
+    لگ-کورولیشنی بررسی کند و به آخرین ریزش قبلی BTC برگردد ببیند آن موقع
+    هم ریخته بود یا نه — بعد تصمیم بگیرد.»
+
+    خروجی: حرکت الان BTC، رابطهٔ لگ-کورولیشنی BTC→sym، و رفتار sym در
+    آخرین حرکت بزرگ قبلی BTC (در همان پنجرهٔ تأخیر آماری)."""
+    if len(btc_1h) < 60 or len(sym_1h) < 60:
+        return None
+    chg = (btc_1h[-1]["c"] / btc_1h[-2]["c"] - 1) * 100
+    fs = follow_score(btc_1h, sym_1h, "1h", 6)
+    idx = {c["t"]: k for k, c in enumerate(sym_1h)}
+    last = None
+    lagb = max(1, int(round(fs["lag_bars"]))) if fs else 1
+    # آخرین حرکت بزرگ قبلی BTC — سه کندل آخر (حرکت جاری) شمرده نمی‌شود
+    for i in range(len(btc_1h) - 4, 1, -1):
+        c = (btc_1h[i]["c"] / btc_1h[i - 1]["c"] - 1) * 100
+        if abs(c) >= threshold:
+            k = idx.get(btc_1h[i]["t"])
+            if k is not None and k + lagb < len(sym_1h):
+                sp = (sym_1h[k + lagb]["c"] / sym_1h[k - 1]["c"] - 1) * 100
+                last = {"t": btc_1h[i]["t"], "btc_pct": round(c, 1),
+                        "sym_pct": round(sp, 1), "lag_h": lagb}
+            break
+    return {"btc_1h_pct": round(chg, 2), "follow": fs, "last_move": last}
+
+
+def reaction_fa(sym, mr):
+    """جملهٔ فارسی واکنش-بازار — با عدد، برای پیش از سیگنال و پس از استاپ."""
+    if not mr:
+        return None
+    bits = [f"BTC الان {mr['btc_1h_pct']:+}٪/۱س"]
+    if mr["follow"]:
+        f = mr["follow"]
+        bits.append(f"{sym.replace('USDT','')} طبق لگ-کورولیشن (r={f['r']:+.2f}) "
+                    f"~{f['lag_h']}س بعد دنبالش می‌رود")
+    else:
+        bits.append(f"{sym.replace('USDT','')} رابطهٔ لگ-کورولیشنی قانع‌کننده‌ای "
+                    "با BTC ندارد")
+    if mr["last_move"]:
+        lm = mr["last_move"]
+        bits.append(f"در حرکت بزرگ قبلی BTC ({lm['btc_pct']:+}٪) این ارز "
+                    f"{lm['sym_pct']:+}٪ شد")
+    return "؛ ".join(bits)
+
+
 def reason_fa(leader, f):
     """جملهٔ فارسی با عدد برای پیام/دلیل پیک."""
     b = f["best"]
