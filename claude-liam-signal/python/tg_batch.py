@@ -46,8 +46,8 @@ def tehran(ms=None):
 def watermark(ax):
     """امضای کانال حمید — Trade_Osuli — پشت کندل‌ها، کم‌رنگ و تمیز؛ تبلیغ
     هست ولی دید چارت را اشغال نمی‌کند (خواستهٔ خودش، کلمه به کلمه)."""
-    ax.text(0.5, 0.5, "Trade_Osuli", transform=ax.transAxes,
-            fontsize=34, color="#8899aa", alpha=0.13, ha="center", va="center",
+    ax.text(0.5, 0.5, "@Trade_Osuli", transform=ax.transAxes,
+            fontsize=40, color="#9aa4b5", alpha=0.18, ha="center", va="center",
             rotation=15, fontweight="bold", zorder=0)
 
 
@@ -55,11 +55,16 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(9, 5), dpi=110)
+    # تم تیرهٔ تریدینگ‌ویو — همان چیزی که حمید هر روز می‌بیند؛ تمیز و بی‌شلوغی
+    fig, ax = plt.subplots(figsize=(9, 5), dpi=110, facecolor="#131722")
+    ax.set_facecolor("#131722")
+    for sp in ax.spines.values():
+        sp.set_color("#2a2e39")
+    ax.tick_params(colors="#b2b5be", labelsize=8.5)
     watermark(ax)
     for i, k in enumerate(cd):
         up = k["c"] >= k["o"]
-        ax.plot([i, i], [k["l"], k["h"]], color="#666", lw=0.7, zorder=1)
+        ax.plot([i, i], [k["l"], k["h"]], color="#4c525e", lw=0.7, zorder=1)
         ax.add_patch(plt.Rectangle((i - 0.33, min(k["o"], k["c"])), 0.66,
                      max(abs(k["c"] - k["o"]), 1e-12),
                      color="#26a69a" if up else "#ef5350", zorder=2))
@@ -70,12 +75,12 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_):
         if v:
             ax.axhline(v, color=c, lw=1.1, ls="--")
             ax.text(len(cd) + 1, v, lb, color=c, fontsize=8, va="center")
-    ax.set_title(f"{sym}  {dir_}", loc="left")
+    ax.set_title(f"{sym}  {dir_}", loc="left", color="#d1d4dc", fontweight="bold")
     ax.set_xlim(-1, len(cd) + 8)
-    ax.grid(alpha=0.15)
+    ax.grid(alpha=0.18, color="#2a2e39")
     fig.tight_layout()
     buf = io.BytesIO()
-    fig.savefig(buf, format="png")
+    fig.savefig(buf, format="png", facecolor=fig.get_facecolor())
     plt.close(fig)
     buf.seek(0)
     return buf
