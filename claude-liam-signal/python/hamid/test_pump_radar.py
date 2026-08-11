@@ -216,6 +216,60 @@ class NoCrashKc(CrashKc):
 check("بدون ریزش الان، هشداری نیست",
       pr.crash_watch(NoCrashKc(), ["BTCUSDT", "PANICUSDT"]) is None)
 
+# ── لگ-کورولیشن — همبستگی با تأخیر، معنی واقعی «همبستگی» از زبان حمید ─────
+from hamid import lagcorr                             # noqa: E402
+random.seed(11)
+lead_rets = [random.gauss(0, 0.01) for _ in range(500)]
+LAG = 3
+
+
+def _mkcd(rets, t0=0, bar=3600_000):
+    cd, p = [], 100.0
+    for i, r in enumerate(rets):
+        p *= 1 + r
+        cd.append({"t": t0 + i * bar, "o": p / (1 + r), "h": p, "l": p, "c": p, "v": 1.0})
+    return cd
+
+
+lead_cd = _mkcd(lead_rets)
+fol_rets = [0.0] * LAG + [r * 0.8 + random.gauss(0, 0.004) for r in lead_rets[:-LAG]]
+fol_cd = _mkcd(fol_rets)
+noise_cd = _mkcd([random.gauss(0, 0.01) for _ in range(500)])
+
+
+class LagKc:
+    def get(self, s, tf, n):
+        if tf != "1h":
+            return []
+        return {"LEADUSDT": lead_cd, "FOLUSDT": fol_cd, "NOISEUSDT": noise_cd}.get(s, [])
+
+
+lf = lagcorr.followers_of(LagKc(), "LEADUSDT", ["FOLUSDT", "NOISEUSDT", "LEADUSDT"])
+check("دنباله‌روی ساختگی با تأخیر ۳ کندل پیدا شد",
+      lf and lf[0]["symbol"] == "FOLUSDT" and lf[0]["best"]["lag_bars"] == LAG
+      and lf[0]["best"]["r"] >= 0.5)
+check("نویز مستقل رابطه اعلام نمی‌شود", all(x["symbol"] != "NOISEUSDT" for x in lf))
+# جهت معکوس: اگر «دنباله‌رو» جلوتر حرکت کند، دنباله‌رو نیست
+rev = lagcorr.follow_score(fol_cd, lead_cd, "1h", 12)
+check("رابطهٔ معکوس (خودش سردسته) رد می‌شود", rev is None)
+check("جملهٔ فارسی دلیل ساخته می‌شود",
+      "لگ-کورولیشن" in lagcorr.reason_fa("LEADUSDT", lf[0]))
+
+# پیک فقط-لگ‌کورولیشنی از قانون سخت خوشه رد می‌شود
+lc_block = {"symbol": "LCUSDT", "price": 1.0, "role": "نامشخص", "leaders": [],
+            "followers": [], "pumps": [], "match": None,
+            "lag_corr_leaders": [{"symbol": "LEADUSDT", "both_tf": True,
+                                  "best": {"r": 0.31, "lag_h": 3.0, "n": 490, "tf": "1h"},
+                                  "reason": "لگ-کورولیشن با LEADUSDT: r=+0.31"}],
+            "now": {"rsi_1h": 50.0}, "alarm": {"entry": 0.99, "sl": 0.95}}
+plc = pr.recommend([dict(lc_block)])
+check("لگ-کورولیشن قوی به‌تنهایی نامزدی می‌سازد",
+      plc and plc[0]["symbol"] == "LCUSDT"
+      and any("لگ-کورولیشن" in w for w in plc[0]["reasons"]))
+no_ev = {**dict(lc_block), "symbol": "NOEVUSDT", "lag_corr_leaders": []}
+pno = pr.recommend([no_ev])
+check("بدون هیچ‌کدام از دو اثبات، پیشنهاد نمی‌شود", not pno)
+
 # ── دفتر ماندگار تاریخچهٔ پامپ‌ها ──────────────────────────────────────────
 import json                                           # noqa: E402
 import tempfile                                       # noqa: E402

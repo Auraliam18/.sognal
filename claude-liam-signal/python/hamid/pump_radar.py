@@ -556,12 +556,19 @@ def recommend(blocks, hot=None):
                             f"{'+%s٪/24س' % c24 if c24 and c24 >= 10 else ''}) — دیر است، سیگنال نیست")
             continue
         # داور بیرونی: قول spec («فقط دنباله‌رو با ۲+ سابقه») در کد نبود —
-        # حالا شرط سخت است، همان‌طور که حمید گفت.
+        # حالا شرط سخت است. راه دوم اثبات رابطه، خواست بعدی حمید است:
+        # لگ-کورولیشنِ سری بازده‌ها در گذشته (r≥۰.۲ با تأخیر مثبت).
         strong_leaders = [l for l in (b.get("leaders") or []) if (l.get("n") or 0) >= 2]
-        if b.get("role") != "دنباله‌رو" or not strong_leaders:
-            b["skipped"] = "رابطهٔ خوشه‌ای اثبات‌شده ندارد (۲+ سابقهٔ دنباله‌روی) — پیشنهاد نمی‌شود"
+        lc_leaders = b.get("lag_corr_leaders") or []
+        event_ok = b.get("role") == "دنباله‌رو" and strong_leaders
+        if not event_ok and not lc_leaders:
+            b["skipped"] = ("رابطهٔ خوشه‌ای اثبات‌شده ندارد (نه ۲+ سابقهٔ رخدادی، "
+                            "نه لگ-کورولیشن قانع‌کننده) — پیشنهاد نمی‌شود")
             continue
         s, why = 0, []
+        for lc in lc_leaders[:2]:
+            s += 2 if lc.get("both_tf") else 1
+            why.append(lc["reason"])
         if b["symbol"].replace("USDT", "") and b.get("leaders") and \
                 any(l["symbol"] in hot for l in b["leaders"]):
             s += 2
@@ -872,6 +879,27 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                 continue
             for f3 in (b2.get("followers") or [])[:2]:
                 add(f3["symbol"], 3, via=f["symbol"], with_related=False)
+        # لگ-کورولیشن — خواست حمید: همبستگیِ با-تأخیرِ سری بازده‌ها در
+        # گذشته، در دو تایم‌فریم؛ دنباله‌روهای آماری هم تحلیل و نامزد می‌شوند
+        try:
+            from hamid import lagcorr
+            lcf = lagcorr.followers_of(kc, g["symbol"], uni)
+            if lcf:
+                b["lag_corr_followers"] = lcf
+                print(f"  لگ-کورولیشن {g['symbol']}: " +
+                      ", ".join(f"{x['symbol']} r={x['best']['r']:+.2f}"
+                                f"@{x['best']['lag_h']}س" for x in lcf[:3]))
+            for f in lcf[:4]:
+                b2 = add(f["symbol"], 2, via=g["symbol"])
+                if b2 is None:
+                    b2 = next((x for x in blocks if x["symbol"] == f["symbol"]), None)
+                if b2 is not None:
+                    b2.setdefault("lag_corr_leaders", []).append(
+                        {"symbol": g["symbol"], "both_tf": f["both_tf"],
+                         "best": f["best"],
+                         "reason": lagcorr.reason_fa(g["symbol"], f)})
+        except Exception as e:                       # noqa: BLE001 - آمار، رادار را نمی‌کشد
+            print(f"  لگ-کورولیشن {g['symbol']}: {type(e).__name__}")
 
     # دفتر ماندگار تاریخچهٔ پامپ‌ها — هر رخداد یک بار ثبت و برای همیشه نگه
     # داشته می‌شود («پاک نشود»)؛ خلاصهٔ خوانا هم روی بلوک می‌نشیند
@@ -924,6 +952,17 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         b = bmap.get(p["symbol"]) or {}
         leader = (b.get("leaders") or [{}])[0].get("symbol") or b.get("via")
         lb = bmap.get(leader) if leader else None
+        # پنجرهٔ لگ-کورولیشنی: وقتی رابطه از سری بازده‌هاست نه رخداد،
+        # مهلت هم از همان تأخیر آماری می‌آید — دو برابر lag، کف ۳ ساعت
+        lc = (b.get("lag_corr_leaders") or [None])[0]
+        if not (lb and lb.get("pumps")) and lc:
+            w_h = max(2 * lc["best"]["lag_h"], 3.0)
+            p["expires_at"] = int(now_ms + w_h * 3600e3)
+            p["lag"] = {"leader": lc["symbol"], "med_h": lc["best"]["lag_h"],
+                        "window_h": round(w_h, 1), "left_h": round(w_h, 1),
+                        "n": lc["best"]["n"], "kind": "lag-corr"}
+            p["reasons"].append(f"پنجرهٔ آماری: ~{w_h:.1f}س از الان "
+                                f"(دو برابر تأخیر لگ-کورولیشن)")
         if lb and lb.get("pumps"):
             lg = follower_lags(lb["pumps"], b.get("pumps"))
             last_lead_pump = max(e["t"] for e in lb["pumps"])
