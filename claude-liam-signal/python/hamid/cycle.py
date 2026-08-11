@@ -573,6 +573,30 @@ def settle_books(report):
                                "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
                                         f"📊 <b>نتیجهٔ معامله‌ها</b>\n\n" + "\n".join(rest))})
                 act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت (ریپلای روی پیام خود سیگنال)")
+                # خواست حمید: اوردرِ فعال‌نشده که منطقی منقضی شد هم ریپلای
+                # بگیرد — «به این دلایل منقضی است و ورود ممنوع»
+                exp_just = [t for t in paper._read(paper.CLOSED)
+                            if (t.get("closed") or 0) >= t_mark
+                            and t.get("outcome") == "expired"
+                            and (t.get("why") or {}).get("tg_msg_id")]
+                for t in exp_just[:6]:
+                    hrs = round(((t.get("closed") or 0) - (t.get("opened") or 0)) / 3600e3, 1)
+                    try:
+                        _tg._post(tok, "sendMessage",
+                                  {"chat_id": chat, "parse_mode": "HTML",
+                                   "reply_to_message_id": t["why"]["tg_msg_id"],
+                                   "allow_sending_without_reply": "true",
+                                   "text": (f"⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
+                                            f"قیمت در {hrs} ساعت هرگز به ناحیهٔ ورود "
+                                            f"<code>{t['entry']:.10g}</code> نرسید؛ ستاپ کهنه "
+                                            f"شده و شرایطی که صدورش را توجیه می‌کرد دیگر "
+                                            f"برقرار نیست. اگر دوباره معتبر شود، سیگنال "
+                                            f"تازه با تحلیل تازه می‌آید.\n"
+                                            f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                    except Exception:                # noqa: BLE001
+                        pass
+                if exp_just:
+                    act(f"⌛️ {len(exp_just)} اوردر فعال‌نشده با ریپلای «منقضی — ورود ممنوع» بسته اعلام شد")
     except Exception as e:                           # noqa: BLE001 - اعلان تسویه را نمی‌کشد
         print(f"اعلان نتیجه: {type(e).__name__}")
     # پرونده‌سازی (بند ۲۲ منشور): هر بستهٔ سیگنال‌گرید یک case یکتا —
