@@ -256,14 +256,17 @@ check("جملهٔ فارسی دلیل ساخته می‌شود",
       "لگ-کورولیشن" in lagcorr.reason_fa("LEADUSDT", lf[0]))
 
 # ── واکنش-بازار: BTC ریخت، این ارز طبق سابقه چه می‌کند؟ (قانون حمید) ──────
-mr_lead = list(lead_rets)
+# سری آرام (σ=۰.۳٪) تا تنها «حرکت بزرگ»، ریزش تزریقی -۳٪ باشد — سری
+# پرنوسان قبلی خودش حرکت‌های ±۳٪ تصادفی داشت و تست را شکننده می‌کرد
+random.seed(23)
+mr_lead = [random.gauss(0, 0.003) for _ in range(500)]
 mr_lead[400] = -0.03          # ریزش بزرگ قبلی BTC
 mr_lead[-1] = -0.02           # ریزش جاری
 mr_btc = _mkcd(mr_lead)
-mr_fol = _mkcd([0.0] * LAG + [r * 0.8 + random.gauss(0, 0.004)
+random.seed(24)
+mr_fol = _mkcd([0.0] * LAG + [r * 0.8 + random.gauss(0, 0.001)
                               for r in mr_lead[:-LAG]])
-# آستانهٔ ۲.۵٪ تا در سری تصادفی فقط ریزش تزریقی -۳٪ «حرکت بزرگ» باشد
-mr = lagcorr.market_reaction(mr_btc, mr_fol, threshold=2.5)
+mr = lagcorr.market_reaction(mr_btc, mr_fol)
 check("حرکت جاری BTC درست خوانده شد", mr and abs(mr["btc_1h_pct"] - (-2.0)) < 0.1)
 check("رابطهٔ لگ-کورولیشنی BTC→ارز پیدا شد",
       mr and mr["follow"] and mr["follow"]["lag_bars"] == LAG)
