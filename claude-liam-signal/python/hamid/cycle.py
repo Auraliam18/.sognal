@@ -826,6 +826,18 @@ def main():
     except Exception as e:                           # noqa: BLE001 - خبر چرخه را نمی‌کشد
         print(f"دسته‌بندی خبر: {type(e).__name__}: {e}")
 
+    # Universe Snapshot روزانه (AuraLiam369 §5 فاز ۱) — فایل یکتای روز،
+    # ضد survivorship bias؛ اگر امروز ساخته شده، هیچ کاری نمی‌کند.
+    try:
+        from hamid import universe as _uni
+        _snap, _created, _udiff = _uni.daily()
+        if _created:
+            act(f"🌐 Universe امروز ثبت شد: {_snap['n']} نماد از {_snap['venue']}"
+                + (f" · تازه‌لیست: {', '.join(_udiff['listed'][:4])}"
+                   if _udiff and _udiff["listed"] else ""))
+    except Exception as e:                           # noqa: BLE001 - چرخه را نمی‌کشد
+        print(f"Universe: {type(e).__name__}: {e}")
+
     if mode == "active":
         try:
             tick = sources.tickers()

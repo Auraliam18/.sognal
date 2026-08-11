@@ -220,6 +220,33 @@ n3 = tg.send_signals([s3], lambda s, p: None)
 check("سقف ۲ ارسال به ازای هر ارز در ۱۲ ساعت", n3 == 0)
 tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
 
+# ── Universe Snapshot (AuraLiam369 §5 — فاز ۱) ────────────────────────────
+from hamid import universe as _u                      # noqa: E402
+_u.UNI_DIR = _tmp2 / "universe"
+_rows = ([{"symbol": f"C{i}USDT", "quoteVolume": str(1000000 - i)} for i in range(230)]
+         + [{"symbol": "USDCUSDT", "quoteVolume": "99999999"},
+            {"symbol": "WBTCUSDT", "quoteVolume": "88888888"},
+            {"symbol": "BTCETH", "quoteVolume": "77777777"}])
+snap, created, diff = _u.daily(rows=_rows, venue="تست")
+check("Universe ساخته شد: ۲۰۰تایی، بدون استیبل/رپد/غیرUSDT",
+      created and snap["n"] == 200
+      and all(m["symbol"] not in ("USDCUSDT", "WBTCUSDT", "BTCETH")
+              for m in snap["members"]))
+check("رتبه بر اساس حجم و متریک صادقانه ثبت شده",
+      snap["members"][0]["symbol"] == "C0USDT" and "Market Cap" in snap["rank_metric"])
+snap2, created2, _ = _u.daily(rows=[], venue="x")
+check("فراخوانی دوم همان روز: فایل یکتا بازنویسی نمی‌شود",
+      not created2 and snap2["n"] == 200)
+# دیف با روز قبل — فایل دیروز را دستی می‌سازیم
+import time as _t2                                    # noqa: E402
+_y = _t2.strftime("%Y-%m-%d", _t2.gmtime(_t2.time() - 86400))
+(_u.UNI_DIR / f"{_y}.json").write_text(_json.dumps(
+    {"date": _y, "members": [{"symbol": "C1USDT"}, {"symbol": "GONEUSDT"}]}))
+(_u.UNI_DIR / f"{_t2.strftime('%Y-%m-%d', _t2.gmtime())}.json").unlink()
+snap3, _, diff3 = _u.daily(rows=_rows, venue="تست")
+check("دیف لیست/دی‌لیست با Snapshot قبلی",
+      diff3 and "GONEUSDT" in diff3["dropped"] and "C0USDT" in diff3["listed"])
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
