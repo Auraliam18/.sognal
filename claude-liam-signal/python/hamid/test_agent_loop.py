@@ -210,6 +210,14 @@ check("قیمت لحظهٔ ارسال و فاصله در پیام است",
       "⏱" in posts[0] and "فاصله تا ورود" in posts[0])
 n2 = tg.send_signals([_sig("OKUSDT", strat="alarm")], lambda s, p: None)
 check("همان ستاپ با برچسب استراتژی دیگر دوباره نمی‌رود", n2 == 0)
+# تنوع: بعد از ۲ ارسال برای یک ارز، سومی (حتی جهت/تایم دیگر) نمی‌رود
+sent_now = _json.loads(tg.SENT.read_text())
+sent_now["any|OKUSDT|5m|SHORT"] = sent_now["any|OKUSDT|15m|LONG"]
+tg.SENT.write_text(_json.dumps(sent_now))
+s3 = _sig("OKUSDT")
+s3["tf"], s3["dir"], s3["entry"], s3["sl"] = "1h", "SHORT", 1.0, 1.01
+n3 = tg.send_signals([s3], lambda s, p: None)
+check("سقف ۲ ارسال به ازای هر ارز در ۱۲ ساعت", n3 == 0)
 tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
 
 print()

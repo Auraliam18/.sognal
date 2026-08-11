@@ -371,6 +371,80 @@ def react_similarity(kc, sym, fol_eps, leader_eps, window=24):
     return best
 
 
+def btc_move_cause(kc, gate=1.5):
+    """علت‌یابی فوری حرکت بزرگ بیت‌کوین — قانون حمید: ریخت یا پرید، همان
+    لحظه اعلام شود «به این دلایل تکنیکال یا به دلیل این خبر».
+
+    خبری: تیترهای داغ دسته‌بندی‌شدهٔ شکار خبر. تکنیکال: جاروی نقدینگی
+    (شکستن خوشهٔ کف/سقف برابر در ۱۵د)، فاندینگ انباشته (جمعیت کدام سمت
+    شلوغ بود)، RSI. هر عامل با عدد؛ اگر علت خبری پیدا نشد، صادقانه گفته
+    می‌شود — حدس جای اندازه نمی‌نشیند."""
+    c1h = kc.get("BTCUSDT", "1h", 60)
+    if len(c1h) < 30:
+        return None
+    chg = (c1h[-1]["c"] / c1h[-2]["c"] - 1) * 100
+    if abs(chg) < gate:
+        return None
+    up = chg > 0
+    tech = []
+    try:
+        from hamid import liquidity
+        from hamid.analyze_pump import rsi
+        c15 = kc.get("BTCUSDT", "15m", 260)
+        # استخرها روی کندل‌های قبل از حرکت — بعد از جارو، خوشهٔ جاروشده دیگر
+        # «زیر قیمت» نیست و از نقشهٔ لحظهٔ حال حذف می‌شود؛ سطح باید همان‌طور
+        # دیده شود که قبل از حرکت روی چارت بود
+        p = liquidity.pools(c15[:-4])
+        recent_lo = min(k["l"] for k in c15[-4:])
+        recent_hi = max(k["h"] for k in c15[-4:])
+        if not up:
+            swept = [g for g in p["below"] if g["price"] > recent_lo]
+            if swept:
+                tech.append(f"جاروی نقدینگی زیر کف برابر {swept[0]['price']:.10g} "
+                            f"({swept[0]['touches']} برخورد) — استاپ لانگ‌ها فعال شد")
+        else:
+            swept = [g for g in p["above"] if g["price"] < recent_hi]
+            if swept:
+                tech.append(f"شکستن سقف برابر {swept[0]['price']:.10g} "
+                            f"({swept[0]['touches']} برخورد) — استاپ شورت‌ها سوخت")
+        r15 = rsi(c15)
+        if r15 is not None and (r15 <= 25 or r15 >= 75):
+            tech.append(f"RSI ۱۵د {r15:.0f} — حرکت هیجانی")
+    except Exception:                                # noqa: BLE001
+        pass
+    try:
+        it = json.loads((ROOT / "brain" / "intel" / "latest.json").read_text())
+        fb = ((it.get("funding") or {}).get("BTC"))
+        if fb is not None and abs(fb) >= 0.005:
+            side = "لانگ‌ها" if fb > 0 else "شورت‌ها"
+            tech.append(f"فاندینگ BTC {fb:+.3f}٪ — {side} شلوغ بودند"
+                        + ("؛ ریزش همان‌ها را لیکویید می‌کند" if fb > 0 and not up
+                           else ""))
+    except Exception:                                # noqa: BLE001
+        pass
+    news = None
+    try:
+        nj = json.loads((ROOT / "signals" / "news.json").read_text())
+        hot = [x.get("title") for x in (nj.get("classified") or [])
+               if x.get("cat") != "عمومی"]
+        news = hot[0] if hot else None
+    except Exception:                                # noqa: BLE001
+        pass
+    return {"dir": "up" if up else "down", "btc_1h_pct": round(chg, 2),
+            "news": news, "tech": tech}
+
+
+def move_cause_fa(mc):
+    L = [f"بیت‌کوین در یک ساعت {mc['btc_1h_pct']:+}٪ "
+         + ("پرید." if mc["dir"] == "up" else "ریخت.")]
+    L.append(f"علت خبری: {mc['news']}" if mc["news"]
+             else "علت خبری در شکار فعلی پیدا نشد — دلایل تکنیکال:")
+    L += [f"· {t}" for t in mc["tech"]]
+    if not mc["tech"] and not mc["news"]:
+        L.append("عامل تکنیکال بارزی هم در سنجه‌های ما ثبت نشد — حرکت بی‌امضا؛ حدس نمی‌زنیم")
+    return "\n".join(L)
+
+
 def crash_watch(kc, uni, trigger_pct=-2.0):
     """آینهٔ ریزش — مثال خود حمید: «بیت‌کوین ریخت؟ سریع علتش را پیدا کن و
     بفرست؛ بعد ببین در گذشته بعد از ریزش‌هایش چه ارزهایی ریخته‌اند و همان‌ها
@@ -1046,11 +1120,20 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     if cw:
         print(f"⚠️ ریزش BTC {cw['btc_1h']}٪ در یک ساعت — "
               f"{len(cw['followers'])} دنباله‌روی تاریخی ریزش پیدا شد")
+    # علت‌یابی حرکت BTC — دو طرفه (قانون حمید: ریخت یا پرید، فوری علت اعلام شود)
+    try:
+        mc = btc_move_cause(kc)
+    except Exception as e:                           # noqa: BLE001
+        print(f"علت‌یابی BTC: {type(e).__name__}")
+        mc = None
+    if mc:
+        print("🧭 " + move_cause_fa(mc).replace("\n", " | "))
 
     report = {
         "generated": int(time.time() * 1000),
         "source": source,
         "crash": cw,
+        "btc_move": mc,
         "gainers": gs,
         "ignitions": ign[:6],
         "universe_n": len(uni),
@@ -1106,8 +1189,11 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             sent = _load_sent()
             key = f"crash|{int(time.time() // 7200)}"
             if tok and key not in sent:
-                why = f"علت احتمالی: {cw['why']}" if cw.get("why") else \
-                      "علت هنوز در خبرها پیدا نشد — شکار خبر ادامه دارد"
+                if mc and mc["dir"] == "down":
+                    why = move_cause_fa(mc)
+                else:
+                    why = (f"علت احتمالی: {cw['why']}" if cw.get("why") else
+                           "علت هنوز در خبرها پیدا نشد — شکار خبر ادامه دارد")
                 rows = "\n".join(
                     f"· <b>{f['symbol'].replace('USDT','')}</b> — در {f['hit_pct']}٪ از "
                     f"{f['n']} ریزش مشابه BTC ریخته (الان {f['chg_now']:+}٪)"
@@ -1146,6 +1232,27 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                 print("تلگرام: هشدار ریزش فرستاده شد")
         except Exception as e:                       # noqa: BLE001
             print(f"هشدار ریزش تلگرام: {type(e).__name__}")
+
+    # پرش BTC — علت‌یابی همان لحظه به تلگرام (ریزش داخل هشدار ریزش می‌رود)
+    if mc and mc["dir"] == "up" and not no_telegram:
+        try:
+            import telegram as _tg
+            tok, chat = _tg.creds()
+            sent = _load_sent()
+            key = f"btcup|{int(time.time() // 7200)}"
+            if tok and key not in sent:
+                _tg._post(tok, "sendMessage",
+                          {"chat_id": chat, "parse_mode": "HTML",
+                           "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
+                                    f"🚀 <b>پرش بیت‌کوین — علت‌یابی فوری</b>\n\n"
+                                    f"{move_cause_fa(mc)}\n\n"
+                                    f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+                sent[key] = time.time() * 1000
+                SENT.parent.mkdir(exist_ok=True)
+                SENT.write_text(json.dumps(sent, indent=1))
+                print("تلگرام: علت‌یابی پرش BTC فرستاده شد")
+        except Exception as e:                       # noqa: BLE001
+            print(f"علت‌یابی پرش BTC: {type(e).__name__}")
 
     if picks and not no_telegram:
         send_telegram(source, picks, blocks, kc=kc)

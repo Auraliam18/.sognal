@@ -208,7 +208,13 @@ def send_signals(signals, render_chart, limit=8):
     # یک بار با برچسب آلارم می‌رسید؛ کلید بدون استراتژی با پنجرهٔ ۳ ساعته.
     def _dup_any(s):
         return now_ms - sent.get(f"any|{s['sym']}|{s['tf']}|{s['dir']}", 0) < 3 * 3600 * 1000
-    fresh = [s for s in signals if _key(s) not in sent and not _dup_any(s)][:limit]
+
+    def _sym_worn(s):
+        # تنوع (شکایت حمید): یک ارز حداکثر ۲ بار در پنجرهٔ ۱۲ ساعته —
+        # کانال باید بازار را بگردد، نه دور یک ارز بچرخد.
+        return sum(1 for k in sent if k.startswith(f"any|{s['sym']}|")) >= 2
+    fresh = [s for s in signals
+             if _key(s) not in sent and not _dup_any(s) and not _sym_worn(s)][:limit]
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
