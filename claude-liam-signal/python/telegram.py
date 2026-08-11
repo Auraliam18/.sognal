@@ -146,6 +146,11 @@ def caption(s):
                  + (f" — مهم‌ترین: {pm['pro'][0]}" if pm["pro"] else "") + "</i>")
         if pm["con"]:
             L.append(f"⚠️ <i>ریسک شمرده‌شده: {pm['con'][0]}</i>")
+    # هم‌زمانی — قیمت لحظهٔ ارسال از کندل ۵ دقیقه، تا حمید ببیند ورود نگذشته
+    sy = s.get("sync")
+    if sy:
+        L.append(f"⏱ <i>قیمت لحظهٔ ارسال <code>{sy['price']:.10g}</code> — "
+                 f"فاصله تا ورود {sy['dist_pct']:+}٪</i>")
     # ساعت تحلیل و ساعت ارسال، به وقت ایران — تا تأخیر قابل راستی‌آزمایی باشد
     an = s.get("analyzed_at")
     L.append((f"🕐 تحلیل <code>{tehran(an)}</code> · " if an else "🕐 ")
@@ -198,18 +203,28 @@ def send_signals(signals, render_chart, limit=8):
         print("telegram: no TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID — nothing sent", flush=True)
         return 0
     sent = _load_sent()
-    fresh = [s for s in signals if _key(s) not in sent][:limit]
+    now_ms = time.time() * 1000
+    # ضدتکرار بین‌استراتژی — شکایت حمید: همان ستاپ یک بار با برچسب اسکن و
+    # یک بار با برچسب آلارم می‌رسید؛ کلید بدون استراتژی با پنجرهٔ ۳ ساعته.
+    def _dup_any(s):
+        return now_ms - sent.get(f"any|{s['sym']}|{s['tf']}|{s['dir']}", 0) < 3 * 3600 * 1000
+    fresh = [s for s in signals if _key(s) not in sent and not _dup_any(s)][:limit]
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
     # سهمیهٔ مشترک بین همهٔ فرستنده‌ها — ۱۰ در هر پنجرهٔ ۱۲ ساعته (~۲۰ در روز).
     # بعد از فعال شدن Secrets، اسکن زنده در یک روز ۲۵ سیگنال IBS فرستاد؛ سیل
-    # سیگنال همان‌قدر بی‌ارزش است که سکوت. بالای سهمیه فقط الیت و آلارم می‌رود.
-    if len(sent) >= 10:
+    # سیگنال همان‌قدر بی‌ارزش است که سکوت. بالای سهمیه فقط الیت و آلارم می‌رود؛
+    # و سقف مطلق ۱۶ برای همه — شکایت حمید: «خیلی بیش از حد سیگنال می‌رسد».
+    n_sent_real = len([k for k in sent if not k.startswith("any|")])
+    if n_sent_real >= 16:
+        print(f"telegram: سقف مطلق پر است ({n_sent_real} در ۱۲ ساعت) — هیچ ارسالی", flush=True)
+        return 0
+    if n_sent_real >= 10:
         keep = [s for s in fresh
                 if s.get("elite") or s.get("strategy") in ("alarm", "pump-radar")]
         if len(keep) < len(fresh):
-            print(f"telegram: سهمیهٔ روز پر است ({len(sent)} در ۱۲ ساعت) — "
+            print(f"telegram: سهمیهٔ روز پر است ({n_sent_real} در ۱۲ ساعت) — "
                   f"{len(fresh) - len(keep)} سیگنال غیرالیت نگه داشته شد", flush=True)
         fresh = keep
         if not fresh:
@@ -219,6 +234,34 @@ def send_signals(signals, render_chart, limit=8):
     tmp = Path(__file__).resolve().parent / ".charts"
     tmp.mkdir(exist_ok=True)
     for s in fresh:
+        # هم‌زمانی با نقطهٔ ورود — شکایت حمید: سیگنال یا از ورود رد شده بود
+        # یا فاصلهٔ زیادی داشت. همین لحظه آخرین کندل ۵ دقیقه خوانده می‌شود؛
+        # ردشده یا دورتر از حد → ارسال نمی‌شود، بی‌استثنا.
+        try:
+            import sources as _src0
+            _k5 = _src0.klines(s["sym"], "5m", 3)
+            _px = float(_k5[-1][4])
+        except Exception as e:                        # noqa: BLE001
+            _px = None
+            print(f"  قیمت لحظهٔ {s['sym']} در دسترس نبود ({type(e).__name__}) — "
+                  f"دروازهٔ هم‌زمانی رد شد", flush=True)
+        if _px is not None and s.get("entry") and s.get("sl"):
+            _stop_frac = abs(s["entry"] - s["sl"]) / s["entry"]
+            _signed = ((_px - s["entry"]) / s["entry"] if s["dir"] == "LONG"
+                       else (s["entry"] - _px) / s["entry"])
+            if _signed < -0.5 * _stop_frac:
+                print(f"  ⏱ {s['sym']} صادر نشد — قیمت از نقطهٔ ورود رد شده "
+                      f"({_signed*100:+.2f}٪ به سمت استاپ)؛ سیگنالِ دیر نمی‌فرستیم", flush=True)
+                sent[_key(s)] = now_ms
+                sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = now_ms
+                continue
+            if _signed > 0.025:
+                print(f"  ⏱ {s['sym']} صادر نشد — فاصله تا ورود {_signed*100:.2f}٪ "
+                      f"است؛ سیگنال ناهم‌زمان نمی‌فرستیم", flush=True)
+                sent[_key(s)] = now_ms
+                sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = now_ms
+                continue
+            s["sync"] = {"price": _px, "dist_pct": round(_signed * 100, 2)}
         # بازجویی پیش از صدور — قانون حمید: اول در ۱۵ دقیقه ببین چه چیزهایی
         # می‌تواند استاپت کند؛ فقط با دلایلِ تارگتِ بیشتر صادر کن. سیگنالِ
         # ردشده به دفتر vetoed می‌رود تا خود دروازه نمره بگیرد. خطای زیرساخت
@@ -272,6 +315,7 @@ def send_signals(signals, render_chart, limit=8):
                       {"chat_id": chat, "text": caption(s), "parse_mode": "HTML",
                        "disable_web_page_preview": "true"})
             sent[_key(s)] = time.time() * 1000
+            sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = time.time() * 1000
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
             _log_final(s)
