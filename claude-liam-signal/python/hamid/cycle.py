@@ -698,9 +698,24 @@ def main():
     if mode == "active":
         try:
             tick = sources.tickers()
-            syms = [s["symbol"] for s in
-                    sorted(tick, key=lambda x: -float(x["quoteVolume"] or 0))
-                    if s["symbol"].endswith("USDT")][:a.symbols]
+            ranked = [s["symbol"] for s in
+                      sorted(tick, key=lambda x: -float(x["quoteVolume"] or 0))
+                      if s["symbol"].endswith("USDT")]
+            # تنوع (شکایت حمید: «استراتژی را روی همهٔ ارزها اجرا کن»):
+            # سه‌چهارم سهمیه، پرحجم‌ترین‌ها؛ یک‌چهارم، پنجرهٔ چرخان روی
+            # رتبه‌های بعدی — هر چرخه تکهٔ تازه‌ای از بازار دیده می‌شود و
+            # طی چند چرخه کل فهرست پوشش می‌گیرد.
+            core_n = max(20, a.symbols * 3 // 4)
+            rot_n = a.symbols - core_n
+            tail = ranked[core_n:core_n + 200] or ranked[core_n:]
+            if tail and rot_n > 0:
+                off = (st["cycles"] * rot_n) % len(tail)
+                rot = (tail + tail)[off:off + rot_n]
+                syms = ranked[:core_n] + rot
+                act(f"جهان اسکن: {core_n} پرحجم + {len(rot)} چرخان "
+                    f"(رتبه‌های {core_n + off} به بعد)")
+            else:
+                syms = ranked[:a.symbols]
             # 🆕 انجین کشف لیست‌شدن — دیفِ نمادها با حافظهٔ اجرای قبل
             try:
                 from hamid import discovery as _dv

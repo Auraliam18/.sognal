@@ -326,6 +326,46 @@ led3 = json.loads(pr.HIST.read_text())
 check("هیچ رخداد قدیمی‌ای پاک نمی‌شود (بدون سقف)",
       len(led3["symbols"]["OLDUSDT"]["events"]) == 60 and n3 == 63)
 
+# ── علت‌یابی حرکت BTC — «ریخت یا پرید، فوری علت اعلام شود» ────────────────
+
+
+class CauseKc:
+    """ریزش ۲٪ که کف برابرِ سه‌برخوردی را جارو کرده."""
+    def get(self, s, tf, n):
+        if tf == "1h":
+            cs = [100.0] * 60
+            cs[-1] = 98.0
+            return [bar(i * H, c) for i, c in enumerate(cs)]
+        cd = []
+        for i in range(260):
+            # سه کف برابر در ۹۹.۵ — بعد کندل آخر زیرش می‌رود
+            lo = 99.5 if i in (200, 215, 230) else 99.8
+            c = 100.0 if i < 256 else 99.0
+            cd.append({"t": i * 900_000, "o": c, "h": c + 0.3,
+                       "l": min(lo, c - 0.3), "c": c, "v": 100.0})
+        return cd
+
+
+mc = pr.btc_move_cause(CauseKc())
+check("حرکت بزرگ تشخیص و جهتش درست است", mc and mc["dir"] == "down"
+      and abs(mc["btc_1h_pct"] + 2.0) < 0.1)
+check("جاروی نقدینگی به‌عنوان عامل تکنیکال ثبت شد",
+      mc and any("جاروی نقدینگی" in t for t in mc["tech"]))
+txt = pr.move_cause_fa(mc)
+check("متن علت‌یابی فارسی و صادق است",
+      "ریخت" in txt and ("علت خبری" in txt))
+
+
+class QuietKc(CauseKc):
+    def get(self, s, tf, n):
+        rows = super().get(s, tf, n)
+        if tf == "1h":
+            rows[-1] = bar(59 * H, 100.0)
+        return rows
+
+
+check("حرکت کوچک → علت‌یابی ساکت", pr.btc_move_cause(QuietKc()) is None)
+
 # ── متن تلگرام ─────────────────────────────────────────────────────────────
 msg = pr.tg_message("بیتیونیکس (فیوچرز)", picks[:1], blocks)
 check("سرتیتر پنل + گزینه‌های پامپ", "حمید کلود مکس پنل" in msg and "گزینه‌های پامپ" in msg)
