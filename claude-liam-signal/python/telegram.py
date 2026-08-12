@@ -145,6 +145,9 @@ def caption(s):
         # انجین الگوهای کلاسیک — الگوهای زندهٔ ۱۵د/۱س/۴س روی خود پیام
         if (pm.get("patterns") or {}).get("note"):
             L.append(f"🧩 <i>الگو: {pm['patterns']['note']}</i>")
+        # انجین اردر بلاک — باکس معتبر با شمارش واکنش/هانت روی خود پیام
+        if (pm.get("ob_ctx") or {}).get("note"):
+            L.append(f"🧱 <i>{pm['ob_ctx']['note']}</i>")
         L.append(f"⚖️ <i>{len(pm['pro'])} دلیل تارگت / {len(pm['con'])} دلیل استاپ"
                  + (f" — مهم‌ترین: {pm['pro'][0]}" if pm["pro"] else "") + "</i>")
         if pm["con"]:
@@ -368,7 +371,9 @@ def send_signals(signals, render_chart, limit=8):
                                  {"sent_at": int(time.time() * 1000),
                                   "tg_msg_id": tg_mid,
                                   "pattern_align": ((s.get("premortem") or {}).get("patterns") or {}).get("align"),
-                                  "patterns": ((s.get("premortem") or {}).get("patterns") or {}).get("by_tf")})
+                                  "patterns": ((s.get("premortem") or {}).get("patterns") or {}).get("by_tf"),
+                                  "ob_align": ((s.get("premortem") or {}).get("ob_ctx") or {}).get("align"),
+                                  "ob_hunts": ((s.get("premortem") or {}).get("ob_ctx") or {}).get("hunts")})
             except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
                 print(f"  paper log failed for {s['sym']}: {type(e).__name__}", flush=True)
         except urllib.error.HTTPError as e:
