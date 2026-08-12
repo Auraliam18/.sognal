@@ -83,6 +83,7 @@ Deploys go to both `claude/hamid-signal-agent-smc-dkot7v` and `gh-pages`.
 | تسویه، استاپ، شکست تکرارشونده | post-trade-learning |
 | ۳+ شکستِ همان الگو، رفتار بی‌توضیح | research (فقط پرسش-محور) |
 | تأیید لحظهٔ ورود | execution |
+| اعتبار اردر بلاک قبل از ستاپ، استاپ روی سطح، بازپایش OBها | order-block |
 | دادهٔ مشکوک/ناسازگار | data-quality |
 
 **حافظه**: قبل از تحلیل مهم بخوان، بعد از نتیجهٔ معنادار بنویس — فقط دانش
