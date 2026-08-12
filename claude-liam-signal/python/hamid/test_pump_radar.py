@@ -157,6 +157,22 @@ em = pr.early_movers(FakeKc(), ["IGNUSDT", "FLATUSDT"])
 check("شعله‌گیری با حجم پیدا شد و ارز آرام نه",
       [x["symbol"] for x in em] == ["IGNUSDT"] and em[0]["change_pct"] >= 4)
 
+
+class Spike15Kc(FakeKc):
+    """یک کندل ۱۵دقیقه‌ای +۶٪ بدون جهش حجم — ماشهٔ صریح حمید."""
+    def get(self, s, tf, n):
+        base = [{"t": i, "o": 1, "h": 1, "l": 1, "c": 1.0, "v": 100.0} for i in range(39)]
+        if s == "SPKUSDT":
+            base.append({"t": 39, "o": 1.0, "h": 1.065, "l": 1.0, "c": 1.06, "v": 110.0})
+        else:
+            base.append({"t": 39, "o": 1, "h": 1, "l": 1, "c": 1.0, "v": 100.0})
+        return base
+
+
+em15 = pr.early_movers(Spike15Kc(), ["SPKUSDT", "FLATUSDT"])
+check("کندل ۱۵د ≥۵٪ به‌تنهایی ماشه است (بدون شرط حجم)",
+      [x["symbol"] for x in em15] == ["SPKUSDT"] and em15[0]["chg_15m"] >= 5)
+
 # ── معاینهٔ چارت: الانِ دنباله‌رو در برابر قبل از واکنش‌های قبلی‌اش ───────
 H = 3600_000
 
@@ -254,6 +270,24 @@ rev = lagcorr.follow_score(fol_cd, lead_cd, "1h", 12)
 check("رابطهٔ معکوس (خودش سردسته) رد می‌شود", rev is None)
 check("جملهٔ فارسی دلیل ساخته می‌شود",
       "لگ-کورولیشن" in lagcorr.reason_fa("LEADUSDT", lf[0]))
+# ۴ساعته: دنباله‌رو با تأخیر ۸ کندل ۱س (=۲ کندل ۴س) — از ۱س ساخته می‌شود
+LAG8 = 8
+fol8_rets = [0.0] * LAG8 + [r * 0.8 + random.gauss(0, 0.002) for r in lead_rets[:-LAG8]]
+fol8_cd = _mkcd(fol8_rets)
+
+
+class Lag4hKc:
+    def get(self, s, tf, n):
+        if tf == "1h":
+            return {"LEADUSDT": lead_cd, "FOL8USDT": fol8_cd}.get(s, [])
+        return []
+
+
+lf4 = lagcorr.followers_of(Lag4hKc(), "LEADUSDT", ["FOL8USDT"])
+check("لگ-کورولیشن ۴ساعته هم می‌بیند (تأخیر ۲ کندل ۴س)",
+      lf4 and "4h" in lf4[0]["evidence"]
+      and lf4[0]["evidence"]["4h"]["lag_bars"] == 2)
+check("چند-تایم‌فریمی شمرده می‌شود (n_tf)", lf4[0]["n_tf"] >= 2)
 
 # ── واکنش-بازار: BTC ریخت، این ارز طبق سابقه چه می‌کند؟ (قانون حمید) ──────
 # سری آرام (σ=۰.۳٪) تا تنها «حرکت بزرگ»، ریزش تزریقی -۳٪ باشد — سری

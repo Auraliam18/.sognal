@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-MS = {"15m": 900_000, "1h": 3_600_000}
+MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def _rets(cd):
@@ -38,7 +38,7 @@ def _corr(xs, ys):
     return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (vx * vy)
 
 
-def lag_profile(lead_cd, fol_cd, bar_ms, max_lag):
+def lag_profile(lead_cd, fol_cd, bar_ms, max_lag, min_n=200):
     """r برای هر تأخیر از -max_lag تا +max_lag (مثبت = دنباله‌رو دیرتر)."""
     lr, fr = _rets(lead_cd), _rets(fol_cd)
     prof = {}
@@ -49,14 +49,19 @@ def lag_profile(lead_cd, fol_cd, bar_ms, max_lag):
             if f is not None:
                 xs.append(r)
                 ys.append(f)
-        if len(xs) >= 200:
+        if len(xs) >= min_n:
             prof[k] = {"r": _corr(xs, ys), "n": len(xs)}
     return prof
 
 
 def follow_score(lead_cd, fol_cd, tf, max_lag):
-    """بهترین شواهد «دنباله‌روی» در یک تایم‌فریم — یا None اگر قانع‌کننده نیست."""
-    prof = lag_profile(lead_cd, fol_cd, MS[tf], max_lag)
+    """بهترین شواهد «دنباله‌روی» در یک تایم‌فریم — یا None اگر قانع‌کننده نیست.
+
+    کف نمونه تایم‌فریم-آگاه: از ۱۰۰۰ کندل ۱س فقط ~۲۵۰ کندل ۴س درمی‌آید؛
+    کف ۲۰۰ عملاً ۴س را کور می‌کرد. ۴س: کف ۸۰ (با همان آستانهٔ سخت r و
+    برتری بر جهت معکوس — صداقت آماری سر جایش است)."""
+    min_n = 80 if tf == "4h" else 200
+    prof = lag_profile(lead_cd, fol_cd, MS[tf], max_lag, min_n=min_n)
     if not prof:
         return None
     pos = [(k, v) for k, v in prof.items() if k >= 1]
@@ -74,22 +79,43 @@ def follow_score(lead_cd, fol_cd, tf, max_lag):
             "r_reverse": round(best_neg, 3), "r_same_time": round(same, 3)}
 
 
+def _to4h(c1h):
+    """۴ساعتهٔ قفل به ساعت جهانی از ۱ساعته — فقط گروه‌های کامل."""
+    out, bucket = [], {}
+    for c in c1h:
+        b = c["t"] // MS["4h"]
+        bucket.setdefault(b, []).append(c)
+    for b in sorted(bucket)[:-1]:                     # گروه آخر ممکن است باز باشد
+        g = bucket[b]
+        if len(g) == 4:
+            out.append({"t": b * MS["4h"], "o": g[0]["o"],
+                        "h": max(x["h"] for x in g), "l": min(x["l"] for x in g),
+                        "c": g[-1]["c"], "v": sum(x["v"] for x in g)})
+    return out
+
+
 def followers_of(kc, sym, universe, top=5):
     """ارزهایی که طبق لگ-کورولیشنِ گذشته، با تأخیر دنبال sym حرکت می‌کنند.
 
-    دو تایم‌فریم جدا بررسی می‌شود؛ اگر هر دو رابطه را ببینند اعتماد بیشتر
-    است و صریح گفته می‌شود."""
+    سه تایم‌فریم (دستور حمید): ۴س (تا ۶ کندل = ۲۴س تأخیر)، ۱س (تا ۱۲)،
+    ۱۵د (تا ۱۶). هرچه تایم‌فریم‌های بیشتری رابطه را ببینند، اعتماد بالاتر."""
     lead_1h = kc.get(sym, "1h", 1000)
     lead_15 = kc.get(sym, "15m", 600)
+    lead_4h = _to4h(lead_1h) if len(lead_1h) >= 220 else []
     out = []
     for other in universe:
         if other == sym:
             continue
         ev = {}
+        o1h = kc.get(other, "1h", 1000) if (len(lead_1h) >= 220 or lead_4h) else []
         if len(lead_1h) >= 220:
-            s = follow_score(lead_1h, kc.get(other, "1h", 1000), "1h", 12)
+            s = follow_score(lead_1h, o1h, "1h", 12)
             if s:
                 ev["1h"] = s
+        if lead_4h:
+            s = follow_score(lead_4h, _to4h(o1h), "4h", 6)
+            if s:
+                ev["4h"] = s
         if len(lead_15) >= 220:
             s = follow_score(lead_15, kc.get(other, "15m", 600), "15m", 16)
             if s:
@@ -97,9 +123,9 @@ def followers_of(kc, sym, universe, top=5):
         if not ev:
             continue
         best = max(ev.values(), key=lambda s: s["r"])
-        out.append({"symbol": other, "best": best, "both_tf": len(ev) == 2,
-                    "evidence": ev})
-    out.sort(key=lambda x: -(x["best"]["r"] + (0.1 if x["both_tf"] else 0)))
+        out.append({"symbol": other, "best": best, "n_tf": len(ev),
+                    "both_tf": len(ev) >= 2, "evidence": ev})
+    out.sort(key=lambda x: -(x["best"]["r"] + 0.05 * x["n_tf"]))
     return out[:top]
 
 
@@ -156,6 +182,7 @@ def reason_fa(leader, f):
     b = f["best"]
     s = (f"لگ-کورولیشن با {leader}: r={b['r']:+.2f} در {b['tf']} با تأخیر "
          f"~{b['lag_h']}س (n={b['n']})")
-    if f["both_tf"]:
-        s += " — هر دو تایم‌فریم تأیید می‌کنند"
+    ntf = f.get("n_tf") or (2 if f.get("both_tf") else 1)
+    if ntf >= 2:
+        s += f" — {ntf} تایم‌فریم ({'، '.join(f.get('evidence', {}).keys())}) تأیید می‌کنند"
     return s
