@@ -30,9 +30,20 @@ const CHANNEL_GATES =
   '      else if(!swept){cand.stage="ARMED";cand.skip="no inducement";}\n' +
   "      ";
 
+/* پاسخ به سؤال حمید (۱۲ اوت): «چرا استاپ این‌قدر نزدیک است؟» — چون حاشیهٔ
+   پشت لبهٔ اردر بلاک فقط max(box×0.08, atr×0.12) است؛ لبهٔ بلاک همان‌جایی
+   است که استاپ‌ها جمع‌اند و یک ویکِ شکار همه را می‌برد. این واریانت همان
+   موتور است با حاشیهٔ شکار پهن‌تر (box×0.30, atr×0.50) — قانون خانه: اول
+   اندازه بگیر، فقط اگر CI خارج-نمونه از صفر رد شد، عوض کن. */
+const WIDEBUF =
+  [[/const buf=Math\.max\(box\*0\.08,atr\*0\.12\);/,
+    "const buf=Math.max(box*0.30,atr*0.50);"]];
+
 const E = H.loadEngine(
   variant === "channel"
     ? { __regex: [[/else if\(adxFloor\(\)&&dmi\.adx<adxFloor\(\)\)\{/, CHANNEL_GATES + "else if(adxFloor()&&dmi.adx<adxFloor()){"]] }
+    : variant === "widebuf"
+    ? { __regex: WIDEBUF }
     : undefined
 );
 
