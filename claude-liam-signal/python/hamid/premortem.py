@@ -105,16 +105,28 @@ def review(s, c15):
     except Exception:                                # noqa: BLE001
         pass
 
-    # ۷) دامیننس تتر — ریسک‌گریزی بازار خلاف لانگ است
+    # ۷) دامیننس تتر — فاز ۲: اول رژیم ساختاری (روند سوینگی خودِ سری USDT.D)،
+    # با وزن ۲ طبق بند ۱۰ منشور («تعارض با فشار قوی USDT.D → امتیاز کم یا
+    # رد»). تا وقتی سری به ۶۰ کندل ۱س نرسیده، رژیم INSUFFICIENT است و مثل
+    # قبل به دلتای عددی ۱ساعته برمی‌گردیم (وزن ۱) — دروازهٔ صداقت داده.
     try:
         dom = json.loads(DOM.read_text())
-        u1 = (dom.get("chg_1h") or {}).get("usdt")
-        if u1 is not None and abs(u1) >= 0.15:
-            risk_off = u1 > 0
-            if risk_off == (d == "LONG"):
-                con.append(f"USDT.D در حال {'رشد' if risk_off else 'ریزش'} ({u1:+.2f}٪/۱س) — خلاف جهت")
-            else:
-                pro.append(f"USDT.D {u1:+.2f}٪/۱س — هم‌جهت")
+        stc = dom.get("structure") or {}
+        reg = stc.get("regime")
+        if reg in ("BULLISH", "BEARISH"):
+            with_dir = (reg == "BULLISH") == (d == "LONG")
+            txt = f"رژیم ساختاری دامیننس {reg}"
+            if stc.get("why"):
+                txt += f" — {stc['why']}"
+            _add("pro" if with_dir else "con", txt, 2)
+        else:
+            u1 = (dom.get("chg_1h") or {}).get("usdt")
+            if u1 is not None and abs(u1) >= 0.15:
+                risk_off = u1 > 0
+                if risk_off == (d == "LONG"):
+                    con.append(f"USDT.D در حال {'رشد' if risk_off else 'ریزش'} ({u1:+.2f}٪/۱س) — خلاف جهت")
+                else:
+                    pro.append(f"USDT.D {u1:+.2f}٪/۱س — هم‌جهت")
         ev = [m for m in (dom.get("macro") or []) if 0 <= (m.get("in_hours") or 99) <= 2]
         if ev:
             con.append(f"رویداد کلان تا ۲ ساعت دیگر ({ev[0]['title']}) — شلاق قیمت محتمل")

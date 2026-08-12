@@ -73,7 +73,9 @@ jobs:
       - name: آزمون آفلاین
         if: steps.guard.outputs.skip != '1'
         working-directory: claude-liam-signal/python
-        run: python3 -m hamid.test_pump_radar
+        run: |
+          python3 -m hamid.test_pump_radar
+          python3 -m hamid.test_dominance
 
       - name: حلقهٔ ۵ دقیقه‌ای (۵ دور در یک job)
         if: steps.guard.outputs.skip != '1'
@@ -104,6 +106,10 @@ jobs:
               git fetch origin main -q
               git reset --hard origin/main -q
               (cd claude-liam-signal/python && python3 -m hamid.pump_radar --reapply "$BK")
+              # دامیننس سوار همین زنجیره — کرون dominance.yml قحطی‌زده بود
+              # (اندازه‌گیری: ۳۲ نقطه در ۳۲.۷ ساعت یعنی عملاً ساعتی، نه ۵دقیقه‌ای).
+              # روی درخت تازهٔ origin/main اجرا می‌شود تا نقطهٔ جدید بی‌تصادم بنشیند.
+              (cd claude-liam-signal/python && python3 -m hamid.dominance) || true
               git add signals brain 2>/dev/null || true
               git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
               git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
@@ -119,6 +125,7 @@ jobs:
                 cp signals/pump-radar.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/bubbles.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
+                cp signals/dominance.json /tmp/ghp/signals/ 2>/dev/null || true
                 ( cd /tmp/ghp
                   git add signals
                   if ! git diff --cached --quiet; then

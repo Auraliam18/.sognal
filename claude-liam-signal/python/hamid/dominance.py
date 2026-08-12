@@ -64,6 +64,92 @@ def opinion(u1, b1, u4):
     return "؛ ".join(parts)
 
 
+def _bars(points, key, bar_ms=3_600_000):
+    """کندل از نقاط سری دامیننس — o/h/l/c واقعی هر سطل، فقط سطل‌های بسته.
+
+    سری ما نقطه‌ای است (هر ~۵ دقیقه یک سطح)؛ برای موتور ساختار حمید باید
+    کندل شود. سطل آخر هنوز باز است و کندل نیست — حذف می‌شود، همان قاعدهٔ
+    «سقف تا شکست نخورده سقف نیست»."""
+    bucket = {}
+    for p in points:
+        bucket.setdefault(p["t"] // bar_ms, []).append(p[key])
+    out = []
+    for b in sorted(bucket)[:-1]:
+        vs = bucket[b]
+        out.append({"t": b * bar_ms, "o": vs[0], "h": max(vs), "l": min(vs),
+                    "c": vs[-1], "v": float(len(vs))})
+    return out
+
+
+MIN_BARS_1H = 60      # زیر این، حکم ساختاری صادر نمی‌شود — دروازهٔ صداقت
+MIN_BARS_4H = 60
+
+
+def structural(points, macro=None):
+    """فاز ۲ معماری AuraLiam369 — تحلیل ساختاری مستقل USDT.D و BTC.D.
+
+    همان موتور ساختار حمید (سوینگ/روند/سطح معتبر) روی سری دامیننسِ خودمان،
+    نه فقط دلتای عددی. رژیم از دید آلت‌هاست: USDT.D ساختاراً نزولی = پول
+    وارد ریسک = BULLISH؛ صعودی = BEARISH؛ بدون جهت = RANGE؛ تعارض ۴س با
+    ۱س = TRANSITION؛ رویداد کلان تا ۲ ساعت = UNSAFE (شلاق قیمت، حکم جهتی
+    معلق). زیر MIN_BARS داده، جواب INSUFFICIENT است با شمارش صریح — حدس
+    جای اندازه‌گیری نمی‌نشیند."""
+    from hamid import structure as st
+
+    bu, bb = _bars(points, "u"), _bars(points, "b")
+    bu4 = _bars(points, "u", 4 * 3_600_000)
+    out = {"bars_1h": len(bu), "bars_4h": len(bu4), "regime": "INSUFFICIENT"}
+    if len(bu) < MIN_BARS_1H:
+        out["note"] = (f"دادهٔ ساختاری کافی نیست ({len(bu)} کندل ۱س از حداقل "
+                       f"{MIN_BARS_1H}) — تا آن موقع فقط دلتای عددی معتبر است")
+        return out
+
+    tu1, tb1 = st.trend(bu), st.trend(bb)
+    # سطوح معتبر USDT.D: نزدیک‌ترین سطح بالا/پایین = مسیر و ابطال رژیم
+    px = bu[-1]["c"]
+    lv = st.levels(bu)
+    above = min((l.price for l in lv if l.price > px), default=None)
+    below = max((l.price for l in lv if l.price < px), default=None)
+    out["usdt"] = {"trend_1h": tu1, "px": round(px, 3),
+                   "level_above": round(above, 3) if above else None,
+                   "level_below": round(below, 3) if below else None}
+    out["btc_d"] = {"trend_1h": tb1}
+
+    tu4 = None
+    if len(bu4) >= MIN_BARS_4H:
+        tu4 = st.trend(bu4)
+        out["usdt"]["trend_4h"] = tu4
+    else:
+        out["usdt"]["trend_4h"] = f"INSUFFICIENT ({len(bu4)}/{MIN_BARS_4H})"
+
+    if tu1 == "down":
+        reg = "BULLISH"
+    elif tu1 == "up":
+        reg = "BEARISH"
+    else:
+        reg = "RANGE"
+    if tu4 in ("up", "down") and tu1 in ("up", "down") and tu4 != tu1:
+        reg = "TRANSITION"                # تایم بالا مخالف است — قطعیت ممنوع
+    near_macro = [m for m in (macro or [])
+                  if 0 <= (m.get("in_hours") if m.get("in_hours") is not None else 99) <= 2]
+    if near_macro:
+        reg = "UNSAFE"
+        out["unsafe_reason"] = f"رویداد کلان تا ۲ ساعت: {near_macro[0].get('title')}"
+
+    out["regime"] = reg
+    why = f"USDT.D ساختار ۱س {tu1}"
+    if tu4:
+        why += f" · ۴س {tu4}"
+    if tb1 in ("up", "down"):
+        why += f" · BTC.D ۱س {tb1}"
+    out["why"] = why
+    if reg == "BULLISH" and above is not None:
+        out["invalidation"] = f"ابطال رژیم: بازگشت USDT.D بالای {above:.3f}"
+    elif reg == "BEARISH" and below is not None:
+        out["invalidation"] = f"ابطال رژیم: شکست USDT.D زیر {below:.3f}"
+    return out
+
+
 def macro_events():
     """رویدادهای کلان (تورم/بیکاری/فدرال) ۴۸ ساعت پیش رو از تقویم رسمی."""
     try:
@@ -100,12 +186,19 @@ def run():
         nearest = min(mac, key=lambda e: e.get("in_hours") or 99)
         verdict += (f"؛ رویداد کلان پیش رو: {nearest['title']}"
                     f" ({nearest.get('in_hours', '؟')} ساعت دیگر) — نزدیکش سایز کوچک")
+    try:
+        struct = structural(series, mac)
+    except Exception as e:                       # noqa: BLE001 - ساختار، سری را نمی‌کشد
+        struct = {"regime": "INSUFFICIENT", "note": f"خطای ساختار: {e}"}
+    if struct.get("regime") not in (None, "INSUFFICIENT"):
+        verdict += f"؛ رژیم ساختاری: {struct['regime']} ({struct.get('why', '')})"
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps({
         "generated": int(time.time() * 1000),
         "usdt_dominance": u, "btc_dominance": b,
         "chg_1h": {"usdt": u1, "btc": b1}, "chg_4h": {"usdt": u4, "btc": b4},
         "points": len(series), "verdict": verdict, "macro": mac,
+        "structure": struct,
     }, ensure_ascii=False, indent=1))
     print(f"USDT.D {u} ({'+' if (u1 or 0) >= 0 else ''}{u1}/1h) · "
           f"BTC.D {b} · {verdict}")
