@@ -111,6 +111,22 @@ jobs:
               # (اندازه‌گیری: ۳۲ نقطه در ۳۲.۷ ساعت یعنی عملاً ساعتی، نه ۵دقیقه‌ای).
               # روی درخت تازهٔ origin/main اجرا می‌شود تا نقطهٔ جدید بی‌تصادم بنشیند.
               (cd claude-liam-signal/python && python3 -m hamid.dominance) || true
+              # اسکن استراتژی‌ها هم سوار همین زنجیره — شکایت حمید (۱۲ اوت):
+              # «همه سیگنال‌ها با هم می‌آیند». علت، اسکنِ دسته‌ایِ ~۲۰دقیقه‌ای
+              # بود: هرچه در یک اجرا تأیید شده بود یک‌جا می‌رفت. حالا هر ۵
+              # دقیقه اسکن می‌شود و سیگنال حداکثر یک کندل ۵د بعد از تأیید
+              # می‌رود. اسکن فقط در تلاش اول اجرا می‌شود؛ در تلاش‌های بعدیِ
+              # push خروجی‌هایش برگردانده و sent.json اجتماع می‌شود تا نه
+              # سیگنالی دوباره برود نه دفتر ضدتکرار گم شود.
+              if [ ! -f "/tmp/scan-done-$k" ]; then
+                (cd claude-liam-signal/python && timeout 240 python3 scan.py --symbols 60 --telegram) || true
+                touch "/tmp/scan-done-$k"
+                cp signals/latest.json /tmp/scan-latest.json 2>/dev/null || true
+                cp signals/sent.json /tmp/scan-sent.json 2>/dev/null || true
+              else
+                cp /tmp/scan-latest.json signals/latest.json 2>/dev/null || true
+                (cd claude-liam-signal/python && python3 -m hamid.merge_sent /tmp/scan-sent.json ../../signals/sent.json) || true
+              fi
               git add signals brain 2>/dev/null || true
               git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
               git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
@@ -127,6 +143,7 @@ jobs:
                 cp signals/bubbles.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/dominance.json /tmp/ghp/signals/ 2>/dev/null || true
+                cp signals/latest.json /tmp/ghp/signals/ 2>/dev/null || true
                 ( cd /tmp/ghp
                   git add signals
                   if ! git diff --cached --quiet; then
