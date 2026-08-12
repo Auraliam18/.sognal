@@ -19,6 +19,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from hamid import paper                                       # noqa: E402
+import brain                                                  # noqa: E402
+
+# هیچ ردپای تستی در brain واقعی نمی‌نشیند — درس تکراری ۱۲ اوت: reasons()
+# الگوی «تأییدشده»ی ساختگی را با save_pattern و room_log در مخزن می‌نوشت.
+brain.save_pattern = lambda *a, **k: None
+brain.room_log = lambda *a, **k: None
 
 R = []
 

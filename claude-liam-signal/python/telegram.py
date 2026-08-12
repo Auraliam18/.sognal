@@ -226,9 +226,19 @@ def send_signals(signals, render_chart, limit=8):
         # تنوع (شکایت حمید): یک ارز حداکثر ۲ بار در پنجرهٔ ۱۲ ساعته —
         # کانال باید بازار را بگردد، نه دور یک ارز بچرخد.
         return sum(1 for k in sent if k.startswith(f"any|{s['sym']}|")) >= 2
+    def _stable(s):
+        # استیبل/رپد سیگنال نمی‌شود — کشف ۱۲ اوت: RLUSD دو جای سهمیهٔ ۱۶تایی
+        # را سوزاند. حرکت استیبل چند صدم درصد است؛ «سیگنال» رویش یعنی سهمیهٔ
+        # کمتر برای ارز واقعی. همان فیلتر دفتر کاغذی، این‌جا در گلوگاه ارسال.
+        try:
+            from hamid.universe import STABLES, WRAPPED
+            base = s["sym"][:-4] if s["sym"].endswith("USDT") else s["sym"]
+            return base in STABLES or base in WRAPPED
+        except Exception:                            # noqa: BLE001
+            return False
     fresh = [s for s in signals
              if _key(s) not in sent and f"skip|{_key(s)}" not in sent
-             and not _dup_any(s) and not _sym_worn(s)][:limit]
+             and not _dup_any(s) and not _sym_worn(s) and not _stable(s)][:limit]
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0

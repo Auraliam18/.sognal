@@ -22,7 +22,8 @@ ROOT = HERE.parent.parent.parent
 UNI_DIR = ROOT / "brain" / "universe"
 
 STABLES = {"USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "USDD", "PYUSD",
-           "EUR", "EURI", "USDE", "FDUSD", "GUSD", "LUSD", "USD1", "XUSD"}
+           "EUR", "EURI", "USDE", "FDUSD", "GUSD", "LUSD", "USD1", "XUSD",
+           "RLUSD", "AEUR", "USDF", "USR", "USDX"}
 WRAPPED = {"WBTC", "WETH", "WBNB", "WSOL", "STETH", "WSTETH", "CBBTC", "CBETH",
            "RETH", "WEETH"}
 

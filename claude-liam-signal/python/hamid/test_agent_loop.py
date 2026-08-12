@@ -334,6 +334,14 @@ check("سیگنال ارسالی: نتیجه ریپلای همان پیام شد
 check("معاملهٔ دفتر داخلی هیچ پیام تلگرامی نگرفت", "BOOKUSDT" not in _all_txt,
       _all_txt[:160])
 
+# ── استیبل‌کوین از گلوگاه ارسال رد می‌شود (RLUSD دو جای سهمیه را سوزاند) ──
+_calls.clear()
+_n_st = tg.send_signals([{"sym": "RLUSDUSDT", "tf": "5m", "dir": "LONG",
+                          "entry": 1.0, "sl": 0.99, "tp1": 1.02,
+                          "strategy": "ibs"}], lambda s, p: None)
+check("سیگنال استیبل‌کوین ارسال نمی‌شود و سهمیه نمی‌خورد",
+      _n_st == 0 and not _calls, str(_calls)[:120])
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
