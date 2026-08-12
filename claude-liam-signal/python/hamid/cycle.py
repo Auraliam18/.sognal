@@ -769,7 +769,8 @@ def _tg_chart(s, path):
               for k in rows]
         if len(cd) < 20:
             return None
-        buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"), s["dir"])
+        buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"),
+                 s["dir"], ob=s.get("ob"))
         with open(path, "wb") as f:
             f.write(buf.read())
         return path

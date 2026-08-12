@@ -242,15 +242,15 @@ def send_signals(signals, render_chart, limit=8):
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
-    # سهمیهٔ مشترک بین همهٔ فرستنده‌ها — ۱۰ در هر پنجرهٔ ۱۲ ساعته (~۲۰ در روز).
-    # بعد از فعال شدن Secrets، اسکن زنده در یک روز ۲۵ سیگنال IBS فرستاد؛ سیل
-    # سیگنال همان‌قدر بی‌ارزش است که سکوت. بالای سهمیه فقط الیت و آلارم می‌رود؛
-    # و سقف مطلق ۱۶ برای همه — شکایت حمید: «خیلی بیش از حد سیگنال می‌رسد».
+    # سهمیه — دستور حمید (۱۲ اوت): «۱۶ را برای مثال گفتم؛ تا وقتی سیگنال هست
+    # باید پیدا کنی و ارسالش کنی.» پس سقف، سهمیه نیست: ۴۰ فقط تور ایمنی در
+    # برابر خطای نرم‌افزاری (حلقهٔ خراب) است. کیفیت را دروازه‌ها نگه می‌دارند:
+    # هم‌زمانی، بازجویی وزنی، ضدتکرار، سقف ۲/ارز، و دروازهٔ استاپ-در-نویز.
     n_sent_real = len([k for k in sent if not k.startswith(("any|", "skip|"))])
-    if n_sent_real >= 16:
-        print(f"telegram: سقف مطلق پر است ({n_sent_real} در ۱۲ ساعت) — هیچ ارسالی", flush=True)
+    if n_sent_real >= 40:
+        print(f"telegram: تور ایمنی ({n_sent_real} در ۱۲ ساعت) — احتمال حلقهٔ خراب، هیچ ارسالی", flush=True)
         return 0
-    if n_sent_real >= 10:
+    if n_sent_real >= 24:
         keep = [s for s in fresh
                 if s.get("elite") or s.get("strategy") in ("alarm", "pump-radar")]
         if len(keep) < len(fresh):
