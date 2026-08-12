@@ -141,6 +141,43 @@ def review(s, c15):
     except Exception:                                # noqa: BLE001
         pass
 
+    # ۴.۷) انجین اردر بلاک (دستور حمید ۱۳ اوت): ورود روی OB معتبرِ هم‌جهت =
+    # سوخت؛ ورود در دهان OB خلاف = دلیل استاپ. اعتبار یعنی واکنش‌های
+    # شمرده‌شده و نشکسته (hamid/orderblocks — روش خود حمید + کنترل نویز).
+    # ۱۵د از همین کندل‌ها؛ ۱س با فچ محافظت‌شده. نتیجه به دفتر هم می‌رود تا
+    # ماشین بونفرونی شبانه سهم واقعی OB را از برد و باخت اندازه بگیرد.
+    ob_ctx = None
+    try:
+        from hamid import orderblocks as _obm
+        want = "up" if d == "LONG" else "down"
+        found = []
+        b_in, b_near = _obm.near(c15, tf="15m")
+        if b_in or b_near:
+            found.append((b_in or b_near, bool(b_in)))
+        try:
+            import sources as _srco
+            _o1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4],
+                     "v": k[5]} for k in _srco.klines(s["sym"], "1h", 320)]
+            if len(_o1h) >= 60:
+                b_in2, b_near2 = _obm.near(_o1h, tf="1h")
+                if b_in2 or b_near2:
+                    found.append((b_in2 or b_near2, bool(b_in2)))
+        except Exception:                            # noqa: BLE001
+            pass
+        for b, inside in found:
+            align = "with" if b["move"] == want else "against"
+            note_ob = _obm.note_fa(b, "داخل" if inside else "نزدیک")
+            if ob_ctx is None:
+                ob_ctx = {"align": align, "tf": b["tf"],
+                          "reactions": b["reactions"], "hunts": b["hunts"],
+                          "fresh": b["fresh"], "note": note_ob}
+            if align == "with":
+                pro.append(f"{note_ob} — هم‌جهت، سوخت حرکت")
+            else:
+                con.append(f"{note_ob} — خلاف جهت، دیوار جلوی راه")
+    except Exception:                                # noqa: BLE001
+        pass
+
     # ۵) نقشهٔ لیکوییدیشن (تخمین از کندل)
     try:
         lm = liqmap.build(c15)
@@ -276,4 +313,4 @@ def review(s, c15):
         note += " · ⛔ استاپ داخل نویز — وتوی سخت"
     return {"pro": pro, "con": con, "pro_w": pro_w, "con_w": con_w,
             "issue": issue, "note": note, "price": px, "patterns": patterns_out,
-            "noise_stop": noise_stop}
+            "noise_stop": noise_stop, "ob_ctx": ob_ctx}
