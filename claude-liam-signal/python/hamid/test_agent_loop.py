@@ -187,13 +187,18 @@ tg.SENT, tg.TGLOG = _tmp2 / "sent.json", _tmp2 / "tglog.json"
 _orig_env = (tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from)
 tg.creds = lambda: ("tok", "chat")
 posts = []
-tg._post = lambda tok, m, f, files=None: posts.append(f.get("caption") or f.get("text", ""))
+def _fake_post(tok, m, f, files=None):
+    posts.append(f.get("caption") or f.get("text", ""))
+    return {"ok": True, "result": {"message_id": 777}}
+tg._post = _fake_post
+_opened = []
+
 PX = {"PASSEDUSDT": 0.97, "FARUSDT": 1.06, "OKUSDT": 1.0}
 _sources.klines = lambda sym, tf, n, **kw: [
     [i * 300000, 1, 1.001, 0.999, PX.get(sym, 1.0), 1.0] for i in range(n)]
 _pm2.review = lambda s, c15: {"pro": ["x"], "con": [], "issue": True,
                               "note": "⚖️", "price": 1.0}
-_paper2.open_from = lambda *a, **k: 0
+_paper2.open_from = lambda setups, ctx: _opened.extend(setups) or 0
 
 
 def _sig(sym, strat="ibs"):
@@ -208,6 +213,8 @@ check("ردشده از ورود و دورافتاده صادر نشدند، هم
       n_ok == 1 and len(posts) == 1 and "OKUSDT" in posts[0])
 check("قیمت لحظهٔ ارسال و فاصله در پیام است",
       "⏱" in posts[0] and "فاصله تا ورود" in posts[0])
+check("شناسهٔ پیام برای ریپلای نتیجه ثبت شد (درس TAO)",
+      _opened and _opened[0].get("tg_msg_id") == 777)
 _led = _json.loads(tg.SENT.read_text())
 check("ردشده‌ها سهمیه نمی‌خورند (کلید skip جدا)",
       len([k for k in _led if not k.startswith(("any|", "skip|"))]) == 1

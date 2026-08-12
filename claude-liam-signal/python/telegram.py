@@ -330,8 +330,11 @@ def send_signals(signals, render_chart, limit=8):
                              {"chat_id": chat, "text": caption(s), "parse_mode": "HTML",
                               "disable_web_page_preview": "true"})
             # شناسهٔ پیام — خواست حمید: اعلام نتیجه باید «ریپلایِ» همین پیام
-            # باشد تا با سیگنال دیگری اشتباه نشود
+            # باشد تا با سیگنال دیگری اشتباه نشود. روی خود دیکشنری سیگنال هم
+            # می‌نشیند تا فراخوان (مثل مسیر آلارم در چرخه) در دفتر خودش ثبت
+            # کند — درس TAO: دفتر آلارم شناسه نداشت و نتیجه ریپلای نشد.
             tg_mid = ((resp or {}).get("result") or {}).get("message_id")
+            s["tg_msg_id"] = tg_mid
             sent[_key(s)] = time.time() * 1000
             sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = time.time() * 1000
             ok += 1
@@ -345,7 +348,8 @@ def send_signals(signals, render_chart, limit=8):
                 _paper.open_from([{"symbol": s["sym"], "dir": s["dir"],
                                    "entry": s["entry"], "sl": s["sl"],
                                    "tp1": s.get("tp1") or s["entry"], "tp2": s.get("tp2"),
-                                   "stage_tag": f"sig-{s.get('strategy', '?')}"}],
+                                   "stage_tag": f"sig-{s.get('strategy', '?')}",
+                                   "tg_msg_id": tg_mid}],
                                  {"sent_at": int(time.time() * 1000),
                                   "tg_msg_id": tg_mid})
             except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
