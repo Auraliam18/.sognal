@@ -305,6 +305,14 @@ _pp._append(_pp.CLOSED, {"sym": "SENTUSDT", "dir": "LONG", "entry": 1.0, "sl": 0
 _pp._append(_pp.CLOSED, {"sym": "BOOKUSDT", "dir": "SHORT", "entry": 1.0, "sl": 1.01,
                          "tp1": 0.98, "R": -1.0, "outcome": "stop", "closed": _fut,
                          "opened": _fut - 1000, "why": {"stage": "alarm"}})
+from hamid import cases as _cs                                 # noqa: E402
+from hamid import memory as _mm2                               # noqa: E402
+import brain as _br2                                           # noqa: E402
+_old_iso = (_cs.CASES, _mm2.LESSONS, _br2.learn, _br2.build_index)
+_cs.CASES = _d3 / "cases"          # پروندهٔ جعلی تست نباید در brain واقعی بنشیند
+_mm2.LESSONS = _d3 / "lessons.json"
+_br2.learn = lambda e: None        # تجربهٔ جعلی هم نباید وارد حافظهٔ واقعی شود
+_br2.build_index = lambda: None
 _calls = []
 tg.creds = lambda: ("tok", "chat")
 tg._post = lambda tok, m, f, files=None: (_calls.append((m, dict(f))) or
@@ -318,6 +326,7 @@ try:
 finally:
     _pp.CLOSED, _pp.OPEN, _pp.EQUITY, _pp.mark = _old_pp
     _sources.klines = _old_kl
+    _cs.CASES, _mm2.LESSONS, _br2.learn, _br2.build_index = _old_iso
 _replies = [f for m, f in _calls if f.get("reply_to_message_id")]
 _all_txt = " ".join(str(f.get("text", "")) + str(f.get("caption", "")) for m, f in _calls)
 check("سیگنال ارسالی: نتیجه ریپلای همان پیام شد",
