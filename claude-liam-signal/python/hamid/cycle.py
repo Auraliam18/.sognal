@@ -1214,7 +1214,8 @@ def main():
                                 "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],
                                 "tp2": x["tp2"], "stage_tag": "alarm",
                                 "stop_pct": x.get("_stop_pct"),
-                                "liq": x.get("_liq")} for x in sigs],
+                                "liq": x.get("_liq"),
+                                "tg_msg_id": x.get("tg_msg_id")} for x in sigs],
                               {"mode": mode})
                 act(f"⏰ {len(sigs)} آلارم فعال‌شده سیگنال شد"
                     + (f"، {sent_al} به تلگرام رفت" if sent_al else "")
