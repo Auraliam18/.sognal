@@ -92,6 +92,27 @@ brain.recall = lambda **k: {"verdict": "thin"}
 mh = memory.consult("HUSDT", "LONG")
 check("مشورت، تمرین تاریخی را هم می‌آورد", "تمرین تاریخی" in (mh["note"] or ""))
 
+# ── بازسنجی حافظه (Memory Curator — دستور حمید) ───────────────────────────
+from hamid import revalidate                          # noqa: E402
+_now = __import__("time").time() * 1000
+_D = 86400e3
+_hist = {"stats": {"GOODUSDT|LONG": {"n": 50, "ev": 0.4, "win": 40.0, "ci": [0.1, 0.7]},
+                   "SPANUSDT|LONG": {"n": 40, "ev": 0.05, "win": 30.0, "ci": [-0.1, 0.2]}}}
+_uni = {"GOODUSDT", "SPANUSDT", "NEWUSDT"}
+J = lambda l: revalidate.judge(l, _hist, _uni, _now)  # noqa: E731
+check("نتیجهٔ واقعی = فاکت، هرگز بازنشسته نمی‌شود",
+      J({"kind": "نتیجه", "sym": "GONEUSDT", "at": _now - 200 * _D}) == "fact")
+check("درس ارزِ دارای پیکرهٔ CI-روشن → تأیید",
+      J({"kind": "تحلیل", "sym": "GOODUSDT", "at": _now - 40 * _D}) == "confirmed")
+check("پیکره هست ولی CI دربرگیرندهٔ صفر → در انتظار (پاکِ بی‌شاهد ممنوع)",
+      J({"kind": "تحلیل", "sym": "SPANUSDT", "at": _now - 10 * _D}) == "pending")
+check("ارز خارج از Universe + درس کهنه → بازنشسته",
+      J({"kind": "تحلیل", "sym": "GONEUSDT", "at": _now - 45 * _D}) == "retired")
+check("درس تازهٔ بی‌شاهد می‌ماند",
+      J({"kind": "کشف", "sym": "NEWUSDT", "at": _now - 3 * _D}) == "pending")
+check("دو ماه بی‌شاهد → تأییدنشده، بازنشسته",
+      J({"kind": "کشف", "sym": "NEWUSDT", "at": _now - 70 * _D}) == "retired")
+
 brain.learn, brain.build_index, brain.recall = _orig
 
 print()

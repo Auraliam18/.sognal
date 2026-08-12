@@ -826,6 +826,29 @@ def main():
     except Exception as e:                           # noqa: BLE001 - خبر چرخه را نمی‌کشد
         print(f"دسته‌بندی خبر: {type(e).__name__}: {e}")
 
+    # بازسنجی روزانهٔ حافظه (Memory Curator — دستور حمید): درس‌های قدیمی با
+    # شواهد انجین‌های جدید سنجیده می‌شوند؛ تأییدشده می‌ماند، ردشده بازنشسته
+    try:
+        from hamid import revalidate as _rv
+        _rc = _rv.run()
+        if _rc:
+            act(f"🧹 بازسنجی حافظه: {_rc['confirmed']} تأیید · "
+                f"{_rc['pending']} در انتظار · {_rc['retired']} بازنشسته")
+    except Exception as e:                           # noqa: BLE001
+        print(f"بازسنجی حافظه: {type(e).__name__}: {e}")
+
+    # Universe Snapshot روزانه (AuraLiam369 §5 فاز ۱) — فایل یکتای روز،
+    # ضد survivorship bias؛ اگر امروز ساخته شده، هیچ کاری نمی‌کند.
+    try:
+        from hamid import universe as _uni
+        _snap, _created, _udiff = _uni.daily()
+        if _created:
+            act(f"🌐 Universe امروز ثبت شد: {_snap['n']} نماد از {_snap['venue']}"
+                + (f" · تازه‌لیست: {', '.join(_udiff['listed'][:4])}"
+                   if _udiff and _udiff["listed"] else ""))
+    except Exception as e:                           # noqa: BLE001 - چرخه را نمی‌کشد
+        print(f"Universe: {type(e).__name__}: {e}")
+
     if mode == "active":
         try:
             tick = sources.tickers()
