@@ -142,6 +142,7 @@ def open_from(setups, context):
                 "flipped": (s.get("on_level") or {}).get("flipped"),
                 "stop_pct": s.get("stop_pct"),
                 "liq": s.get("liq"),
+                "tg_msg_id": s.get("tg_msg_id"),
                 "dir": s["dir"],
                 "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),
                 **context,
