@@ -63,7 +63,9 @@ jobs:
         # level engine that is subtly wrong does not crash, it just draws lines
         # somewhere else and keeps going.
         working-directory: claude-liam-signal/python
-        run: python3 -m hamid.selfcheck
+        run: |
+          python3 -m hamid.selfcheck
+          python3 -m hamid.test_patterns
 
       # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
       # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.

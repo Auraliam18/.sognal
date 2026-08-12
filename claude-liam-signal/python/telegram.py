@@ -142,6 +142,9 @@ def caption(s):
     # بازجویی پیش از صدور — سیگنال فقط با دلایلِ تارگتِ بیشتر رسیده اینجا
     pm = s.get("premortem")
     if pm:
+        # انجین الگوهای کلاسیک — الگوهای زندهٔ ۱۵د/۱س/۴س روی خود پیام
+        if (pm.get("patterns") or {}).get("note"):
+            L.append(f"🧩 <i>الگو: {pm['patterns']['note']}</i>")
         L.append(f"⚖️ <i>{len(pm['pro'])} دلیل تارگت / {len(pm['con'])} دلیل استاپ"
                  + (f" — مهم‌ترین: {pm['pro'][0]}" if pm["pro"] else "") + "</i>")
         if pm["con"]:
@@ -305,7 +308,9 @@ def send_signals(signals, render_chart, limit=8):
                                        "tp1": s.get("tp1") or s["entry"],
                                        "tp2": s.get("tp2"), "stage_tag": "vetoed"}],
                                      {"veto_why": "premortem", "pm_con": pm["con"][:3],
-                                      "pm_pro": pm["pro"][:3]})
+                                      "pm_pro": pm["pro"][:3],
+                                      "pattern_align": (pm.get("patterns") or {}).get("align"),
+                                      "patterns": (pm.get("patterns") or {}).get("by_tf")})
                     from hamid import memory as _mem
                     _mem.remember("بررسی", s["sym"],
                                   f"بازجویی ۱۵د جلوی {s['sym']} {s['dir']} را گرفت: "
@@ -351,7 +356,9 @@ def send_signals(signals, render_chart, limit=8):
                                    "stage_tag": f"sig-{s.get('strategy', '?')}",
                                    "tg_msg_id": tg_mid}],
                                  {"sent_at": int(time.time() * 1000),
-                                  "tg_msg_id": tg_mid})
+                                  "tg_msg_id": tg_mid,
+                                  "pattern_align": ((s.get("premortem") or {}).get("patterns") or {}).get("align"),
+                                  "patterns": ((s.get("premortem") or {}).get("patterns") or {}).get("by_tf")})
             except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
                 print(f"  paper log failed for {s['sym']}: {type(e).__name__}", flush=True)
         except urllib.error.HTTPError as e:
