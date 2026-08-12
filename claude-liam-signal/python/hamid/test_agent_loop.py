@@ -208,6 +208,10 @@ check("ردشده از ورود و دورافتاده صادر نشدند، هم
       n_ok == 1 and len(posts) == 1 and "OKUSDT" in posts[0])
 check("قیمت لحظهٔ ارسال و فاصله در پیام است",
       "⏱" in posts[0] and "فاصله تا ورود" in posts[0])
+_led = _json.loads(tg.SENT.read_text())
+check("ردشده‌ها سهمیه نمی‌خورند (کلید skip جدا)",
+      len([k for k in _led if not k.startswith(("any|", "skip|"))]) == 1
+      and len([k for k in _led if k.startswith("skip|")]) == 2)
 n2 = tg.send_signals([_sig("OKUSDT", strat="alarm")], lambda s, p: None)
 check("همان ستاپ با برچسب استراتژی دیگر دوباره نمی‌رود", n2 == 0)
 # تنوع: بعد از ۲ ارسال برای یک ارز، سومی (حتی جهت/تایم دیگر) نمی‌رود

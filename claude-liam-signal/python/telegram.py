@@ -224,7 +224,8 @@ def send_signals(signals, render_chart, limit=8):
         # کانال باید بازار را بگردد، نه دور یک ارز بچرخد.
         return sum(1 for k in sent if k.startswith(f"any|{s['sym']}|")) >= 2
     fresh = [s for s in signals
-             if _key(s) not in sent and not _dup_any(s) and not _sym_worn(s)][:limit]
+             if _key(s) not in sent and f"skip|{_key(s)}" not in sent
+             and not _dup_any(s) and not _sym_worn(s)][:limit]
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
@@ -232,7 +233,7 @@ def send_signals(signals, render_chart, limit=8):
     # بعد از فعال شدن Secrets، اسکن زنده در یک روز ۲۵ سیگنال IBS فرستاد؛ سیل
     # سیگنال همان‌قدر بی‌ارزش است که سکوت. بالای سهمیه فقط الیت و آلارم می‌رود؛
     # و سقف مطلق ۱۶ برای همه — شکایت حمید: «خیلی بیش از حد سیگنال می‌رسد».
-    n_sent_real = len([k for k in sent if not k.startswith("any|")])
+    n_sent_real = len([k for k in sent if not k.startswith(("any|", "skip|"))])
     if n_sent_real >= 16:
         print(f"telegram: سقف مطلق پر است ({n_sent_real} در ۱۲ ساعت) — هیچ ارسالی", flush=True)
         return 0
@@ -268,14 +269,12 @@ def send_signals(signals, render_chart, limit=8):
             if _signed < -0.5 * _stop_frac:
                 print(f"  ⏱ {s['sym']} صادر نشد — قیمت از نقطهٔ ورود رد شده "
                       f"({_signed*100:+.2f}٪ به سمت استاپ)؛ سیگنالِ دیر نمی‌فرستیم", flush=True)
-                sent[_key(s)] = now_ms
-                sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = now_ms
+                sent[f"skip|{_key(s)}"] = now_ms
                 continue
             if _signed > 0.025:
                 print(f"  ⏱ {s['sym']} صادر نشد — فاصله تا ورود {_signed*100:.2f}٪ "
                       f"است؛ سیگنال ناهم‌زمان نمی‌فرستیم", flush=True)
-                sent[_key(s)] = now_ms
-                sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = now_ms
+                sent[f"skip|{_key(s)}"] = now_ms
                 continue
             s["sync"] = {"price": _px, "dist_pct": round(_signed * 100, 2)}
         # بازجویی پیش از صدور — قانون حمید: اول در ۱۵ دقیقه ببین چه چیزهایی
@@ -298,7 +297,7 @@ def send_signals(signals, render_chart, limit=8):
                 print(f"  ⚖️ {s['sym']} صادر نشد — {len(pm['con'])} دلیل استاپ در برابر "
                       f"{len(pm['pro'])} دلیل تارگت: {pm['con'][0] if pm['con'] else ''}",
                       flush=True)
-                sent[_key(s)] = time.time() * 1000    # تا هر ده دقیقه دوباره بازجویی نشود
+                sent[f"skip|{_key(s)}"] = time.time() * 1000  # ضدتکرار بازجویی، بدون خوردن سهمیه
                 try:
                     from hamid import paper as _paper
                     _paper.open_from([{"symbol": s["sym"], "dir": s["dir"],
