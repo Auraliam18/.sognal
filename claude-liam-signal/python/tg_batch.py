@@ -51,7 +51,7 @@ def watermark(ax):
             rotation=15, fontweight="bold", zorder=0)
 
 
-def chart(sym, cd, entry, sl, tp1, tp2, dir_):
+def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -68,6 +68,29 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_):
         ax.add_patch(plt.Rectangle((i - 0.33, min(k["o"], k["c"])), 0.66,
                      max(abs(k["c"] - k["o"]), 1e-12),
                      color="#26a69a" if up else "#ef5350", zorder=2))
+    # دستور حمید (۱۲ اوت): «سیگنال با خط روندهای معتبر در چارت باشد و اردر
+    # بلاک هم مشخص باشد.» سطوح معتبر (همان قاعدهٔ ≥۲ واکنش + کف نویز خودش)
+    # و کانالِ فیت‌شده روی سوینگ‌ها، از همین پنجرهٔ کندل کشیده می‌شوند —
+    # اگر سطح/کانال معتبری نبود، چیزی کشیده نمی‌شود؛ خط تزئینی ممنوع.
+    try:
+        from hamid import structure as _st
+        for lv in _st.levels(cd)[:4]:
+            ax.axhline(lv.price, color="#787b86", lw=0.9, ls=":", zorder=1)
+            ax.text(-0.5, lv.price, f"{'R' if lv.kind == 'high' else 'S'}{lv.reactions}",
+                    color="#787b86", fontsize=7, va="bottom", ha="left")
+        ch = _st.channel(cd)
+        if ch:
+            xs = list(range(len(cd)))
+            ax.plot(xs, [ch.upper[0] * i + ch.upper[1] for i in xs],
+                    color="#5d8ecb", lw=1.0, ls="-", alpha=0.8, zorder=1)
+            ax.plot(xs, [ch.lower[0] * i + ch.lower[1] for i in xs],
+                    color="#5d8ecb", lw=1.0, ls="-", alpha=0.8, zorder=1)
+    except Exception:                                  # noqa: BLE001 - تحلیل روی چارت اختیاری است
+        pass
+    if ob and ob.get("low") is not None and ob.get("high") is not None:
+        ax.axhspan(ob["low"], ob["high"], color="#f0a92e", alpha=0.14, zorder=0)
+        ax.text(len(cd) + 1, (ob["low"] + ob["high"]) / 2, "OB",
+                color="#f0a92e", fontsize=8, va="center")
     # برچسب لاتین عمداً: matplotlib شکل‌دهی عربی ندارد و فارسی حروف‌جدا و
     # برعکس می‌افتد (در عکس تست دیده شد). فارسی در کپشن زیر عکس هست.
     for v, c, lb in [(entry, "#42a5f5", "ENTRY"), (sl, "#ef5350", "SL"),

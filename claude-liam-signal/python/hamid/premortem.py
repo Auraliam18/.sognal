@@ -47,12 +47,18 @@ def review(s, c15):
         w[side] += weight
     px = c15[-1]["c"]
 
-    # ۱) استاپ در برابر نویز ۱۵ دقیقه — درس استاپ ZAMA
+    # ۱) استاپ در برابر نویز ۱۵ دقیقه — درس استاپ ZAMA + دستور حمید ۱۲ اوت:
+    # «حاشیهٔ استاپ به شدت پایین بود؛ با یک نوسان کوچک استاپ می‌خورد.»
+    # اندازه‌گیری همان روز: میانهٔ رسیدن به استاپ ۱۲ دقیقه بود. پس این دیگر
+    # فقط یک دلیل شمرده‌شده نیست — پرچم noise_stop بالا می‌رود و گلوگاه
+    # ارسال آن را وتوی سخت می‌کند، هرقدر هم دلیل تارگت باشد.
+    noise_stop = False
     atr = _atr_pct(c15)
     stop_pct = abs(s["entry"] - s["sl"]) / s["entry"] * 100 if s.get("sl") else None
     if atr and stop_pct is not None:
         if stop_pct < 1.2 * atr:
-            con.append(f"استاپ {stop_pct:.2f}٪ داخل نویز ۱۵د است (ATR {atr:.2f}٪) — ویک می‌خورد")
+            noise_stop = True
+            _add("con", f"استاپ {stop_pct:.2f}٪ داخل نویز ۱۵د است (ATR {atr:.2f}٪) — ویک می‌خورد", 2)
         else:
             pro.append(f"استاپ {stop_pct:.2f}٪ بیرون نویز ۱۵د (ATR {atr:.2f}٪)")
 
@@ -265,5 +271,9 @@ def review(s, c15):
     issue = pro_w > con_w
     note = (f"⚖️ بازجویی ۱۵د (وزنی): {pro_w} امتیاز تارگت / {con_w} امتیاز استاپ — "
             + ("صادر شد" if issue else "صادر نشد"))
+    if noise_stop:
+        issue = False                     # وتوی سخت — دستور حمید ۱۲ اوت
+        note += " · ⛔ استاپ داخل نویز — وتوی سخت"
     return {"pro": pro, "con": con, "pro_w": pro_w, "con_w": con_w,
-            "issue": issue, "note": note, "price": px, "patterns": patterns_out}
+            "issue": issue, "note": note, "price": px, "patterns": patterns_out,
+            "noise_stop": noise_stop}
