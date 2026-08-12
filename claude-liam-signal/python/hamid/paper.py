@@ -127,7 +127,13 @@ def open_from(setups, context):
     have = {(p["sym"], p["entry"], (p.get("why") or {}).get("stage"))
             for p in _read(OPEN)}
     added = 0
+    from hamid.universe import STABLES, WRAPPED
     for s in setups:
+        # استیبل/رپد وارد هیچ دفتری نمی‌شود — کشف ۱۲ اوت: USD1/USDE با استاپ
+        # ذره‌ای، R نجومی قلابی ساختند (+58R) و آمار دفتر را بی‌معنا کردند.
+        base = s["symbol"][:-4] if s["symbol"].endswith("USDT") else s["symbol"]
+        if base in STABLES or base in WRAPPED:
+            continue
         key = (s["symbol"], float(s["entry"]),
                s.get("stage_tag") or ("second" if not s.get("waiting") else "first"))
         if key in have:
