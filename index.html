@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.21 · معماری ۲۶گانهٔ AuraLiam369</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.22 · خوددرمانی کش + تب‌های تأییدشده</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -5054,6 +5054,27 @@ function selectTab(t){
 }
 window.selectTab=selectTab;
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
+/* خوددرمانی کش — شکایت حمید: «روی تب کلیک می‌کنم هیچ اتفاقی نمی‌افتد».
+   در مرورگر تمیز، تب‌ها سالم تست شدند؛ پس گیر از نسخهٔ کش‌شدهٔ کهنه است.
+   اینجا نسخهٔ سرور با نسخهٔ صفحهٔ باز مقایسه می‌شود: اگر فرق داشت، همهٔ
+   کش‌ها پاک و یک بار رفرش خودکار؛ اگر باز هم کهنه ماند، بنر صریح. */
+(async()=>{try{
+  try{(await (navigator.serviceWorker?.getRegistrations?.()||[])).forEach(r=>r.update());}catch(e){}
+  const t=await (await fetch("sw.js?nc="+Date.now(),{cache:"no-store"})).text();
+  const server=(t.match(/hsa-shell-v([\d.]+)/)||[])[1];
+  const here=(($("#ver")||{}).textContent||"").match(/v([\d.]+)/)?.[1];
+  if(server&&here&&server!==here){
+    if(!sessionStorage.getItem("vreload")){
+      sessionStorage.setItem("vreload","1");
+      if(window.caches)try{for(const k of await caches.keys())await caches.delete(k);}catch(e){}
+      location.reload();return;
+    }
+    const b=document.createElement("div");
+    b.style.cssText="position:fixed;bottom:12px;inset-inline-start:12px;z-index:9999;background:#b7791f;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;font-family:inherit";
+    b.textContent="⚠️ نسخهٔ پنل کهنه است ("+here+" روی صفحه، "+server+" روی سرور) — کش مرورگر را پاک کن یا سخت-رفرش (Ctrl+Shift+R)";
+    document.body.appendChild(b);
+  } else sessionStorage.removeItem("vreload");
+}catch(e){}})();
 /* سوییچ نقشهٔ زنده ↔ معماری AuraLiam369 در تب گرافی‌فای */
 (function(){const L=$("#gmLive"),A=$("#gmAura");if(!L||!A)return;
  L.onclick=()=>{L.classList.add("active");A.classList.remove("active");
