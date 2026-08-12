@@ -38,6 +38,13 @@ def review(s, c15):
 
     d = s["dir"]
     pro, con = [], []
+    # وزن‌ها — دستور صریح حمید: «نتیجهٔ گذشته، هم‌مسیری با روند و ابزارهای
+    # حجم بیشتر تأثیر بگذارند». این سه، وزن ۲ دارند؛ بقیه وزن ۱.
+    w = {"pro": 0, "con": 0}
+
+    def _add(side, text, weight=1):
+        (pro if side == "pro" else con).append(text)
+        w[side] += weight
     px = c15[-1]["c"]
 
     # ۱) استاپ در برابر نویز ۱۵ دقیقه — درس استاپ ZAMA
@@ -53,9 +60,9 @@ def review(s, c15):
     t15 = trend(c15)
     if t15 in ("up", "down"):
         if (t15 == "up") == (d == "LONG"):
-            pro.append(f"روند ۱۵د هم‌جهت ({t15})")
+            _add("pro", f"روند ۱۵د هم‌جهت ({t15})", 2)
         else:
-            con.append(f"روند ۱۵د خلاف جهت ({t15})")
+            _add("con", f"روند ۱۵د خلاف جهت ({t15})", 2)
 
     # ۳) RSI ۱۵ دقیقه — ورود در اشباع، دعوت به استاپ است
     r15 = rsi(c15)
@@ -92,9 +99,9 @@ def review(s, c15):
     try:
         hn, ha = memory.history(s["sym"], d)
         if ha > 0:
-            pro.append(hn)
+            _add("pro", hn, 2)
         elif ha < 0:
-            con.append(hn)
+            _add("con", hn, 2)
     except Exception:                                # noqa: BLE001
         pass
 
@@ -111,6 +118,22 @@ def review(s, c15):
         ev = [m for m in (dom.get("macro") or []) if 0 <= (m.get("in_hours") or 99) <= 2]
         if ev:
             con.append(f"رویداد کلان تا ۲ ساعت دیگر ({ev[0]['title']}) — شلاق قیمت محتمل")
+    except Exception:                                # noqa: BLE001
+        pass
+
+    # ۷.۵) ابزار حجم (دستور حمید — وزن ۲): جهش حجم کندل بستهٔ آخر ۱۵د
+    # نسبت به ۲۰ کندل قبل؛ جهش هم‌جهت = سوخت، جهش خلاف = خطر.
+    try:
+        vols = [k["v"] for k in c15[-21:-1]]
+        mv = sum(vols) / len(vols) if vols else 0
+        sdv = (sum((v - mv) ** 2 for v in vols) / len(vols)) ** 0.5 if vols else 0
+        vz = (c15[-1]["v"] - mv) / sdv if sdv else 0
+        if vz >= 1.5:
+            bull = c15[-1]["c"] >= c15[-1]["o"]
+            if bull == (d == "LONG"):
+                _add("pro", f"جهش حجم هم‌جهت (z={vz:.1f}) — مشارکت واقعی", 2)
+            else:
+                _add("con", f"جهش حجم خلاف جهت (z={vz:.1f})", 2)
     except Exception:                                # noqa: BLE001
         pass
 
@@ -142,7 +165,14 @@ def review(s, c15):
         if atr and tp_pct > 6 * atr:
             con.append(f"تارگت {tp_pct:.1f}٪ یعنی {tp_pct/atr:.0f} برابر ATR — راه خیلی دور")
 
-    issue = len(pro) > len(con)
-    note = (f"⚖️ بازجویی ۱۵د: {len(pro)} دلیل تارگت / {len(con)} دلیل استاپ — "
+    # حکم وزنی — دلایل ساده وزن ۱؛ گذشته/روند/حجم وزن ۲ (فقط وزنی‌ها در w
+    # شمرده شده‌اند و همیشه با وزن ۲ اضافه می‌شوند). وزن هر سمت =
+    # تعداد دلایل ساده + w همان سمت.
+    n2p, n2c = w["pro"] // 2, w["con"] // 2
+    pro_w = (len(pro) - n2p) + w["pro"]
+    con_w = (len(con) - n2c) + w["con"]
+    issue = pro_w > con_w
+    note = (f"⚖️ بازجویی ۱۵د (وزنی): {pro_w} امتیاز تارگت / {con_w} امتیاز استاپ — "
             + ("صادر شد" if issue else "صادر نشد"))
-    return {"pro": pro, "con": con, "issue": issue, "note": note, "price": px}
+    return {"pro": pro, "con": con, "pro_w": pro_w, "con_w": con_w,
+            "issue": issue, "note": note, "price": px}
