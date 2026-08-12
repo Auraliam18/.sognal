@@ -12,6 +12,7 @@ relationship and require it to find that.
 
     python3 -m hamid.test_paper
 """
+import json
 import random
 import sys
 from pathlib import Path
@@ -115,6 +116,27 @@ def t_expired_not_scored():
         paper.CLOSED, paper.EQUITY = old
 
 
+def t_stables_rejected():
+    """کشف ۱۲ اوت: USD1/USDE با استاپ ذره‌ای R نجومی قلابی ساختند (+58R).
+    استیبل و رپد از گلوگاه open_from وارد هیچ دفتری نمی‌شوند."""
+    import tempfile
+    d = Path(tempfile.mkdtemp())
+    old = paper.OPEN
+    paper.OPEN = d / "o.jsonl"
+    try:
+        sig = {"dir": "LONG", "entry": 1.0, "sl": 0.999, "tp1": 1.002,
+               "waiting": False}
+        n = paper.open_from([dict(sig, symbol="USD1USDT"),
+                             dict(sig, symbol="USDEUSDT"),
+                             dict(sig, symbol="WBTCUSDT"),
+                             dict(sig, symbol="SOLUSDT")], {})
+        opened = [json.loads(l)["sym"] for l in paper.OPEN.read_text().splitlines()]
+        check("استیبل/رپد رد شد و ارز واقعی باز شد",
+              n == 1 and opened == ["SOLUSDT"], f"opened={opened}")
+    finally:
+        paper.OPEN = old
+
+
 def t_trailing_stop():
     """قانون تریل حمید (درس EURI): ⅓ مسیر تارگت → استاپ در سودِ کارمزددار؛
     ⅔ → استاپ در ⅓؛ برگشتِ کامل دیگر ضرر نمی‌سازد."""
@@ -164,6 +186,7 @@ def main():
     t_noise_finds_nothing()
     t_real_effect_is_found()
     t_expired_not_scored()
+    t_stables_rejected()
     t_trailing_stop()
     bad = [(n, d) for ok, n, d in R if not ok]
     print(f"\n{'=' * 74}")

@@ -258,6 +258,36 @@ snap3, _, diff3 = _u.daily(rows=_rows, venue="تست")
 check("دیف لیست/دی‌لیست با Snapshot قبلی",
       diff3 and "GONEUSDT" in diff3["dropped"] and "C0USDT" in diff3["listed"])
 
+# ── قانون‌های تأییدشدهٔ تاریخی در بازجویی (دستور حمید ۱۲ اوت) ─────────────
+# دفتر شبانه قانونی با CI ردشده از صفر دارد → باید در حکم صدور بنشیند،
+# با وزن ۲ و علامت دلتا. INSUFFICIENT یا CI دربرگیرندهٔ صفر → هیچ اثری.
+import scan as _scan                                   # noqa: E402
+_scan.ROOT = _tmp2                                     # دفتر واقعی دخالت نکند
+(_tmp2 / "brain" / "backtests").mkdir(parents=True, exist_ok=True)
+(_tmp2 / "brain" / "backtests" / "latest.json").write_text(_json.dumps({
+    "reasons": {"ibs": [
+        {"condition": "داخل اردر بلاک", "delta": 0.2, "n": 734, "ci": [0.076, 0.338]},
+        {"condition": "R:R بالای ۲.۵", "delta": -0.3, "n": 300, "ci": [-0.5, -0.1]},
+        {"condition": "CHOCH دارد", "delta": 0.4, "n": 50, "ci": [-0.1, 0.9]},
+    ]}}))
+premortem.DOM = _tmp2 / "no-dom.json"
+_e3 = up15[-1]["c"]
+_sig3 = {"sym": "RULEUSDT", "dir": "LONG", "strategy": "ibs",
+         "entry": _e3, "sl": _e3 * 0.97, "tp1": _e3 * 1.03,
+         "ob": {"low": _e3 * 0.99, "high": _e3 * 1.01}, "rr": 3.0}
+_rv = premortem.review(dict(_sig3), up15)
+check("قانون مثبت CI-ردشده (داخل OB) → دلیل تارگت با وزن ۲",
+      any("داخل اردر بلاک" in x for x in _rv["pro"]))
+check("قانون منفی CI-ردشده (RR>2.5) → دلیل استاپ",
+      any("R:R بالای ۲.۵" in x for x in _rv["con"]))
+check("قانون با CI دربرگیرندهٔ صفر اصلاً ظاهر نمی‌شود",
+      not any("CHOCH" in x for x in _rv["pro"] + _rv["con"]))
+_sig4 = dict(_sig3, sym="NOOBUSDT", ob={"low": _e3 * 1.05, "high": _e3 * 1.06})
+_rv4 = premortem.review(_sig4, up15)
+check("ورودِ بیرون OB قانون OB را نمی‌گیرد",
+      not any("داخل اردر بلاک" in x for x in _rv4["pro"]))
+check("وزن ۲ واقعاً در امتیاز نشسته", _rv["pro_w"] >= _rv4["pro_w"] + 2)
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")

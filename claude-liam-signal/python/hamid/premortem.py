@@ -105,6 +105,34 @@ def review(s, c15):
     except Exception:                                # noqa: BLE001
         pass
 
+    # ۶.۵) قانون‌های تأییدشدهٔ دفتر شبانه (کندل واقعی) — دستور حمید (۱۲ اوت):
+    # «استراتژی‌ها را از چارت زنده و گذشتهٔ ارزها پیدا کن و به یادگیری اضافه
+    # کن». کشف در backtest.py هر شب؛ عمل همین‌جا در گلوگاه صدور: فقط شرطی که
+    # بازهٔ بوت‌استرپش از صفر رد شده و روی همین سیگنال قابل‌آزمایش است، با
+    # علامتِ دلتای اندازه‌گیری‌شده و وزن ۲ (نتیجهٔ گذشته) در حکم می‌نشیند.
+    # قانونی که تیپ دیگر پاداشش را قطع کند، در بازسنجی صبح بعد خودش می‌افتد.
+    try:
+        import scan as _scan
+        s2 = dict(s)
+        ob = s.get("ob") or {}
+        if s2.get("inOB") is None and ob.get("low") is not None \
+                and ob.get("high") is not None:
+            s2["inOB"] = 1 if ob["low"] <= s["entry"] <= ob["high"] else 0
+        for r in _scan.confirmed_rules().get(s.get("strategy"), []):
+            test = _scan.RULE_TESTS.get(r["condition"])
+            if not test:
+                continue
+            try:
+                hit = bool(test(s2, None))
+            except Exception:                        # noqa: BLE001
+                continue
+            if hit:
+                _add("pro" if r["delta"] > 0 else "con",
+                     f"قانون تأییدشدهٔ تاریخی «{r['condition']}» "
+                     f"({r['delta']:+.2f}R، n={r['n']}، CI ردشده از صفر)", 2)
+    except Exception:                                # noqa: BLE001
+        pass
+
     # ۷) دامیننس تتر — فاز ۲: اول رژیم ساختاری (روند سوینگی خودِ سری USDT.D)،
     # با وزن ۲ طبق بند ۱۰ منشور («تعارض با فشار قوی USDT.D → امتیاز کم یا
     # رد»). تا وقتی سری به ۶۰ کندل ۱س نرسیده، رژیم INSUFFICIENT است و مثل
