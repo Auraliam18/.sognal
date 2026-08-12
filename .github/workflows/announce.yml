@@ -1,0 +1,37 @@
+# اعلام یک‌بارهٔ کلود مکس به تلگرام — برای پیام‌های عملیاتی (مثل ریست دفتر).
+name: Announce
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "متن اعلان"
+        required: true
+permissions: {}
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: ارسال
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'PY'
+          import os, json, sys
+          sys.path.insert(0, ".")
+          import telegram as tg
+          tok, chat = tg.creds()
+          assert tok, "no creds"
+          text = json.loads(open(os.environ["GITHUB_EVENT_PATH"]).read())["inputs"]["text"]
+          r = tg._post(tok, "sendMessage",
+                       {"chat_id": chat, "parse_mode": "HTML",
+                        "text": (f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n\n"
+                                 + text + f"\n\n🕐 <code>{tg.tehran()}</code> به وقت ایران")})
+          assert r.get("ok"), r
+          print("فرستاده شد")
+          PY

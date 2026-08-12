@@ -561,7 +561,7 @@ def settle_books(report):
                     a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
                     mid = (t.get("why") or {}).get("tg_msg_id")
                     if mid:
-                        cap = ("📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
+                        cap = ("🤖 <b>کلود مکس</b> · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
                                + (f"\n🔎 <i>{a}</i>" if a else "")
                                + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")
                         # خواست حمید: ریپلای نتیجه حتماً با عکس چارت باشد —
@@ -614,7 +614,7 @@ def settle_books(report):
                                   {"chat_id": chat, "parse_mode": "HTML",
                                    "reply_to_message_id": t["why"]["tg_msg_id"],
                                    "allow_sending_without_reply": "true",
-                                   "text": (f"⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
+                                   "text": (f"🤖 <b>کلود مکس</b> · ⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
                                             f"قیمت در {hrs} ساعت هرگز به ناحیهٔ ورود "
                                             f"<code>{t['entry']:.10g}</code> نرسید؛ ستاپ کهنه "
                                             f"شده و شرایطی که صدورش را توجیه می‌کرد دیگر "
@@ -679,6 +679,43 @@ def review_cycle():
     hist.insert(0, entry)
     brain.room_save("review", {"at": now_ms, "history": hist[:84]})
     act(f"مرور دوساعته: {verdict}")
+    # اعلام کلی دوساعته به تلگرام (دستور حمید) + ریشه‌یابی وتو: اگر ردشده‌ها
+    # چند برابر فرستاده‌شده‌ها هستند، پرتکرارترین دلایل رد از دفتر vetoed
+    try:
+        import telegram as _tg
+        tok, chat = _tg.creds()
+        if tok:
+            led = _tg._load_sent()
+            n_sent = len([k for k in led if not k.startswith(("any|", "skip|"))])
+            n_skip = len([k for k in led if k.startswith("skip|")])
+            veto_line = f"ارسال ۱۲س اخیر: {n_sent} · ردشدهٔ دروازه‌ها: {n_skip}"
+            root = ""
+            if n_skip >= 4 and n_skip >= 3 * max(n_sent, 1):
+                from collections import Counter as _C
+                cons = _C()
+                for t in _p._read(_p.CLOSED)[-120:]:
+                    wv = t.get("why") or {}
+                    if wv.get("stage") == "vetoed":
+                        for r_ in (wv.get("pm_con") or [])[:2]:
+                            cons[r_[:60]] += 1
+                top = "؛ ".join(f"«{k}» ×{v}" for k, v in cons.most_common(3))
+                root = f"\n🔎 وتو زیاد است — پرتکرارترین دلایل رد: {top or 'ثبت‌نشده'}"
+                try:
+                    from hamid import memory as _rmem
+                    _rmem.remember("بررسی", "-",
+                                   f"نرخ وتو بالا ({n_skip} رد / {n_sent} ارسال): {top[:150]}")
+                except Exception:                    # noqa: BLE001
+                    pass
+            opens = len(_p._read(_p.OPEN))
+            _tg._post(tok, "sendMessage",
+                      {"chat_id": chat, "parse_mode": "HTML",
+                       "text": (f"🏷 <b>{_tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n"
+                                f"🧾 <b>اعلام کلی دوساعته</b>\n\n{verdict}\n"
+                                f"پوزیشن باز: {opens} · {veto_line}{root}\n"
+                                f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
+            act("اعلام کلی دوساعته به تلگرام رفت")
+    except Exception as e:                           # noqa: BLE001 - گزارش، مرور را نمی‌کشد
+        print(f"اعلام دوساعته: {type(e).__name__}")
     return entry
 
 
@@ -1061,6 +1098,31 @@ def main():
             c["stage_tag"] = ("vetoed" if c.get("vetoed")
                               else "second" if not c.get("waiting") else "first")
         opened = paper.open_from(cands, ctx)
+        # 🧪 آزمایش v2 (دستور حمید): همان IBS+پولبک‌پلاس ولی با فیلتر سخت‌گیرِ
+        # «گذشتهٔ غیرمنفی + هم‌مسیری روند ۴س + حجم غیرمخالف» — دفتر جدا تا
+        # با CI سنجیده شود؛ طبق مسیر ارتقا، تا اثبات نشده سیگنال زنده نمی‌شود.
+        try:
+            from hamid import memory as _vmem
+            flows = {f["symbol"]: f for f in (report.get("money_flow") or [])}
+            v2 = []
+            for c0 in cands:
+                if c0.get("waiting") or c0.get("vetoed"):
+                    continue
+                _, hadj = _vmem.history(c0["symbol"], c0["dir"])
+                if hadj < 0:
+                    continue
+                if c0.get("trend_4h") not in (None,) and \
+                   (c0.get("trend_4h") == "up") != (c0["dir"] == "LONG"):
+                    continue
+                fl = flows.get(c0["symbol"])
+                if fl and (fl.get("flow") == "ورود") != (c0["dir"] == "LONG"):
+                    continue
+                v2.append({**c0, "stage_tag": "v2"})
+            if v2:
+                opened += paper.open_from(v2, {**ctx, "v2": True})
+                act(f"🧪 v2: {len(v2)} ستاپ از فیلتر گذشته/روند/حجم گذشت — دفتر آزمایشی")
+        except Exception as e:                       # noqa: BLE001
+            print(f"v2: {type(e).__name__}")
         ind_cands = [{"symbol": s_, "dir": x.dir, "entry": x.entry, "sl": x.sl,
                       "tp1": x.tp1, "tp2": x.tp2, "stage_tag": "inducement"}
                      for s_, x in (inds if mode == "active" else [])]

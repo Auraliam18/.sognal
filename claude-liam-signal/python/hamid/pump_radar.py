@@ -299,10 +299,15 @@ def early_movers(kc, uni, gate=4.0):
         if len(c) < 32:
             continue
         r30 = (c[-1]["c"] / c[-3]["c"] - 1) * 100
+        # ماشهٔ صریح حمید: «کندل ۵ تا ۱۵ دقیقه بالای ۵٪» — یک کندل ۱۵د به
+        # تنهایی ≥۵٪ هم شعله است، حتی بدون شرط حجم (حرکت ۵٪/۱۵د خودش خبر است)
+        r15 = (c[-1]["c"] / c[-2]["c"] - 1) * 100
         vols = [x["v"] for x in c[-32:-2]]
         m = sum(vols) / len(vols) if vols else 0
-        if r30 >= gate and m > 0 and (c[-1]["v"] + c[-2]["v"]) > 3 * 2 * m:
-            out.append({"symbol": s, "change_pct": round(r30, 1),
+        vol_ok = m > 0 and (c[-1]["v"] + c[-2]["v"]) > 3 * 2 * m
+        if (r30 >= gate and vol_ok) or r15 >= 5.0:
+            out.append({"symbol": s, "change_pct": round(max(r30, r15), 1),
+                        "chg_15m": round(r15, 1),
                         "last": c[-1]["c"], "vol": c[-1]["v"], "ignition": True})
     out.sort(key=lambda x: -x["change_pct"])
     return out

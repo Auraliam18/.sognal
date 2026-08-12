@@ -100,7 +100,7 @@ def experience_index(min_n=12):
         # دروازه‌شل و آزمایش‌ها (پولبک اول/ایندوسمنت) و وتوشده‌ها معیار
         # منصفانه‌ای برای رد سیگنال واقعی همان ارز نیستند.
         if (t.get("why") or {}).get("stage") in ("practice", "first",
-                                                 "inducement", "vetoed"):
+                                                 "inducement", "vetoed", "v2"):
             continue
         idx.setdefault((t["sym"], t["dir"]), []).append(t["R"])
     out = {}
@@ -122,10 +122,14 @@ def open_from(setups, context):
     and re-deriving it afterwards would quietly attribute the outcome to
     conditions that arrived after the decision.
     """
-    have = {(p["sym"], p["entry"]) for p in _read(OPEN)}
+    # کلید یکتایی شامل دفتر (stage) — دفتر v2 همان ستاپ دفتر اصلی را با
+    # همان ورود جدا ثبت می‌کند؛ بدون این، v2 هیچ‌وقت پر نمی‌شد.
+    have = {(p["sym"], p["entry"], (p.get("why") or {}).get("stage"))
+            for p in _read(OPEN)}
     added = 0
     for s in setups:
-        key = (s["symbol"], float(s["entry"]))
+        key = (s["symbol"], float(s["entry"]),
+               s.get("stage_tag") or ("second" if not s.get("waiting") else "first"))
         if key in have:
             continue
         _append(OPEN, {
@@ -433,7 +437,7 @@ def reasons(verbose=True):
     Both numbers are printed, because the uncorrected one is what a naive
     version of this would have believed, and seeing the gap is the point.
     """
-    _siggrade = lambda st: (st not in ("practice", "first", "inducement", "vetoed"))  # noqa: E731
+    _siggrade = lambda st: (st not in ("practice", "first", "inducement", "vetoed", "v2"))  # noqa: E731
     trades = [t for t in _read(CLOSED)
               if t.get("R") is not None
               and _siggrade((t.get("why") or {}).get("stage") or "")]
