@@ -1,0 +1,39 @@
+# تست یک‌بارهٔ انجین الگو + ریپلای دقیق — دستور حمید (۱۲ اوت):
+# «یک سیگنال تست با الگو بفرست، بعد یک پیام دیگر بفرست و همان پست را
+#  ریپلای کن و بگو تست بود. در ریپلای کردن دقت کن.»
+#
+# دقت ریپلای یعنی: reply_to_message_id همان شناسهٔ پیام اول، بدون
+# allow_sending_without_reply (اگر ریپلای واقعی نشود، کل جاب قرمز می‌شود)،
+# و بعدِ ارسال هم از جواب تلگرام راستی‌آزمایی می‌شود که
+# reply_to_message.message_id دقیقاً همان است. الگو هم واقعی است: از
+# کندل زندهٔ همین لحظه با hamid/patterns کشف می‌شود، نه ساختگی.
+# هیچ‌چیز در SENT یا دفتر کاغذی ثبت نمی‌شود — تست است.
+name: Test pattern signal + reply
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-pattern-signal
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: matplotlib برای چارت
+        run: pip -q install matplotlib
+      - name: سیگنال تست با الگوی زنده + ریپلای راستی‌آزمایی‌شده
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.test_signal_pattern
