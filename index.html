@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.20 · تب‌های مقاوم + دلیل استاپ‌ها</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.21 · معماری ۲۶گانهٔ AuraLiam369</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -320,7 +320,12 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
       هر سلول یک انجین است و خط‌ها مسیر واقعی جابه‌جایی اطلاعات. رنگ نقطهٔ هر سلول از تازگیِ آخرین
       خروجی همان انجین می‌آید: سبز = تازه، کهربایی = دیر شده، قرمز = خوابیده. روی هر سلول کلیک کن تا کارش را بگوید.
     </p>
+    <div style="display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap">
+      <button class="tab active" id="gmLive">نقشهٔ زنده</button>
+      <button class="tab" id="gmAura">معماری AuraLiam369 — ۲۶ انجین + ایجنت</button>
+    </div>
     <div id="graphOut" style="margin-top:12px"></div>
+    <div id="auraOut" style="display:none;margin-top:12px"></div>
     <div id="graphInfo" class="box" style="margin-top:10px;display:none"></div>
   </section>
   <section id="view-bub" style="display:none">
@@ -4123,6 +4128,58 @@ function graphAge(n){
   return (Date.now()-g)/60000;
 }
 const faNum=s=>String(s).replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[d]);
+/* معماری AuraLiam369 — ۲۶ انجین (E00..E25)، هر انجین با ایجنتش جلویش.
+   وضعیت‌ها از GAP-MATRIX واقعی: سبز=زنده در کد · کهربایی=نصفه · قرمز=نیست/سرور می‌خواهد */
+const AURA=[
+ ["E00","ارکستراتور اصلی","Chief Trader","live","CLAUDE.md + cycle.py — ایجنتِ مادر همهٔ ایجنت‌ها"],
+ ["E01","Universe","Universe Agent","live","universe.py — تاپ‌۲۰۰ روزانه، دیف لیست/دی‌لیست"],
+ ["E02","دادهٔ بازار","Data Quality","live","sources چند-صرافی + watchdog + medic"],
+ ["E03","USDT.D","Dominance Agent","part","dominance.py — دلتا و رویداد؛ ساختار مستقل: فاز ۲"],
+ ["E04","BTC.D","BTC.D Agent","part","سری و دلتا هست؛ تحلیل جریان سرمایه: فاز ۲"],
+ ["E05","رژیم کلان","Macro Agent","miss","TOTAL/TOTAL2/TOTAL3 نداریم — منبع لازم"],
+ ["E06","تحلیل BTC","BTC Agent","live","بستر BTC در چرخه + علت‌یاب حرکت (btc_move_cause)"],
+ ["E07","ساختار","Structure Agent","live","structure.py — سوینگ/روند/کانال/BOS"],
+ ["E08","SMC","SMC Agent","live","OB در موتور + سوییپ/ایندوسمنت؛ Lifecycle سطوح: فاز ۳"],
+ ["E09","اندیکاتور","Indicator Agent","live","RSI/ATR/IBS در موتور و تحلیل‌ها"],
+ ["E10","نقدینگی/مشتقات","Liquidity Agent","part","liquidity+liqmap (تخمین) + OI/فاندینگ intel؛ دفتر سفارش واقعی نداریم"],
+ ["E11","مسیریاب استراتژی","Strategy Agents","live","strategies/registry.yaml + scan + cycle"],
+ ["E12","لید-لگ","Relationship Agent","live","lagcorr + رادار پامپ + دفتر ماندگار pump-history"],
+ ["E13","Analog تاریخی","Analog Agent","part","best_match + react_similarity؛ Analog چندبعدی: آینده"],
+ ["E14","خبر/کاتالیست","Research Agent","part","شکار خبر + TV + تقویم؛ X رسمی/Unlock نداریم"],
+ ["E15","واچ و آلارم","Watch Agent","live","آلارم‌های قیمت + TRIGGERED/DEAD + بازتحلیل"],
+ ["E16","ریسک","Risk Officer","live","۵ دروازهٔ ارسال + وتوی تجربه + سقف‌ها"],
+ ["E17","کمیتهٔ سیگنال","Decision Agent","live","بازجویی پیش از صدور (pro>con) در گلوگاه"],
+ ["E18","بک‌تست/پیپر","Experiment Agent","live","backtest.py کندل واقعی + paper چند-دفتره"],
+ ["E19","مدیریت معامله","Trade Manager","live","نردبان تریل ⅓/⅔ حمید در paper.mark"],
+ ["E20","پس-از-معامله","Reviewer Agent","live","دلیل استاپ + کالبدشکافی BTC + پرونده‌های cases"],
+ ["E21","حافظه","Memory Curator","live","memory + قانون CI + بازسنجی روزانه (revalidate)"],
+ ["E22","بهبود","Research Director","live","review دوساعته + open-questions + بک‌تست شبانه"],
+ ["E23","سوپروایزر","SRE Agent","live","medic + watchdog + زنجیرهٔ ۵دقیقه‌ای"],
+ ["E24","قرارداد پنل","UI QA Agent","live","دیده‌بان بعد از هر انتشار (تازگی/سلامت)"],
+ ["E25","تحویل تلگرام","Notification Agent","live","telegram.py — dedup/سهمیه/ریپلای نتیجه (دست‌نخورده)"]];
+function renderAuraMap(){
+  const el=$("#auraOut");if(!el)return;
+  const C={live:["#2ecc71","زنده در کد"],part:["#f5a623","نصفه"],miss:["#e74c3c","نیست"]};
+  const n={live:0,part:0,miss:0};AURA.forEach(a=>n[a[3]]++);
+  el.innerHTML=`
+   <div class="muted" style="font-size:12.5px;margin-bottom:8px">
+     ۲۶ ردیف سند (E00 تا E25) — E00 خودِ ایجنتِ مادر است. هر کارت: انجین، و ایجنتی که جلویش ایستاده.
+     <span style="color:#2ecc71">● ${faNum(n.live)} زنده</span> ·
+     <span style="color:#f5a623">● ${faNum(n.part)} نصفه</span> ·
+     <span style="color:#e74c3c">● ${faNum(n.miss)} نیست</span> —
+     وضعیت‌ها از GAP-MATRIX واقعی، نه آرزو.</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px">
+   ${AURA.map(([id,eng,ag,st,impl])=>`
+     <div class="box" style="padding:9px 11px;border-inline-start:3px solid ${C[st][0]}">
+       <div style="display:flex;justify-content:space-between;align-items:baseline">
+         <b style="font-size:12.5px">${eng}</b>
+         <span class="dim mono" style="font-size:10px">${id}</span></div>
+       <div style="font-size:11.5px;margin-top:3px">🤖 <i>${ag}</i></div>
+       <div class="dim" style="font-size:10.5px;margin-top:4px;line-height:1.7">${impl}</div>
+       <div style="font-size:10px;color:${C[st][0]};margin-top:3px">● ${C[st][1]}</div>
+     </div>`).join("")}
+   </div>`;
+}
 function renderGraph(){
   const el=$("#graphOut");if(el===null)return;
   const dot=a=>a==null?"#8b98ab":a===Infinity?"#e74c3c":a<=45?"#2ecc71":a<=120?"#f0a92e":"#e74c3c";
@@ -4997,6 +5054,13 @@ function selectTab(t){
 }
 window.selectTab=selectTab;
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(b)selectTab(b.dataset.t);});
+/* سوییچ نقشهٔ زنده ↔ معماری AuraLiam369 در تب گرافی‌فای */
+(function(){const L=$("#gmLive"),A=$("#gmAura");if(!L||!A)return;
+ L.onclick=()=>{L.classList.add("active");A.classList.remove("active");
+   $("#graphOut").style.display="";$("#auraOut").style.display="none";try{renderGraph();}catch(e){}};
+ A.onclick=()=>{A.classList.add("active");L.classList.remove("active");
+   $("#graphOut").style.display="none";$("#graphInfo").style.display="none";
+   $("#auraOut").style.display="";try{renderAuraMap();}catch(e){}};})();
 $("#scanBtn").onclick=runScan;
 $("#ddBtn").onclick=()=>deepAnalyze($("#ddSym").value);
 $("#ddSym").addEventListener("keydown",e=>{if(e.key==="Enter")deepAnalyze($("#ddSym").value);});
