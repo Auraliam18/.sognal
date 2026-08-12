@@ -245,7 +245,8 @@ def main():
     tmp.mkdir(exist_ok=True)
     results = {}
     for variant, label in (("base", "استراتژی اصلی — کانال + اردر بلاک + پولبک"),
-                           ("channel", "استراتژی کانالی — با سه قانون جدید")):
+                           ("channel", "استراتژی کانالی — با سه قانون جدید"),
+                           ("widebuf", "آزمایش استاپ — حاشیهٔ شکار پهن (سؤال حمید)")):
         print(f"replay: {variant} on {args.cores} cores", flush=True)
         results[variant] = run_variant(variant, jobs, args.cores, tmp)
         print(f"  {len(results[variant])} trades", flush=True)
@@ -257,7 +258,8 @@ def main():
     print("\n" + "=" * 78)
     print("HISTORICAL BACKTEST — real candles, not simulated")
     print("=" * 78)
-    for variant, label in (("base", "base — as shipped"), ("channel", "channel — three rules required")):
+    for variant, label in (("base", "base — as shipped"), ("channel", "channel — three rules required"),
+                           ("widebuf", "widebuf — stop = edge ± max(box×0.30, atr×0.50)")):
         tr = results[variant]
         print(f"\n{label}")
         overall = describe("overall", tr)
@@ -288,6 +290,20 @@ def main():
             verdict = "below zero — the rules cost expectancy"
         print(f"  Δ = {gap:+.3f}R  " + (f"[{d[0]:+.3f}, {d[1]:+.3f}]  {verdict}" if d else "too few trades"))
         print(f"  trades kept: {len(b)} of {len(a)}  ({100*len(b)/max(1,len(a)):.0f}%)")
+
+    w = [t["r"] for t in results.get("widebuf") or []]
+    print("\nwidebuf versus base — سؤال حمید: استاپ نزدیک")
+    if a and w:
+        d = boot_diff(w, a)
+        gap = statistics.fmean(w) - statistics.fmean(a)
+        verdict = "spans zero — تغییر استاپ هنوز حکم ندارد"
+        if d and d[0] > 0:
+            verdict = "clears zero — حاشیهٔ پهن‌تر بهتر است؛ کاندیدای اعمال"
+        elif d and d[1] < 0:
+            verdict = "below zero — حاشیهٔ پهن‌تر بدتر است؛ اعمال ممنوع"
+        print(f"  Δ = {gap:+.3f}R  " + (f"[{d[0]:+.3f}, {d[1]:+.3f}]  {verdict}" if d else "too few trades"))
+        report["widebuf_vs_base"] = {"delta": round(gap, 3),
+                                     "ci": [round(d[0], 3), round(d[1], 3)] if d else None}
         report["comparison"] = {"delta": round(gap, 3), "ci": [round(d[0], 3), round(d[1], 3)] if d else None,
                                 "verdict": verdict, "kept": len(b), "of": len(a)}
 
