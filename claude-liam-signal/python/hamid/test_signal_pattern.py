@@ -84,12 +84,27 @@ def main():
     note = (pm.get("patterns") or {}).get("note")
     print(f"✓ بازجویی: {pm['note']} · 🧩 {note or '—'}")
 
-    cap = ("🧪 <b>تست — این سیگنال نیست، ورود ممنوع</b>\n"
-           + tg.caption(s)
-           + f"\n\n🧩 <i>الگوی کشف‌شدهٔ زنده: {pat['fa']} ({pat['status']})"
-             f" در {tf}</i>")
-    if len(cap) > 1024:
-        cap = cap[:1000] + "…\n🧪 <b>تست</b>"
+    # کپشن فشردهٔ مخصوص تست — سقف تلگرام ۱۰۲۴ است و برشِ وسطِ تگ HTML
+    # جواب 400 می‌دهد (اجرای اول همین‌جا سوخت). کوتاه و کامل، بدون برش.
+    d_fa = "🟢 خرید (LONG)" if d == "LONG" else "🔴 فروش (SHORT)"
+    st_fa = "تأییدشده" if pat["status"] == "confirmed" else "در حال شکل‌گیری"
+    cap = "\n".join([
+        "🧪 <b>تست — این سیگنال نیست، ورود ممنوع</b>",
+        f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>سیگنال کلود مکس</b>",
+        f"<b>{d_fa} — {sym}</b>  <code>{tf}</code>",
+        f"🧩 <i>الگوی کشف‌شدهٔ زنده: {pat['fa']} ({st_fa}) در {tf} — "
+        "انجین الگوهای کلاسیک</i>",
+        f"⚖️ <i>{pm['pro_w']} امتیاز تارگت / {pm['con_w']} امتیاز استاپ</i>",
+        "",
+        f"ورود    <code>{s['entry']:.10g}</code>",
+        f"استاپ   <code>{s['sl']:.10g}</code>",
+        f"تارگت۱  <code>{s['tp1']:.10g}</code>",
+        f"تارگت۲  <code>{s['tp2']:.10g}</code>",
+        "",
+        f"🕐 ارسال <code>{tg.tehran()}</code> به وقت ایران",
+        "<i>سطح‌ها فقط برای آزمایش از ATR ساخته شده‌اند — پیام بعدی، "
+        "ریپلای همین پست است.</i>",
+    ])
 
     buf = tg_batch.chart(sym, cd_of(sources.klines(sym, "5m", 96)),
                          s["entry"], s["sl"], s["tp1"], s["tp2"],
