@@ -288,6 +288,52 @@ check("ورودِ بیرون OB قانون OB را نمی‌گیرد",
       not any("داخل اردر بلاک" in x for x in _rv4["pro"]))
 check("وزن ۲ واقعاً در امتیاز نشسته", _rv["pro_w"] >= _rv4["pro_w"] + 2)
 
+# ── اعلام نتیجه فقط برای سیگنالِ ارسالی (شکایت حمید ۱۲ اوت) ────────────────
+# معاملهٔ دفتر داخلی (بدون tg_msg_id) نباید هیچ پیام تلگرامی بگیرد؛
+# معاملهٔ ارسالی باید ریپلای روی پیام خودش بگیرد.
+from hamid import cycle as _cy, paper as _pp                   # noqa: E402
+import time as _tm                                             # noqa: E402
+_d3 = Path(_tf.mkdtemp())
+_old_pp = (_pp.CLOSED, _pp.OPEN, _pp.EQUITY, _pp.mark)
+_pp.CLOSED, _pp.OPEN, _pp.EQUITY = _d3 / "c.jsonl", _d3 / "o.jsonl", _d3 / "e.json"
+_pp.mark = lambda: (0, 2)
+_fut = int(_tm.time() * 1000) + 5000
+_pp._append(_pp.CLOSED, {"sym": "SENTUSDT", "dir": "LONG", "entry": 1.0, "sl": 0.99,
+                         "tp1": 1.02, "R": 2.0, "outcome": "target", "closed": _fut,
+                         "opened": _fut - 1000, "why": {"stage": "sig-ibs",
+                                                        "tg_msg_id": 555}})
+_pp._append(_pp.CLOSED, {"sym": "BOOKUSDT", "dir": "SHORT", "entry": 1.0, "sl": 1.01,
+                         "tp1": 0.98, "R": -1.0, "outcome": "stop", "closed": _fut,
+                         "opened": _fut - 1000, "why": {"stage": "alarm"}})
+from hamid import cases as _cs                                 # noqa: E402
+from hamid import memory as _mm2                               # noqa: E402
+import brain as _br2                                           # noqa: E402
+_old_iso = (_cs.CASES, _mm2.LESSONS, _br2.learn, _br2.build_index)
+_cs.CASES = _d3 / "cases"          # پروندهٔ جعلی تست نباید در brain واقعی بنشیند
+_mm2.LESSONS = _d3 / "lessons.json"
+_br2.learn = lambda e: None        # تجربهٔ جعلی هم نباید وارد حافظهٔ واقعی شود
+_br2.build_index = lambda: None
+_calls = []
+tg.creds = lambda: ("tok", "chat")
+tg._post = lambda tok, m, f, files=None: (_calls.append((m, dict(f))) or
+                                          {"ok": True, "result": {"message_id": 1}})
+_old_kl = _sources.klines
+def _boom(*a, **k):
+    raise RuntimeError("offline")
+_sources.klines = _boom
+try:
+    _cy.settle_books({})
+finally:
+    _pp.CLOSED, _pp.OPEN, _pp.EQUITY, _pp.mark = _old_pp
+    _sources.klines = _old_kl
+    _cs.CASES, _mm2.LESSONS, _br2.learn, _br2.build_index = _old_iso
+_replies = [f for m, f in _calls if f.get("reply_to_message_id")]
+_all_txt = " ".join(str(f.get("text", "")) + str(f.get("caption", "")) for m, f in _calls)
+check("سیگنال ارسالی: نتیجه ریپلای همان پیام شد",
+      len(_replies) == 1 and str(_replies[0]["reply_to_message_id"]) == "555")
+check("معاملهٔ دفتر داخلی هیچ پیام تلگرامی نگرفت", "BOOKUSDT" not in _all_txt,
+      _all_txt[:160])
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")

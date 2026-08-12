@@ -531,8 +531,8 @@ def settle_books(report):
             if tok:
                 rmap = {s["sym"] + s["dir"]: s["reason"] for s in stop_reasons}
                 # خواست حمید: نتیجهٔ هر سیگنال «ریپلایِ» پیام خودش باشد تا با
-                # سیگنال دیگری اشتباه نشود — هر معامله‌ای که شناسهٔ پیام دارد،
-                # جوابش جدا و ریپلای می‌رود؛ بقیه در پیام جمعی.
+                # سیگنال دیگری اشتباه نشود — فقط معامله‌های دارای شناسهٔ پیام
+                # اعلام می‌شوند (ریپلای)؛ پیام جمعی فقط وقتی ریپلای شکست بخورد.
                 # یکتاسازی: معاملهٔ آلارمی در دو دفتر (alarm + sig-alarm) ثبت
                 # می‌شود؛ برای اعلام فقط یکی — نسخهٔ دارای شناسهٔ پیام مقدم
                 dd, seen_k = [], {}
@@ -547,6 +547,14 @@ def settle_books(report):
                     dd.append(t)
                 rest = []
                 for t in dd[:10]:
+                    # شکایت حمید (۱۲ اوت): «بعضی از نتایج اصلاً جزو سیگنال
+                    # نبوده‌اند و من در پیام‌ها ندیدم». معامله‌ای که شناسهٔ
+                    # پیام تلگرام ندارد یعنی هیچ سیگنالی برایش ارسال نشده
+                    # (دفتر داخلی یادگیری: آلارمِ نرفته، وتوشده، v2) —
+                    # نتیجه‌اش فقط در حافظه و پنل می‌ماند، به تلگرام نمی‌رود.
+                    mid = (t.get("why") or {}).get("tg_msg_id")
+                    if not mid:
+                        continue
                     won = t["outcome"] == "target"
                     trailed = t["outcome"] == "trail"
                     icon = "✅" if won else ("🟡" if trailed else "❌")
@@ -559,7 +567,6 @@ def settle_books(report):
                         line += (f"\n   <i>قانون تریل اجرا شد: تا +{t['mfe_r']:.2f}R رفت، "
                                  f"استاپِ تریل‌شده در سود بست — برگشتِ کامل دیگر ضرر نمی‌سازد</i>")
                     a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
-                    mid = (t.get("why") or {}).get("tg_msg_id")
                     if mid:
                         cap = ("🤖 <b>کلود مکس</b> · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
                                + (f"\n🔎 <i>{a}</i>" if a else "")
@@ -600,7 +607,9 @@ def settle_books(report):
                               {"chat_id": chat, "parse_mode": "HTML",
                                "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
                                         f"📊 <b>نتیجهٔ معامله‌ها</b>\n\n" + "\n".join(rest))})
-                act(f"نتیجهٔ {len(just)} معاملهٔ بسته به تلگرام رفت (ریپلای روی پیام خود سیگنال)")
+                n_mid = len([t for t in dd if (t.get("why") or {}).get("tg_msg_id")])
+                act(f"نتیجهٔ {n_mid} سیگنال ارسالی به تلگرام رفت (ریپلای)؛ "
+                    f"{len(just) - n_mid} بستهٔ دفتر داخلی فقط در حافظه/پنل ماند")
                 # خواست حمید: اوردرِ فعال‌نشده که منطقی منقضی شد هم ریپلای
                 # بگیرد — «به این دلایل منقضی است و ورود ممنوع»
                 exp_just = [t for t in paper._read(paper.CLOSED)
@@ -668,10 +677,28 @@ def review_cycle():
     for t in closed:
         k = (t.get("why") or {}).get("stage") or "؟"
         books.setdefault(k, []).append(t["R"])
-    verdict = "؛ ".join(
-        f"{k}: {len(v)} معامله، میانگین {sum(v)/len(v):+.2f}R"
-        for k, v in sorted(books.items())) or \
-        "در این بازه معامله‌ای بسته نشد — نتیجه‌گیری ممنوع"
+    # شکایت حمید (۱۲ اوت): در اعلام دوساعته نتایجی می‌دید که هیچ‌وقت سیگنال
+    # نشده بودند. تفکیک صریح: «سیگنال ارسالی» = معامله‌ای که شناسهٔ پیام
+    # تلگرام دارد؛ بقیه دفتر داخلی یادگیری‌اند و با برچسب روشن جمع‌بندی
+    # می‌شوند، نه قاطیِ نتایج سیگنال.
+    sent_tr = [t for t in closed if (t.get("why") or {}).get("tg_msg_id")]
+    intern = [t for t in closed if not (t.get("why") or {}).get("tg_msg_id")]
+    if sent_tr:
+        parts = []
+        for t in sent_tr[:8]:
+            ic = {"target": "✅", "trail": "🟡"}.get(t.get("outcome"), "❌")
+            parts.append(f"{ic} {t['sym']} {t['R']:+.2f}R")
+        sent_line = f"سیگنال‌های ارسالی بسته‌شده ({len(sent_tr)}): " + " · ".join(parts)
+    else:
+        sent_line = "در این بازه هیچ سیگنال ارسالی‌ای بسته نشد"
+    int_line = ""
+    if intern:
+        mr = sum(t["R"] for t in intern) / len(intern)
+        int_line = (f"\nدفترهای یادگیری داخلی (سیگنال نبوده‌اند، ارسال نشده‌اند): "
+                    f"{len(intern)} بسته، میانگین {mr:+.2f}R")
+    verdict = sent_line + int_line
+    if not closed:
+        verdict = "در این بازه معامله‌ای بسته نشد — نتیجه‌گیری ممنوع"
     entry = {"at": now_ms, "closed": len(closed), "verdict": verdict,
              "books": {k: {"n": len(v), "mean_r": round(sum(v) / len(v), 3)}
                        for k, v in books.items()}}
