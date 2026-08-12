@@ -64,6 +64,57 @@ def review(s, c15):
         else:
             _add("con", f"روند ۱۵د خلاف جهت ({t15})", 2)
 
+    # ۲.۵) انجین الگوهای کلاسیک (دستور حمید ۱۲ اوت): الگوهای شکل‌گرفته در
+    # ۱۵د/۱س/۴س شرط تأثیرگذارند — هم‌جهتِ تازه دلیل تارگت، خلاف دلیل استاپ؛
+    # توافق ≥۲ تایم‌فریم وزن ۲ (چند تایم‌فریم = اعتماد بیشتر). نام الگو به
+    # پروندهٔ معامله می‌رود تا ماشین بونفرونیِ شبانه سهم واقعی هر الگو را
+    # از نتیجه اندازه بگیرد — یادگیریِ هر شب از نو، همیشه به‌روز.
+    patterns_out = None
+    try:
+        from hamid import patterns as _pat
+        tfp = {"15m": _pat.detect(c15)}
+        try:
+            import sources as _srcp
+            _p1h = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
+                    for k in _srcp.klines(s["sym"], "1h", 500)]
+            if len(_p1h) >= 60:
+                tfp["1h"] = _pat.detect(_p1h)
+                from hamid.lagcorr import _to4h
+                _p4h = _to4h(_p1h)
+                if len(_p4h) >= 60:
+                    tfp["4h"] = _pat.detect(_p4h)
+        except Exception:                            # noqa: BLE001 - شبکه، انجین را نمی‌کشد
+            pass
+        notes, ag = [], {"with": [], "against": []}
+        for _tf, ps in tfp.items():
+            a, best = _pat.align(ps, d)
+            if a:
+                ag[a].append(_tf)
+                notes.append(f"{best['fa']} در {_tf}"
+                             + (" (تأییدشده)" if best["status"] == "confirmed" else ""))
+        pat_align = None
+        if ag["with"] and not ag["against"]:
+            pat_align = "with"
+            txt = "الگوی کلاسیک هم‌جهت: " + "، ".join(notes)
+            if len(ag["with"]) >= 2:
+                _add("pro", txt + " — دو تایم‌فریم موافق", 2)
+            else:
+                pro.append(txt)
+        elif ag["against"] and not ag["with"]:
+            pat_align = "against"
+            txt = "الگوی کلاسیک خلاف جهت: " + "، ".join(notes)
+            if len(ag["against"]) >= 2:
+                _add("con", txt + " — دو تایم‌فریم مخالف", 2)
+            else:
+                con.append(txt)
+        elif ag["with"] and ag["against"]:
+            con.append("الگوهای تایم‌فریم‌ها متضادند: " + "، ".join(notes))
+        patterns_out = {
+            "by_tf": {t: [p["fa"] for p in ps] for t, ps in tfp.items() if ps},
+            "align": pat_align, "note": "، ".join(notes) or None}
+    except Exception:                                # noqa: BLE001
+        pass
+
     # ۳) RSI ۱۵ دقیقه — ورود در اشباع، دعوت به استاپ است
     r15 = rsi(c15)
     if r15 is not None:
@@ -215,4 +266,4 @@ def review(s, c15):
     note = (f"⚖️ بازجویی ۱۵د (وزنی): {pro_w} امتیاز تارگت / {con_w} امتیاز استاپ — "
             + ("صادر شد" if issue else "صادر نشد"))
     return {"pro": pro, "con": con, "pro_w": pro_w, "con_w": con_w,
-            "issue": issue, "note": note, "price": px}
+            "issue": issue, "note": note, "price": px, "patterns": patterns_out}
