@@ -83,7 +83,7 @@ Deploys go to both `claude/hamid-signal-agent-smc-dkot7v` and `gh-pages`.
 | تسویه، استاپ، شکست تکرارشونده | post-trade-learning |
 | ۳+ شکستِ همان الگو، رفتار بی‌توضیح | research (فقط پرسش-محور) |
 | تأیید لحظهٔ ورود | execution |
-| اعتبار اردر بلاک قبل از ستاپ، استاپ روی سطح، بازپایش OBها | order-block |
+| اعتبار اردر بلاک قبل از ستاپ، استاپ روی سطح، بازپایش OBها، رویداد OB_APPROACHING/BREAKER_DETECTED از `signals/ob-radar.json` | order-block |
 | دادهٔ مشکوک/ناسازگار | data-quality |
 
 **قانون پیش‌فرض هر انجین/ایجنت جدید (دستور حمید، ۱۳ اوت)**: یادگیری

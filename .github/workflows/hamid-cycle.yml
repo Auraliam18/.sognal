@@ -67,6 +67,7 @@ jobs:
           python3 -m hamid.selfcheck
           python3 -m hamid.test_patterns
           python3 -m hamid.test_orderblocks
+          python3 -m hamid.test_ob_intel
 
       # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
       # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.
@@ -92,6 +93,12 @@ jobs:
             --mode "${{ github.event.inputs.mode || 'auto' }}" \
             --symbols "${{ github.event.inputs.symbols || '200' }}" \
             | tee cycle.txt
+
+      # رادار اردر بلاک (سند ۱۳ اوت): نقشهٔ کمترین و باکیفیت‌ترین OBها
+      # قبل از رسیدن قیمت. رویداد داخلی است، سیگنال نیست — تلگرام ندارد.
+      - name: رادار هوش اردر بلاک
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.ob_intel --symbols 40 || true
 
       - name: Summary
         if: always()
@@ -146,6 +153,7 @@ jobs:
           rm -rf /tmp/ghp && git worktree add /tmp/ghp origin/gh-pages --detach
           mkdir -p /tmp/ghp/signals
           cp signals/hamid-latest.json /tmp/ghp/signals/ 2>/dev/null || true
+          cp signals/ob-radar.json /tmp/ghp/signals/ 2>/dev/null || true
           cd /tmp/ghp
           git add signals
           git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }
