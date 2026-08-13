@@ -770,8 +770,12 @@ def _tg_chart(s, path):
         if len(cd) < 20:
             return None
         bp = ((s.get("premortem") or {}).get("patterns") or {}).get("best")
+        # OB معتبرِ انجین اردر بلاک مقدم بر باکس خام موتور است
+        _obv = (s.get("premortem") or {}).get("ob_ctx") or {}
+        _obox = ({"low": _obv["low"], "high": _obv["high"]}
+                 if _obv.get("low") is not None else s.get("ob"))
         buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"),
-                 s["dir"], ob=s.get("ob"),
+                 s["dir"], ob=_obox,
                  pat={"key": bp.get("key"),
                       "label": bp["name"].upper().replace("_", " ")} if bp else None)
         with open(path, "wb") as f:

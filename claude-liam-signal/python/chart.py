@@ -83,6 +83,45 @@ def render(candles, s, path, bars=110):
         ax.text(0.5, ob["high"], "ORDER BLOCK", color=BOX, fontsize=7.5,
                 va="bottom", ha="left", zorder=6, family="monospace", alpha=0.9)
 
+    # دستور حمید (۱۲–۱۳ اوت): «خطوط روند معتبر در چارت باشند به‌علاوهٔ اردر
+    # بلاک معتبر.» سطوح از قاعدهٔ خود او می‌آیند (≥۲ واکنش + عبور از کف نویزِ
+    # همان سری) و برچسبشان تعداد واکنش است؛ کانال از فیت روی سوینگ‌ها؛ و
+    # اردر بلاکِ «معتبر» از انجین orderblocks (روش حمید + شمارش واکنش/هانت)
+    # با کادر پررنگ‌تر و برچسب عددی، جدا از باکس خام موتور. اگر چیزی معتبر
+    # نبود، هیچ خطی کشیده نمی‌شود — خط تزئینی ممنوع.
+    try:
+        from hamid import structure as _st
+        for lv in _st.levels(cd)[:4]:
+            ax.plot([-0.5, n - 0.5], [lv.price, lv.price], color=DIM,
+                    linewidth=0.9, linestyle=":", alpha=0.75, zorder=2)
+            ax.text(-0.5, lv.price,
+                    f"{'R' if lv.kind == 'high' else 'S'}{lv.reactions}",
+                    color=DIM, fontsize=7.5, va="bottom", ha="left",
+                    family="monospace", zorder=5)
+        ch = _st.channel(cd)
+        if ch:
+            xs = list(range(n))
+            for line in (ch.upper, ch.lower):
+                ax.plot(xs, [line[0] * i + line[1] for i in xs], color="#5d8ecb",
+                        linewidth=1.1, alpha=0.85, zorder=2)
+    except Exception:                          # noqa: BLE001 - چارت نباید سیگنال را بکشد
+        pass
+    try:
+        from hamid import orderblocks as _obm
+        b_in, b_near = _obm.near(cd, tf=s.get("tf", "15m"))
+        b = b_in or b_near
+        if b:
+            ax.add_patch(Rectangle((-0.5, b["low"]), n, b["high"] - b["low"],
+                                   facecolor=BOX, alpha=0.20, edgecolor=BOX,
+                                   linewidth=1.4, zorder=1))
+            tag = "FRESH" if b["fresh"] else f"{b['reactions']}R"
+            if b["hunts"]:
+                tag += f"/{b['hunts']}H"
+            ax.text(0.5, b["low"], f"VALID OB {tag}", color=BOX, fontsize=7.5,
+                    va="top", ha="left", zorder=6, family="monospace")
+    except Exception:                          # noqa: BLE001
+        pass
+
     def level(y, color, label, style="-", lw=1.3):
         """Stops the line at the last candle so the label sits on clear ground."""
         if y is None:
@@ -96,6 +135,17 @@ def render(candles, s, path, bars=110):
     level(s.get("sl"), SL, "SL")
     level(s.get("tp1"), TP, "TP1", style="--")
     level(s.get("tp2"), TP, "TP2", style=":", lw=1.0)
+
+    # مسیر انتظاری حرکت به سمت تارگت‌ها — نقطه‌چین (دستور حمید ۱۳ اوت)
+    _px0 = cd[-1]["c"]
+    _px, _py = [n - 1], [_px0]
+    for _t in (s.get("tp1"), s.get("tp2")):
+        if _t:
+            _px.append(_px[-1] + 5)
+            _py.append(_t)
+    if len(_px) > 1:
+        ax.plot(_px, _py, color="#ab47bc", linewidth=1.5, linestyle="--",
+                marker=">", markersize=5, alpha=0.9, zorder=5)
 
     lo = min(c["l"] for c in cd)
     hi = max(c["h"] for c in cd)
