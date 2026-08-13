@@ -115,9 +115,19 @@ def review(s, c15):
                 con.append(txt)
         elif ag["with"] and ag["against"]:
             con.append("الگوهای تایم‌فریم‌ها متضادند: " + "، ".join(notes))
+        # بهترین الگوی هم‌جهت — برای ترسیم روی چارت (سطح کلیدی + مسیر انتظاری)
+        best_pat = None
+        if pat_align == "with":
+            for _tf in ("15m", "1h", "4h"):
+                a2, b2 = _pat.align(tfp.get(_tf) or [], d)
+                if a2 == "with" and b2:
+                    best_pat = {"key": b2.get("key"), "name": b2["name"],
+                                "fa": b2["fa"], "tf": _tf}
+                    break
         patterns_out = {
             "by_tf": {t: [p["fa"] for p in ps] for t, ps in tfp.items() if ps},
-            "align": pat_align, "note": "، ".join(notes) or None}
+            "align": pat_align, "note": "، ".join(notes) or None,
+            "best": best_pat}
     except Exception:                                # noqa: BLE001
         pass
 
