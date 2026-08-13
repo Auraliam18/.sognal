@@ -37,10 +37,30 @@ def _load():
         return {"lessons": []}
 
 
+DEDUP_MS = 12 * 3600 * 1000       # همان درس، دو بار در این پنجره ثبت نمی‌شود
+
+
 def remember(kind, sym, text, data=None):
-    """یک درس/نتیجه/ضعف — ذخیرهٔ دائمی، جدیدترین اول."""
+    """یک درس/نتیجه/ضعف — ذخیرهٔ دائمی، جدیدترین اول.
+
+    عیب‌یابی ۱۳ اوت (دستور حمید «هیچ حرکت اضافه‌ای نباشد»): رادار هر دور
+    همان جملهٔ «پامپ رادار دیر رسید» را دوباره می‌نوشت — ۱۰۷ نسخه از یک
+    درس، یعنی ۳۵٪ کل حافظه و رقیق‌شدن مشورتِ پیش از سیگنال. حالا درسِ
+    یکسان در پنجرهٔ ۱۲ ساعته فقط شمارنده‌اش بالا می‌رود، نه ردیف تازه —
+    «چند بار تکرار شد» خودش اطلاعات است، «۱۰۷ ردیف تکراری» نیست.
+    """
     j = _load()
-    j["lessons"].insert(0, {"at": int(time.time() * 1000), "kind": kind,
+    now = int(time.time() * 1000)
+    for old in j["lessons"][:80]:
+        if (old.get("kind") == kind and old.get("sym") == sym
+                and old.get("text") == text and now - (old.get("at") or 0) < DEDUP_MS):
+            old["seen"] = (old.get("seen") or 1) + 1
+            old["at"] = now
+            j["updated"] = now
+            LESSONS.parent.mkdir(parents=True, exist_ok=True)
+            LESSONS.write_text(json.dumps(j, ensure_ascii=False, indent=1))
+            return
+    j["lessons"].insert(0, {"at": now, "kind": kind,
                             "sym": sym, "text": text, "data": data or {}})
     j["lessons"] = j["lessons"][:CAP]
     j["updated"] = int(time.time() * 1000)

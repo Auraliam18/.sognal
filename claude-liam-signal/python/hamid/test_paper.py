@@ -143,6 +143,34 @@ def t_stables_rejected():
         paper.OPEN = old
 
 
+def t_no_candle_expiry():
+    """عیب‌یابی ۱۳ اوت: نماد بی‌کندل (دیلیست‌شده) تا ابد در دفتر باز می‌ماند —
+    ۲۷ اردر با عمر ۸۴ ساعت پیدا شد. حالا بعد از مهلت بسته می‌شود."""
+    import tempfile, time as _t
+    d = Path(tempfile.mkdtemp())
+    old = (paper.CLOSED, paper.OPEN, paper.EQUITY, paper._candles_since)
+    paper.CLOSED, paper.OPEN, paper.EQUITY = d / "c.jsonl", d / "o.jsonl", d / "e.json"
+    paper._candles_since = lambda sym, since: []
+    now = _t.time() * 1000
+    try:
+        paper._append(paper.OPEN, {"sym": "DEADUSDT", "dir": "LONG", "entry": 1.0,
+                                   "sl": 0.99, "tp1": 1.02, "tp2": None,
+                                   "opened": int(now - 90 * 3600e3), "filled": None,
+                                   "why": {"stage": "alarm"}})
+        paper._append(paper.OPEN, {"sym": "FRESHUSDT", "dir": "LONG", "entry": 1.0,
+                                   "sl": 0.99, "tp1": 1.02, "tp2": None,
+                                   "opened": int(now - 2 * 3600e3), "filled": None,
+                                   "why": {"stage": "alarm"}})
+        still, closed = paper.mark()
+        cl = paper._read(paper.CLOSED)
+        check("اردر بی‌کندلِ گذشته از مهلت منقضی شد، تازه‌اش نه",
+              closed == 1 and still == 1 and cl[0]["sym"] == "DEADUSDT"
+              and cl[0]["outcome"] == "expired" and cl[0]["R"] is None,
+              f"closed={closed} still={still}")
+    finally:
+        paper.CLOSED, paper.OPEN, paper.EQUITY, paper._candles_since = old
+
+
 def t_trailing_stop():
     """قانون تریل حمید (درس EURI): ⅓ مسیر تارگت → استاپ در سودِ کارمزددار؛
     ⅔ → استاپ در ⅓؛ برگشتِ کامل دیگر ضرر نمی‌سازد."""
@@ -193,6 +221,7 @@ def main():
     t_real_effect_is_found()
     t_expired_not_scored()
     t_stables_rejected()
+    t_no_candle_expiry()
     t_trailing_stop()
     bad = [(n, d) for ok, n, d in R if not ok]
     print(f"\n{'=' * 74}")

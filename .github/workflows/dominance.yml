@@ -26,10 +26,29 @@ jobs:
         with: { fetch-depth: 1 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - name: خوانش دامیننس
+      - name: اگر زنجیره تازه است، کار تکراری نکن
+        id: fresh
+        run: |
+          AGE=$(python3 - <<'PY'
+          import json, time
+          try:
+              j = json.load(open("signals/dominance.json"))
+              print(int((time.time()*1000 - (j.get("generated") or 0)) / 60000))
+          except Exception:
+              print(999)
+          PY
+          )
+          echo "عمر خروجی: ${AGE} دقیقه"
+          if [ "$AGE" -lt 20 ]; then
+            echo "زنجیرهٔ اصلی زنده است — این تور ایمنی کنار می‌کشد"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.fresh.outputs.skip != '1'
+        name: خوانش دامیننس
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.dominance
-      - name: ثبت (فقط اگر تغییر معنادار)
+      - if: steps.fresh.outputs.skip != '1'
+        name: ثبت (فقط اگر تغییر معنادار)
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
@@ -38,7 +57,8 @@ jobs:
             git commit -q -m "دامیننس $(date -u '+%H:%M') UTC"
             for i in 1 2 3; do git push origin HEAD:main -q && break; git pull --rebase origin main -q || true; sleep $((i*2)); done
           fi
-      - name: انتشار روی پنل
+      - if: steps.fresh.outputs.skip != '1'
+        name: انتشار روی پنل
         run: |
           git fetch origin gh-pages -q || exit 0
           rm -rf /tmp/ghd
