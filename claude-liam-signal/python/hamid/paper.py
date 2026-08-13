@@ -190,7 +190,26 @@ def mark():
     for p in positions:
         cd = _candles_since(p["sym"], p["opened"])
         if not cd:
-            still.append(p)
+            # عیب‌یابی ۱۳ اوت: نماد بی‌کندل (دیلیست‌شده یا غایب از منبع) تا
+            # ابد در دفتر باز می‌ماند و هر دور دوباره فچ می‌شود — ۲۷ اردر با
+            # عمر ۸۴ ساعت پیدا شد. حالا بعد از مهلت، بدون داده هم بسته
+            # می‌شود: پرنشده = expired؛ پرشده = no_data با R=None تا آمار را
+            # آلوده نکند. اجازهٔ ماندن فقط داخل مهلت است، نه برای همیشه.
+            age = now - (p.get("opened") or now)
+            if p.get("filled") is None and age > FILL_HOURS * 3600_000:
+                p["outcome"] = "expired"
+                p["R"] = None
+                p["closed"] = int(now)
+                _append(CLOSED, p)
+                closed += 1
+            elif p.get("filled") and now - p["filled"] > 2 * HOLD_HOURS * 3600_000:
+                p["outcome"] = "no_data"
+                p["R"] = None
+                p["closed"] = int(now)
+                _append(CLOSED, p)
+                closed += 1
+            else:
+                still.append(p)
             continue
         long = p["dir"] == "LONG"
         risk = abs(p["entry"] - p["sl"])

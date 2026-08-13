@@ -69,13 +69,32 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Charting dependency
+      - name: اگر زنجیره تازه است، کار تکراری نکن
+        id: fresh
+        run: |
+          AGE=$(python3 - <<'PY'
+          import json, time
+          try:
+              j = json.load(open("signals/latest.json"))
+              print(int((time.time()*1000 - (j.get("generated") or 0)) / 60000))
+          except Exception:
+              print(999)
+          PY
+          )
+          echo "عمر خروجی: ${AGE} دقیقه"
+          if [ "$AGE" -lt 12 ]; then
+            echo "زنجیرهٔ اصلی زنده است — این تور ایمنی کنار می‌کشد"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.fresh.outputs.skip != '1'
+        name: Charting dependency
         run: pip install --quiet matplotlib
 
       # Delivery is skipped, loudly, when the secrets are absent — the scan still
       # runs and still publishes to the panel. Add TELEGRAM_BOT_TOKEN and
       # TELEGRAM_CHAT_ID under Settings → Secrets → Actions to switch it on.
-      - name: Scan and deliver
+      - if: steps.fresh.outputs.skip != '1'
+        name: Scan and deliver
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -85,7 +104,8 @@ jobs:
             --telegram \
             | tee scan-output.txt
 
-      - name: Summary
+      - if: steps.fresh.outputs.skip != '1'
+        name: Summary
         if: always()
         run: |
           { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
@@ -97,12 +117,14 @@ jobs:
       # Its own step because more than one later step commits, and tying the
       # identity to one of them meant a skipped step left the next one unable to
       # commit at all. That is exactly how this broke.
-      - name: Git identity
+      - if: steps.fresh.outputs.skip != '1'
+        name: Git identity
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
 
-      - name: Publish to main
+      - if: steps.fresh.outputs.skip != '1'
+        name: Publish to main
         if: github.ref == 'refs/heads/main'
         env:
           BRANCH: main
@@ -142,7 +164,8 @@ jobs:
       # The panel is served from gh-pages, and it fetches ./signals/latest.json
       # relative to itself, so the file has to be there too or the relay reads
       # a 404 and the panel stays blind for no reason.
-      - name: Publish to the deployed panel
+      - if: steps.fresh.outputs.skip != '1'
+        name: Publish to the deployed panel
         if: github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages
@@ -165,7 +188,8 @@ jobs:
       # serving a scan hours old. `deploy-pages` refuses to run from anything but
       # the default branch, so the fix is to dispatch it there rather than to add
       # a push trigger here.
-      - name: Rebuild the published panel
+      - if: steps.fresh.outputs.skip != '1'
+        name: Rebuild the published panel
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
