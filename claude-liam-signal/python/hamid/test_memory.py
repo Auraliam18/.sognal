@@ -115,6 +115,14 @@ check("دو ماه بی‌شاهد → تأییدنشده، بازنشسته",
 
 brain.learn, brain.build_index, brain.recall = _orig
 
+# ضدتکرار (عیب‌یابی ۱۳ اوت): همان درس در پنجرهٔ ۱۲ساعته یک ردیف با شمارنده
+for _ in range(4):
+    memory.remember("ضعف", "-", "پامپ رادار دیر رسید")
+_d = [l for l in memory.lessons() if l["text"] == "پامپ رادار دیر رسید"]
+check("درس تکراری یک ردیف با شمارنده می‌شود، نه ۴ ردیف",
+      len(_d) == 1 and _d[0].get("seen") == 4, str(_d))
+
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
