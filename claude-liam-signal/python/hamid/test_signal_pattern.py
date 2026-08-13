@@ -106,9 +106,12 @@ def main():
         "ریپلای همین پست است.</i>",
     ])
 
+    _ob = (pm.get("ob_ctx") or {})
     buf = tg_batch.chart(sym, cd_of(sources.klines(sym, "5m", 96)),
                          s["entry"], s["sl"], s["tp1"], s["tp2"],
                          f"{d} — TEST",
+                         ob=({"low": _ob["low"], "high": _ob["high"]}
+                             if _ob.get("low") is not None else None),
                          pat={"key": pat.get("key"),
                               "label": pat["name"].upper().replace("_", " ")})
     resp = tg._post(token, "sendPhoto",
