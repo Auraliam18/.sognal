@@ -124,7 +124,9 @@ def caption(s):
     dir_fa = "🟢 خرید (LONG)" if s["dir"] == "LONG" else "🔴 فروش (SHORT)"
     # نام پنل بالای هر پیام — چند هوش مصنوعی دیگر هم سیگنال می‌فرستند و حمید
     # باید بداند هر سیگنال از کدام است تا ضعیف‌ها را حذف کند.
-    L = [f"🏷 <b>{PANEL_NAME}</b> · 🤖 <b>سیگنال کلود مکس</b>",
+    # شناسهٔ یکتای سیگنال (دستور حمید ۱۳ اوت) — قابل ارجاع در نتیجه/گفتگو
+    sid = time.strftime("CM-%m%d-%H%M", time.gmtime(time.time() + 3.5 * 3600))
+    L = [f"🏷 <b>{PANEL_NAME}</b> · 🤖 <b>سیگنال کلود مکس</b> · 🆔 <code>{sid}-{s['sym'].replace('USDT','')}</code>",
          f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
     # Which strategy produced this. Two strategies run side by side and a signal
     # that does not say which one it came from cannot be judged or learned from.
