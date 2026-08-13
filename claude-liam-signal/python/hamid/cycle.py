@@ -769,8 +769,11 @@ def _tg_chart(s, path):
               for k in rows]
         if len(cd) < 20:
             return None
+        bp = ((s.get("premortem") or {}).get("patterns") or {}).get("best")
         buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"),
-                 s["dir"], ob=s.get("ob"))
+                 s["dir"], ob=s.get("ob"),
+                 pat={"key": bp.get("key"),
+                      "label": bp["name"].upper().replace("_", " ")} if bp else None)
         with open(path, "wb") as f:
             f.write(buf.read())
         return path

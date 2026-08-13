@@ -93,7 +93,7 @@ def main():
         f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>سیگنال کلود مکس</b>",
         f"<b>{d_fa} — {sym}</b>  <code>{tf}</code>",
         f"🧩 <i>الگوی کشف‌شدهٔ زنده: {pat['fa']} ({st_fa}) در {tf} — "
-        "انجین الگوهای کلاسیک</i>",
+        "خط بنفش = سطح کلیدی الگو؛ نقطه‌چین بنفش = مسیر انتظاری به تارگت‌ها</i>",
         f"⚖️ <i>{pm['pro_w']} امتیاز تارگت / {pm['con_w']} امتیاز استاپ</i>",
         "",
         f"ورود    <code>{s['entry']:.10g}</code>",
@@ -108,7 +108,9 @@ def main():
 
     buf = tg_batch.chart(sym, cd_of(sources.klines(sym, "5m", 96)),
                          s["entry"], s["sl"], s["tp1"], s["tp2"],
-                         f"{d} — TEST")
+                         f"{d} — TEST",
+                         pat={"key": pat.get("key"),
+                              "label": pat["name"].upper().replace("_", " ")})
     resp = tg._post(token, "sendPhoto",
                     {"chat_id": chat, "caption": cap, "parse_mode": "HTML"},
                     {"photo": (f"{sym}-test.png", buf.read())})
