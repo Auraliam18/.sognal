@@ -102,22 +102,20 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
     ax.set_xlim(-1, len(cd) + 8)
     # الگوی کشف‌شده (دستور حمید): خط کلیدی الگو + مسیر انتظاریِ حرکت بعدی
     # به سمت تارگت‌ها — نقطه‌چین، تا با حرکت واقعی اشتباه نشود.
-    if pat:
-        key = pat.get("key")
-        if key:
-            ax.axhline(key, color="#ab47bc", lw=1.0, ls=":")
-            ax.text(len(cd) + 1, key, pat.get("label", "PATTERN"),
-                    color="#ab47bc", fontsize=8, va="center")
-        px0 = cd[-1]["c"]
-        path_x = [len(cd) - 1]
-        path_y = [px0]
-        for tgt in (tp1, tp2):
-            if tgt:
-                path_x.append(path_x[-1] + 5)
-                path_y.append(tgt)
-        if len(path_x) > 1:
-            ax.plot(path_x, path_y, color="#ab47bc", lw=1.4, ls="--",
-                    marker=">", markersize=5, alpha=0.9, zorder=4)
+    if pat and pat.get("key"):
+        ax.axhline(pat["key"], color="#ab47bc", lw=1.0, ls=":")
+        ax.text(len(cd) + 1, pat["key"], pat.get("label", "PATTERN"),
+                color="#ab47bc", fontsize=8, va="center")
+    # مسیر انتظاری تا تارگت‌ها روی «هر» سیگنال (دستور حمید ۱۳ اوت) — نقطه‌چین
+    px0 = cd[-1]["c"]
+    path_x, path_y = [len(cd) - 1], [px0]
+    for tgt in (tp1, tp2):
+        if tgt:
+            path_x.append(path_x[-1] + 5)
+            path_y.append(tgt)
+    if len(path_x) > 1:
+        ax.plot(path_x, path_y, color="#ab47bc", lw=1.4, ls="--",
+                marker=">", markersize=5, alpha=0.9, zorder=4)
     ax.grid(alpha=0.18, color="#2a2e39")
     fig.tight_layout()
     buf = io.BytesIO()
