@@ -180,7 +180,10 @@ def review(s, c15):
             if ob_ctx is None:
                 ob_ctx = {"align": align, "tf": b["tf"],
                           "reactions": b["reactions"], "hunts": b["hunts"],
-                          "fresh": b["fresh"], "note": note_ob}
+                          "fresh": b["fresh"], "note": note_ob,
+                          # مختصات باکس، تا چارت ارسال «همین» OB معتبر را
+                          # بکشد نه باکس خام موتور (دستور حمید ۱۳ اوت)
+                          "low": b["low"], "high": b["high"]}
             if align == "with":
                 pro.append(f"{note_ob} — هم‌جهت، سوخت حرکت")
             else:
