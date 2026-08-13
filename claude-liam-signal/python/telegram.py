@@ -373,7 +373,13 @@ def send_signals(signals, render_chart, limit=8):
                                   "pattern_align": ((s.get("premortem") or {}).get("patterns") or {}).get("align"),
                                   "patterns": ((s.get("premortem") or {}).get("patterns") or {}).get("by_tf"),
                                   "ob_align": ((s.get("premortem") or {}).get("ob_ctx") or {}).get("align"),
-                                  "ob_hunts": ((s.get("premortem") or {}).get("ob_ctx") or {}).get("hunts")})
+                                  "ob_hunts": ((s.get("premortem") or {}).get("ob_ctx") or {}).get("hunts"),
+                                  # دستور حمید: تی‌پی‌های تجربه‌محور باید قابل شمارش باشند —
+                                  # دلایل صدور روی پرونده می‌ماند تا «با تجربه» اثبات‌پذیر باشد
+                                  "pm_pro": (s.get("premortem") or {}).get("pro", [])[:3],
+                                  "exp_used": any(("تمرین تاریخی" in x or "حافظه" in x
+                                                   or "قانون تأییدشده" in x)
+                                                  for x in (s.get("premortem") or {}).get("pro", []))})
             except Exception as e:                    # noqa: BLE001 - ثبت نشدن، ارسال را نمی‌کشد
                 print(f"  paper log failed for {s['sym']}: {type(e).__name__}", flush=True)
         except urllib.error.HTTPError as e:

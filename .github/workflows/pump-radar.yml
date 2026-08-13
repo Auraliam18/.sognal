@@ -91,9 +91,9 @@ jobs:
           MIN=$(jq -r '.inputs.min_pct // empty' "$GITHUB_EVENT_PATH")
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          for k in 1 2 3 4 5; do
+          for k in 1 2 3 4 5 6 7 8; do
             t0=$(date +%s)
-            echo "── دور $k از ۵ · $(date -u '+%H:%M:%S UTC') ──"
+            echo "── دور $k از ۸ · $(date -u '+%H:%M:%S UTC') ──"
             (cd claude-liam-signal/python && python3 -m hamid.pump_radar --min-pct "${MIN:-5}") || true
 
             # ثبت روی main (ضدتصادم)
@@ -160,10 +160,13 @@ jobs:
               fi
             fi
 
-            # تا سرِ ۵ دقیقهٔ بعد صبر کن (دور آخر صبر ندارد)
-            if [ "$k" -lt 5 ]; then
+            # آزمایش حمید (۱۳ اوت): گام ۳ دقیقه به‌جای ۵. اگر خودِ کار بیش از
+            # ۱۸۰ ثانیه طول بکشد، حلقه بدون مکث پشت‌سرهم می‌چرخد — یعنی
+            # سریع‌ترین کادنسی که این زیرساخت واقعاً می‌دهد؛ عددش از لاگ
+            # قابل‌اندازه‌گیری است، نه از ادعا. (دور آخر صبر ندارد)
+            if [ "$k" -lt 8 ]; then
               took=$(( $(date +%s) - t0 ))
-              wait=$(( 300 - took )); [ "$wait" -lt 20 ] && wait=20
+              wait=$(( 180 - took )); [ "$wait" -lt 5 ] && wait=5
               echo "دور $k در ${took}ثانیه — ${wait}ثانیه تا دور بعد"
               sleep "$wait"
             fi
