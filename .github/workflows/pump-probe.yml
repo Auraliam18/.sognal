@@ -1,0 +1,32 @@
+# کاوش عمیق پامپ یک ارز — علت + دنباله‌روهای لگ-کورولیشنی + تحلیل همهٔ
+# تایم‌فریم‌ها با چارت، مستقیم به تلگرام. دستور حمید (۱۳ اوت، اولین مورد: APR).
+name: Pump probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "نماد، مثل APRUSDT"
+        default: "APRUSDT"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: matplotlib برای چارت
+        run: pip -q install matplotlib
+      - name: کاوش و ارسال
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: python3 -m hamid.pump_probe --symbol "${{ github.event.inputs.symbol || 'APRUSDT' }}"
