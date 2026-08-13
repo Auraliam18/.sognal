@@ -51,7 +51,7 @@ def watermark(ax):
             rotation=15, fontweight="bold", zorder=0)
 
 
-def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None):
+def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -100,6 +100,24 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None):
             ax.text(len(cd) + 1, v, lb, color=c, fontsize=8, va="center")
     ax.set_title(f"{sym}  {dir_}", loc="left", color="#d1d4dc", fontweight="bold")
     ax.set_xlim(-1, len(cd) + 8)
+    # الگوی کشف‌شده (دستور حمید): خط کلیدی الگو + مسیر انتظاریِ حرکت بعدی
+    # به سمت تارگت‌ها — نقطه‌چین، تا با حرکت واقعی اشتباه نشود.
+    if pat:
+        key = pat.get("key")
+        if key:
+            ax.axhline(key, color="#ab47bc", lw=1.0, ls=":")
+            ax.text(len(cd) + 1, key, pat.get("label", "PATTERN"),
+                    color="#ab47bc", fontsize=8, va="center")
+        px0 = cd[-1]["c"]
+        path_x = [len(cd) - 1]
+        path_y = [px0]
+        for tgt in (tp1, tp2):
+            if tgt:
+                path_x.append(path_x[-1] + 5)
+                path_y.append(tgt)
+        if len(path_x) > 1:
+            ax.plot(path_x, path_y, color="#ab47bc", lw=1.4, ls="--",
+                    marker=">", markersize=5, alpha=0.9, zorder=4)
     ax.grid(alpha=0.18, color="#2a2e39")
     fig.tight_layout()
     buf = io.BytesIO()
