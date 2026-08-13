@@ -112,6 +112,8 @@ jobs:
               # (اندازه‌گیری: ۳۲ نقطه در ۳۲.۷ ساعت یعنی عملاً ساعتی، نه ۵دقیقه‌ای).
               # روی درخت تازهٔ origin/main اجرا می‌شود تا نقطهٔ جدید بی‌تصادم بنشیند.
               (cd claude-liam-signal/python && python3 -m hamid.dominance) || true
+              # الگوهای BTC (۱س/۴س/۱روزه) و دامیننس — دستور حمید: پایش دائمی
+              (cd claude-liam-signal/python && python3 -m hamid.btc_patterns) || true
               # اسکن استراتژی‌ها هم سوار همین زنجیره — شکایت حمید (۱۲ اوت):
               # «همه سیگنال‌ها با هم می‌آیند». علت، اسکنِ دسته‌ایِ ~۲۰دقیقه‌ای
               # بود: هرچه در یک اجرا تأیید شده بود یک‌جا می‌رفت. حالا هر ۵
@@ -145,6 +147,7 @@ jobs:
                 cp signals/telegram-log.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/dominance.json /tmp/ghp/signals/ 2>/dev/null || true
                 cp signals/latest.json /tmp/ghp/signals/ 2>/dev/null || true
+                cp signals/btc-patterns.json /tmp/ghp/signals/ 2>/dev/null || true
                 ( cd /tmp/ghp
                   git add signals
                   if ! git diff --cached --quiet; then
