@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.24 · لگ-کورولیشن روی رادار پامپ</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.25 · کارنامهٔ دائمی برد/استاپ روی پنل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3839,15 +3839,30 @@ function hamidHTML(){
         <span>باز <b>${j.paper.open||0}</b></span>
         <span>بیشترین افت <b>${j.paper.max_drawdown_pct||0}٪</b></span>
       </div>
-      ${!j.paper.total_closed?"":`
-      <div style="font-size:12px;margin-top:6px;padding:6px 8px;border-radius:8px;background:rgba(46,204,113,.07);border:1px solid rgba(46,204,113,.25)">
-        🧠 <b>حافظهٔ انباشته: ${j.paper.total_closed.toLocaleString("fa-IR")} معاملهٔ بسته</b>
-        <span class="dim">— هرگز ریست نمی‌شود؛ هر معامله درس می‌شود.</span>
-        ${!j.paper.books_breakdown?"":`<div class="dim" style="font-size:11px;margin-top:3px">
-          سیگنال‌شده ${j.paper.books_breakdown.signalled} · میز تمرین ${j.paper.books_breakdown.practice} ·
-          پولبک اول ${j.paper.books_breakdown.first_pullback} · ایندوسمنت ${j.paper.books_breakdown.inducement} ·
-          آلارم ${j.paper.books_breakdown.alarm} · ارسالی اسکن ${j.paper.books_breakdown.sent_scan}</div>`}
-      </div>`}
+      ${!j.paper.total_closed?"":(()=>{const L=j.paper.lifetime||{};const B=j.paper.books_breakdown||{};
+        const bk=(k,fa)=>{const b=B[k];return (!b||!b.n)?"":`<div style="display:flex;gap:8px;font-size:11px;padding:1px 0">
+          <span style="min-width:88px">${fa}</span><span class="mono">${b.n}</span>
+          <span class="mono" style="color:#2ecc71">${b.wins}✓</span>
+          <span class="mono" style="color:#e74c3c">${b.stops}✗</span></div>`;};
+        return `
+      <div style="font-size:12px;margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(46,204,113,.07);border:1px solid rgba(46,204,113,.25)">
+        <div style="font-weight:700">🧠 حافظهٔ دائمی — هرگز ریست نمی‌شود</div>
+        ${L.trades?`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;font-size:13px">
+          <span>🟢 برد <b class="mono" style="color:#2ecc71">${L.wins.toLocaleString("fa-IR")}</b></span>
+          <span>🔴 استاپ <b class="mono" style="color:#e74c3c">${L.stops.toLocaleString("fa-IR")}</b></span>
+          <span>معاملهٔ واقعی <b class="mono">${L.trades.toLocaleString("fa-IR")}</b></span>
+          <span>برد <b class="mono">${L.win_pct}٪</b></span>
+          <span>انتظار <b class="mono" style="color:${L.mean_r>=0?"#2ecc71":"#e74c3c"}">${L.mean_r>=0?"+":""}${L.mean_r}R</b></span>
+        </div>
+        <div class="dim" style="font-size:11px;margin-top:2px">
+          🎯 تارگت ${L.by_outcome.target} · 🪜 تریل ${L.by_outcome.trail} · ⛔ استاپ ${L.by_outcome.stop} ·
+          ⏳ تایم‌اوت ${L.by_outcome.timeout} · مجموع ${L.sum_r>=0?"+":""}${L.sum_r}R ·
+          ${L.expired_not_trades} سفارش پرنشده (معامله نبود)</div>`:""}
+        <div style="margin-top:5px;border-top:1px solid rgba(140,160,190,.14);padding-top:4px">
+          ${bk("signalled","سیگنال‌شده")}${bk("sent_scan","ارسالی اسکن")}${bk("alarm","آلارم")}
+          ${bk("practice","میز تمرین")}${bk("first_pullback","پولبک اول")}${bk("inducement","ایندوسمنت")}
+        </div>
+      </div>`;})()}
       ${!j.paper.experiments_first_pullback||!j.paper.experiments_first_pullback.trades?"":`
       <div class="dim" style="font-size:11.5px;margin-top:4px">
         آزمایش پولبک اول (سیگنال نشده): ${j.paper.experiments_first_pullback.trades} معامله ·
