@@ -106,8 +106,7 @@ jobs:
             --telegram \
             | tee scan-output.txt
 
-      - if: steps.fresh.outputs.skip != '1'
-        name: Summary
+      - name: Summary
         if: always()
         run: |
           { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
@@ -125,9 +124,8 @@ jobs:
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
 
-      - if: steps.fresh.outputs.skip != '1'
-        name: Publish to main
-        if: github.ref == 'refs/heads/main'
+      - name: Publish to main
+        if: steps.fresh.outputs.skip != '1' && github.ref == 'refs/heads/main'
         env:
           BRANCH: main
         run: |
@@ -166,9 +164,8 @@ jobs:
       # The panel is served from gh-pages, and it fetches ./signals/latest.json
       # relative to itself, so the file has to be there too or the relay reads
       # a 404 and the panel stays blind for no reason.
-      - if: steps.fresh.outputs.skip != '1'
-        name: Publish to the deployed panel
-        if: github.ref == 'refs/heads/main'
+      - name: Publish to the deployed panel
+        if: steps.fresh.outputs.skip != '1' && github.ref == 'refs/heads/main'
         run: |
           git fetch origin gh-pages
           git worktree add /tmp/ghp origin/gh-pages --detach
@@ -190,9 +187,8 @@ jobs:
       # serving a scan hours old. `deploy-pages` refuses to run from anything but
       # the default branch, so the fix is to dispatch it there rather than to add
       # a push trigger here.
-      - if: steps.fresh.outputs.skip != '1'
-        name: Rebuild the published panel
-        if: github.ref == 'refs/heads/main'
+      - name: Rebuild the published panel
+        if: steps.fresh.outputs.skip != '1' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
