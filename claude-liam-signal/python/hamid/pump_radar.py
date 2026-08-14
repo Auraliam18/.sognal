@@ -754,6 +754,20 @@ def tg_message(source, picks, blocks):
                                f"({r['lag_h']}س بعد)" for r in ev["reactions"][:2])
                 L.append(f"  {ev['date']} پامپ +{ev['ret_4h_pct']}٪"
                          + (f" → {rx}" if rx else " → واکنشی ثبت نشد"))
+        # لگ-کورولیشن کل تاریخچه (قرار حمید، ۱۳ اوت — و شکایت ۱۴ اوت که از
+        # گزارش افتاده بود): رابطهٔ آماری با تأخیر، جدا از سابقهٔ رخدادی
+        lcl = b.get("lag_corr_leaders") or []
+        if lcl:
+            L.append("📊 لگ-کورولیشن تاریخی: " + " · ".join(
+                f"دنبال {l['symbol'].replace('USDT','')} با r={l['best']['r']:+.2f} "
+                f"در تأخیر {l['best']['lag_h']}س"
+                + (" (هر دو تایم‌فریم)" if l.get("both_tf") else "")
+                for l in lcl[:2]))
+        lcf = b.get("lag_corr_followers") or []
+        if lcf:
+            L.append("📊 دنباله‌روهای آماری‌اش: " + "، ".join(
+                f"{f['symbol'].replace('USDT','')} (r={f['best']['r']:+.2f}@{f['best']['lag_h']}س)"
+                for f in lcf[:3]))
         L.append(f"ورود <code>{p['entry']:.10g}</code> · استاپ <code>{p['sl']:.10g}</code>"
                  f" · ریسک {p['risk_pct']}٪ · فاصله {p['dist_pct']}٪")
         L.append("")

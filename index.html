@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.23 · تب‌های ایزوله + حافظهٔ انباشته روی پنل</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.24 · لگ-کورولیشن روی رادار پامپ</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3743,6 +3743,12 @@ function renderPumpCloud(){
       <td style="font-size:11px">${(c.pumps||[]).length?`${c.pumps.length} پامپ<div class="dim" style="font-size:9.5px">بزرگ‌ترین +${Math.max(...c.pumps.map(p=>p.ret_4h_pct))}٪</div>`:"—"}</td>
       <td><span class="chip" style="${c.role==="سردسته"?"border-color:#8a6d1e;color:#f0d24e":c.role==="دنباله‌رو"?"border-color:#2f7d5b;color:#8fe3bd":""}">${c.role}</span>
         ${c.leaders&&c.leaders.length?`<div class="dim" style="font-size:9.5px">سردسته: ${c.leaders[0].symbol.replace("USDT","")}</div>`:""}</td>
+      <td style="font-size:10.5px">${
+        (c.lag_corr_followers&&c.lag_corr_followers.length)?
+          c.lag_corr_followers.slice(0,2).map(f=>`<div class="mono" style="color:#8fc7f5">→ ${f.symbol.replace("USDT","")} <span class="dim">r=${(f.best.r>0?"+":"")+f.best.r}@${f.best.lag_h}س${f.both_tf?" ·۲TF":""}</span></div>`).join("")
+        :(c.lag_corr_leaders&&c.lag_corr_leaders.length)?
+          c.lag_corr_leaders.slice(0,2).map(l=>`<div class="mono" style="color:#f5d98f">← ${l.symbol.replace("USDT","")} <span class="dim">r=${(l.best.r>0?"+":"")+l.best.r}@${l.best.lag_h}س${l.both_tf?" ·۲TF":""}</span></div>`).join("")
+        :`<span class="dim">—</span>`}</td>
       <td style="font-size:11px">${c.now.trend_4h==="up"?"↑":c.now.trend_4h==="down"?"↓":"→"} / ${c.now.trend_1h==="up"?"↑":c.now.trend_1h==="down"?"↓":"→"}</td>
       <td class="mono" style="font-size:11px;color:${c.now.rsi_1h>=75?"#e74c3c":c.now.rsi_1h<=35?"#2ecc71":"inherit"}">${c.now.rsi_1h??"—"} / ${c.now.rsi_15m??"—"}</td>
       <td style="font-size:11px">${m?`${m.corr_pct}٪<div class="dim" style="font-size:9.5px">بعدش ${m.then_24h_pct>0?"+":""}${m.then_24h_pct}٪</div>`:"—"}</td>
@@ -3755,8 +3761,9 @@ function renderPumpCloud(){
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="text-align:right" class="dim">
         <th style="padding:4px 6px">ارز</th><th>قیمت</th><th>پامپ‌ها</th><th>نقش</th>
+        <th title="لگ-کورولیشن کل تاریخچه: → دنباله‌روهایش · ← سردسته‌هایش (r و تأخیر)">لگ-کورولیشن</th>
         <th>روند 4h/1h</th><th>RSI 1h/15m</th><th>شباهت به قبلِ پامپ</th><th>⏰ ورود / استاپ</th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="8" class="dim" style="padding:8px">در این چرخه گینری بالای آستانه نبود</td></tr>`}</tbody>
+      <tbody>${rows||`<tr><td colspan="9" class="dim" style="padding:8px">در این چرخه گینری بالای آستانه نبود</td></tr>`}</tbody>
     </table></div>
     <div class="dim" style="font-size:10.5px;margin-top:6px">${j.note||""}</div>
   </div>`;
