@@ -68,9 +68,9 @@ windows_seen = []
 orig_decide = trainer.decide
 
 
-def spy_decide(window):
+def spy_decide(window, tf="15m"):
     windows_seen.append(len(window))
-    return orig_decide(window)
+    return orig_decide(window, tf=tf)
 
 
 trainer.decide = spy_decide

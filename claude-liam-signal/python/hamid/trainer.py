@@ -43,6 +43,24 @@ WARMUP = 160          # قبل از این، پنجره برای ساختار/OB
 MAX_HOLD = 96         # حداکثر ۲۴ ساعت؛ بعدش با قیمت روز بسته می‌شود
 RR = 2.0              # تارگت = ۲R — قانون ثابت میز تمرین
 
+# ── چند تایم‌فریمی (دستور حمید، ۱۴ اوت) ────────────────────────────────────
+#
+# «دسته‌بندی کن خودت که کدوم استراتژی توی چه تایم‌فریمی بیشتر جواب می‌ده،
+#  یا اوردر بلاکا توی چه ارزهایی با چه تایم‌فریم‌هایی بهتره.»
+#
+# این سؤال بدون دادهٔ چندتایم‌فریمی قابل جواب نیست و میز تمرین تا امروز فقط
+# ۱۵د بازی می‌کرد. حالا هر ستاپ روی هر سه تایم‌فریم بازپخش می‌شود و هر
+# معامله با tf خودش برچسب می‌خورد — بدون برچسب، جدولِ classify.py حدس
+# می‌شد نه اندازه‌گیری.
+#
+# max_hold عمداً بر حسب **زمان** تنظیم شده نه تعداد کندل: ۹۶ کندل ۵د یعنی
+# ۸ ساعت و ۹۶ کندل ۱ساعته یعنی ۴ روز — مقایسهٔ این دو با هم بی‌معناست.
+TFS = {
+    "5m":  {"bars": 2000, "max_hold": 144, "warmup": 160},   # ~۷ روز، نگه‌داری ۱۲س
+    "15m": {"bars": 2000, "max_hold": 96,  "warmup": 160},   # ~۲۱ روز، نگه‌داری ۲۴س
+    "1h":  {"bars": 1500, "max_hold": 48,  "warmup": 200},   # ~۶۲ روز، نگه‌داری ۴۸س
+}
+
 
 def top_symbols(n=TOP_N):
     """۱۰۰ ارز برتر به حجم از صرافی‌های خود چرخه. استیبل/تکراری حذف."""
@@ -72,7 +90,7 @@ def _save_state(st):
     STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1))
 
 
-def decide(window):
+def decide(window, tf="15m"):
     """تصمیم روی آخرین کندلِ پنجره — فقط با گذشته. None یعنی ورود نکن.
 
     دو ورودِ کتابچهٔ یادگرفته (هر دو در جهت روند — قانون حمید):
@@ -100,6 +118,8 @@ def decide(window):
         if not 0.15 <= stop_pct <= 6:                 # نه در نویز، نه بی‌معنا
             return None
         why = {"stage": "practice", "trainer": 1, "setup": setup,
+               "tf": tf,                              # برچسب تایم‌فریم — بدون
+               # این، جدول «کدام استراتژی در کدام تایم‌فریم» حدس است نه اندازه‌گیری
                "trend_4h": t, "stop_pct": round(stop_pct, 2),
                "ob_align": "with" if ob else None}
         if ob:
@@ -126,7 +146,7 @@ def decide(window):
         return {"dir": d, "entry": px, "sl": sl, "tp1": tp, "why": why}
 
     # A) پولبک به اردر بلاک (داخل یا نزدیک ≤۲×ATR — خروجی near)
-    b_in, b_near = near(window, tf="15m")
+    b_in, b_near = near(window, tf=tf)
     box = b_in or b_near
     if box and not box.get("broken") and box.get("move") in (None, t):
         lo, hi = box["low"], box["high"]
@@ -152,7 +172,7 @@ def decide(window):
     return None
 
 
-def resolve(c15, i, s):
+def resolve(c15, i, s, max_hold=MAX_HOLD):
     """از کندل i+1 جلو برو تا استاپ/تارگت/تایم‌اوت. برخورد هم‌زمان = استاپ.
 
     خروجی: (اندیس خروج، نتیجه، R، excursion) — excursion یعنی MFE/MAE به
@@ -179,7 +199,7 @@ def resolve(c15, i, s):
         return {"mfe": round(mfe, 2), "mae": round(mae, 2),
                 "mfe_bar": mfe_bar, "mae_bar": mae_bar}
 
-    for j in range(i + 1, min(i + 1 + MAX_HOLD, len(c15))):
+    for j in range(i + 1, min(i + 1 + max_hold, len(c15))):
         c = c15[j]
         track(c, j)
         hit_sl = (c["l"] <= sl) if long else (c["h"] >= sl)
@@ -193,48 +213,50 @@ def resolve(c15, i, s):
         third = e + (tp - e) / 3
         reached = (c["h"] >= third) if long else (c["l"] <= third)
         if reached:
-            for k in range(j + 1, min(i + 1 + MAX_HOLD, len(c15))):
+            for k in range(j + 1, min(i + 1 + max_hold, len(c15))):
                 ck = c15[k]
                 track(ck, k)
                 if (ck["h"] >= tp) if long else (ck["l"] <= tp):
                     return k, "target", RR, exc()
                 if (ck["l"] <= e) if long else (ck["h"] >= e):
                     return k, "trail", 0.15, exc()    # سود کارمزددار — قانون ۱۲ اوت
-            k = min(i + MAX_HOLD, len(c15) - 1)
+            k = min(i + max_hold, len(c15) - 1)
             px = c15[k]["c"]
             r = (px - e) / risk if long else (e - px) / risk
             return k, "timeout", round(r, 3), exc()
-    j = min(i + MAX_HOLD, len(c15) - 1)
+    j = min(i + max_hold, len(c15) - 1)
     px = c15[j]["c"]
     r = (px - e) / risk if long else (e - px) / risk
     return j, "timeout", round(r, 3), exc()
 
 
-def replay_symbol(sym, c15, after_ms=0, cap=40):
+def replay_symbol(sym, c15, after_ms=0, cap=40, tf="15m"):
     """بازپخش یک ارز؛ فقط کندل‌های بعد از after_ms (ضدتکرار بین اجراها).
 
     خروجی: (معامله‌ها، مرز پیشروی). مرز = تا کجای تاریخ «بررسی» شد — نه
     فقط آخرین معامله. اگر تا ته سری رفتیم، مرز ته سری است؛ همین است که
     اجرای بعدی روی همان داده هیچ تکراری نمی‌سازد.
     """
+    cfg = TFS.get(tf) or TFS["15m"]
+    max_hold, warmup = cfg["max_hold"], cfg["warmup"]
     trades = []
-    i = WARMUP
+    i = warmup
     while i < len(c15) - 2 and len(trades) < cap:
         if c15[i]["t"] <= after_ms:
             i += 1
             continue
-        s = decide(c15[:i + 1])
+        s = decide(c15[:i + 1], tf=tf)
         if not s:
             i += 1
             continue
-        j, outcome, r, excursion = resolve(c15, i, s)
+        j, outcome, r, excursion = resolve(c15, i, s, max_hold=max_hold)
         why = dict(s["why"])
         why.update(excursion)                         # MFE/MAE روی خود پرونده
         trades.append({"sym": sym, "dir": s["dir"], "entry": s["entry"],
                        "sl": s["sl"], "tp1": s["tp1"], "tp2": None,
                        "opened": c15[i]["t"], "filled": c15[i]["t"],
                        "why": why, "outcome": outcome, "R": r,
-                       "hold_bars": j - i,
+                       "hold_bars": j - i, "tf": tf,
                        "closed": c15[j]["t"]})
         i = j + 1                                     # بدون معاملهٔ هم‌پوشان
     frontier = c15[min(i, len(c15) - 1)]["t"] if len(trades) < cap \
@@ -242,44 +264,69 @@ def replay_symbol(sym, c15, after_ms=0, cap=40):
     return trades, frontier
 
 
-def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False):
-    """یک نوبت تمرین: ۱۰۰ ارز، تا رسیدن به کف ۲۰۰ معامله یا ته دادهٔ تازه."""
+def _state_key(sym, tf):
+    """کلید ضدتکرار per-(ارز، تایم‌فریم).
+
+    کلیدهای قدیمی فقط نام ارز بودند و همه ۱۵د. آن‌ها همان معنی را دارند و
+    نباید دور ریخته شوند — وگرنه اولین اجرای بعد از این تغییر، ۲۱ روز
+    تاریخِ ۱۵د را دوباره ترید می‌کند و نمونهٔ متورمِ تکراری می‌سازد؛ همان
+    اشتباهی که یک بار با break وسط حلقه رخ داد."""
+    return sym if tf == "15m" else f"{sym}|{tf}"
+
+
+def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
+        tfs=None, fetch=None):
+    """یک نوبت تمرین: ۱۰۰ ارز روی هر سه تایم‌فریم، تا کف ۲۰۰ معامله.
+
+    `fetch(sym, tf, bars)` جای `fetch_c15` را می‌گیرد و برای تست تزریق
+    می‌شود؛ `fetch_c15` قدیمی هنوز کار می‌کند (فقط ۱۵د) تا چیزی نشکند."""
     from hamid import memory, paper
 
     if symbols is None:
         symbols = top_symbols()
-    if fetch_c15 is None:
-        import sources
+    tfs = list(tfs if tfs is not None else TFS)
+    if fetch is None:
+        if fetch_c15 is not None:
+            def fetch(sym, tf, bars):
+                if tf != "15m":
+                    return []
+                return fetch_c15(sym)
+        else:
+            import sources
 
-        def fetch_c15(sym):
-            rows = sources.klines(sym, "15m", BARS)
-            return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
-                     "c": k[4], "v": k[5]} for k in rows]
+            def fetch(sym, tf, bars):
+                rows = sources.klines(sym, tf, bars)
+                return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
+                         "c": k[4], "v": k[5]} for k in rows]
 
     st = _load_state()
     started = time.time()
 
-    def one(sym):
+    def one(job):
+        sym, tf = job
+        cfg = TFS.get(tf) or TFS["15m"]
+        key = _state_key(sym, tf)
         try:
-            c15 = fetch_c15(sym)
+            cd = fetch(sym, tf, cfg["bars"])
         except Exception:                             # noqa: BLE001 - یک ارز خراب، بقیه نه
-            return sym, [], None
-        if len(c15) < WARMUP + 50:
-            return sym, [], None
-        trades, frontier = replay_symbol(sym, c15, after_ms=st.get(sym, 0))
-        return sym, trades, frontier
+            return key, [], None
+        if len(cd) < cfg["warmup"] + 50:
+            return key, [], None
+        trades, frontier = replay_symbol(sym, cd, after_ms=st.get(key, 0), tf=tf)
+        return key, trades, frontier
 
     # سقف نداریم و break هم نداریم: درس عیب‌یابی همین تست — break وسط حلقه
     # مرز پیشرویِ ارزهای باقی‌مانده را ثبت‌نشده رها می‌کرد و اجرای بعد
     # دوباره همان‌ها را ترید می‌کرد (نمونهٔ متورم تکراری). سقف واقعی همان
     # cap هر ارز است: ۱۰۰ ارز × ۴۰؛ عملاً هر ارز در ۸ روز کندل ~۵ ستاپ می‌دهد.
+    jobs = [(s, tf) for tf in tfs for s in symbols]
     all_trades = []
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for sym, trades, frontier in pool.map(one, symbols):
+        for key, trades, frontier in pool.map(one, jobs):
             if trades:
                 all_trades.extend(trades)
             if frontier:
-                st[sym] = max(st.get(sym, 0), frontier)
+                st[key] = max(st.get(key, 0), frontier)
 
     for t in all_trades:
         paper._append(paper.CLOSED, t)
@@ -294,8 +341,14 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False):
     wins = sum(1 for t in all_trades if (t["R"] or 0) > 0)
     took = round(time.time() - started, 1)
     if not quiet:
-        print(f"میز تمرین: {n} معامله از {len(symbols)} ارز در {took}s — "
-              f"برد {round(wins / n * 100, 1) if n else 0}٪")
+        per = {}
+        for t in all_trades:
+            per[t.get("tf")] = per.get(t.get("tf"), 0) + 1
+        print(f"میز تمرین: {n} معامله از {len(symbols)} ارز × {len(tfs)} "
+              f"تایم‌فریم در {took}s — برد "
+              f"{round(wins / n * 100, 1) if n else 0}٪"
+              + (" · " + "، ".join(f"{k}: {v}" for k, v in sorted(per.items()))
+                 if per else ""))
         if n < target:
             print(f"⚠ کمتر از کف {target} — دادهٔ تازه از اجرای قبل کم بود "
                   "(ضدتکرار درست کار می‌کند؛ کندل جدید که بیاید جبران می‌شود)")

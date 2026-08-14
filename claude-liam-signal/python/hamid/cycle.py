@@ -1342,6 +1342,24 @@ def main():
     except Exception as e:                           # noqa: BLE001 - the book is not the analysis
         print(f"دفتر کاغذی: {type(e).__name__}: {e}")
 
+    # دسته‌بندی از پیپرمود (دستور حمید، ۱۴ اوت): «کدام استراتژی در کدام
+    # تایم‌فریم بیشتر جواب می‌دهد، اردر بلاک روی کدام ارز و تایم‌فریم بهتر
+    # است.» داخل همین گزارش می‌نشیند نه فایل جدا، تا پنل بدون فچ دوم
+    # ببیندش و هیچ‌وقت از دفتر عقب نیفتد.
+    try:
+        from hamid import classify as _cls
+        _cj = _cls.build()
+        report["classify"] = {
+            "n_trades": _cj["n_trades"], "timeframes": _cj["timeframes"],
+            "headline": _cj["headline"], "rule": _cj["rule"],
+            "source": _cj["source"],
+            "alpha_note": _cj["strategy_by_tf"]["alpha_note"],
+        }
+        for ln in _cls.fa_lines(_cj, limit=3):
+            act("📊 " + ln)
+    except Exception as e:                           # noqa: BLE001 - جدول، چرخه را نمی‌کشد
+        print(f"دسته‌بندی: {type(e).__name__}: {e}")
+
     # Deliver. telegram.py refuses loudly and sends nothing without credentials,
     # so this is safe to call before Hamid has added the token.
     if mode == "active" and report.get("setups"):

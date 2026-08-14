@@ -227,7 +227,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr" data-active="signals">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.26 · تب‌ها با CSS قطعی جدا شدند</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.27 · دسته‌بندی استراتژی×تایم‌فریم + اولویت صرافی</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3872,6 +3872,37 @@ function hamidHTML(){
           ${bk("signalled","سیگنال‌شده")}${bk("sent_scan","ارسالی اسکن")}${bk("alarm","آلارم")}
           ${bk("practice","میز تمرین")}${bk("first_pullback","پولبک اول")}${bk("inducement","ایندوسمنت")}
         </div>
+      </div>`;})()}
+      ${!j.classify?"":(()=>{const C=j.classify,H=C.headline||{};
+        // دستور حمید: «دسته‌بندی کن که کدوم استراتژی توی چه تایم‌فریمی بیشتر
+        // جواب می‌ده، یا اوردر بلاکا توی چه ارزهایی با چه تایم‌فریم‌هایی».
+        // فقط خانه‌هایی که فاصلهٔ اطمینانشان از صفر رد کرده حکم می‌گیرند —
+        // بقیه اصلاً اینجا نمی‌آیند تا جدول، حدس را قطعی جلوه ندهد.
+        const row=(c,good)=>`<div style="display:flex;gap:8px;font-size:11.5px;padding:1.5px 0;align-items:baseline">
+          <span style="min-width:190px">${good?"✅":"⛔️"} ${c.key}</span>
+          <span class="mono" style="min-width:44px">${c.n}</span>
+          <span class="mono" style="min-width:46px">${c.win_pct}٪</span>
+          <span class="mono" style="color:${good?"#2ecc71":"#e74c3c"}">${c.mean_r>=0?"+":""}${c.mean_r}R</span>
+          <span class="dim mono" style="font-size:10.5px">CI ${c.ci?c.ci[0]:"—"}..${c.ci?c.ci[1]:"—"}</span></div>`;
+        const sec=(t,arr,good)=>(!arr||!arr.length)?"":`<div style="margin-top:4px">
+          <div class="dim" style="font-size:11px">${t}</div>${arr.map(c=>row(c,good)).join("")}</div>`;
+        const any=(H.strategy_wins||[]).length+(H.strategy_loses||[]).length
+                 +(H.ob_wins||[]).length+(H.ob_symbol_wins||[]).length;
+        return `
+      <div style="font-size:12px;margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(90,140,220,.07);border:1px solid rgba(90,140,220,.25)">
+        <div style="font-weight:700">📊 دسته‌بندی از پیپرمود — کدام روش کجا جواب می‌دهد</div>
+        <div class="dim" style="font-size:10.5px;margin-top:1px">
+          ${(C.n_trades||0).toLocaleString("fa-IR")} معاملهٔ بسته‌شده ·
+          تایم‌فریم‌ها: ${(C.timeframes||[]).join("، ")||"—"} · ${C.alpha_note||""}</div>
+        ${sec("استراتژی × تایم‌فریم — سودده",H.strategy_wins,true)}
+        ${sec("استراتژی × تایم‌فریم — زیان‌ده",H.strategy_loses,false)}
+        ${sec("کلاس اردر بلاک × تایم‌فریم",H.ob_wins,true)}
+        ${sec("اردر بلاک روی ارز × تایم‌فریم",H.ob_symbol_wins,true)}
+        ${any?"":`<div class="dim" style="font-size:11px;margin-top:4px">
+          هیچ خانه‌ای هنوز فاصلهٔ اطمینانش از صفر رد نکرده — جدول ساخته شد ولی
+          حکمی ندارد. این خودش یک جواب است، نه شکست.</div>`}
+        <div class="dim" style="font-size:10.5px;margin-top:4px;border-top:1px solid rgba(140,160,190,.14);padding-top:3px">
+          ${C.rule||""} ${C.source||""}</div>
       </div>`;})()}
       ${!j.paper.experiments_first_pullback||!j.paper.experiments_first_pullback.trades?"":`
       <div class="dim" style="font-size:11.5px;margin-top:4px">

@@ -31,17 +31,26 @@ jobs:
 
       - name: خودآزمایی میز تمرین
         working-directory: claude-liam-signal/python
-        run: python3 -m hamid.test_trainer
+        run: |
+          python3 -m hamid.test_trainer
+          python3 -m hamid.test_classify
 
-      - name: تمرین — ۱۰۰ ارز برتر، بازپخش بدون look-ahead
+      - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.trainer
+
+      # دسته‌بندی بلافاصله بعد از تمرین: «کدام استراتژی در کدام تایم‌فریم،
+      # کدام اردر بلاک روی کدام ارز» — روی همان معامله‌هایی که همین الان
+      # اضافه شدند، نه یک اجرای جدا که از دفتر عقب بیفتد.
+      - name: دسته‌بندی استراتژی × تایم‌فریم × اردر بلاک
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.classify
 
       - name: ثبت دفتر و درس‌ها
         run: |
           git config user.name "Hamid Signal Agent"
           git config user.email "noreply@anthropic.com"
-          git add brain/paper/ brain/memory/ brain/learning/ || true
+          git add brain/paper/ brain/memory/ brain/learning/ signals/classify.json || true
           if git diff --cached --quiet; then
             echo "دادهٔ تازه‌ای نبود"
             exit 0
@@ -55,12 +64,15 @@ jobs:
             git push origin HEAD:main && exit 0
             git fetch origin main || true
             if ! git merge --no-edit origin/main; then
-              git checkout --ours -- brain 2>/dev/null || true
-              git add -A brain 2>/dev/null || true
+              # فقط همان فایلی که این job تولید کرده، نه کل signals/ —
+              # چرخه هم‌زمان به signals/latest.json می‌نویسد و --ours روی
+              # کل پوشه می‌توانست خروجی تازهٔ آن را عقب ببرد.
+              git checkout --ours -- brain signals/classify.json 2>/dev/null || true
+              git add -A brain signals/classify.json 2>/dev/null || true
               git commit --no-edit || { git merge --abort; exit 1; }
             fi
-            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain; then
-              echo "پوش نشد: مارکر تعارض در brain باقی مانده"
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain signals/classify.json; then
+              echo "پوش نشد: مارکر تعارض باقی مانده"
               exit 1
             fi
             sleep $((attempt * 3))
