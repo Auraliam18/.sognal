@@ -1,0 +1,50 @@
+engine_id: E09
+name: Indicator Engine / Indicator Agent
+version: 2.1.0
+mission: Compute Hamid’s indicator set causally and use it as context/confirmation, not as a standalone signal generator.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- CANDLE_CLOSE
+- INDICATOR_CROSS
+- DIVERGENCE_CANDIDATE
+- REGIME_CHANGED
+inputs:
+- OHLCV
+- timeframe
+- market regime
+output_contract: IndicatorPacket
+python_responsibilities:
+- RSI/MACD/MFI/IBS/ADX/ATR/Stochastic/EMA/SMA/BB/Alligator/Ichimoku/CPR/VWAP
+- divergence detection
+- unit tests
+agent_responsibilities:
+- interpret multi-indicator conflicts
+- compare historical effectiveness by regime
+- audit formula/version
+hard_rules:
+- No repainting or future candles.
+- Volume remains primary context for Hamid.
+- Stochastic has priority over RSI in a confirmed range.
+- ADX measures trend strength, not direction.
+- The 30M MACD cross + 15M RSI midline rule is a versioned trigger, not a universal truth.
+learning_routine: Monthly formula/library audit; event-triggered calibration when indicator contribution degrades
+  by regime.
+memory:
+  private_namespace: agent/e09/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- J. Welles Wilder Jr. — New Concepts in Technical Trading Systems
+- John Bollinger — Bollinger on Bollinger Bands
+- John J. Murphy — Technical Analysis of the Financial Markets
+- https://ta-lib.org/
+- https://onlinelibrary.wiley.com/doi/10.1111/j.1540-6261.1992.tb04681.x

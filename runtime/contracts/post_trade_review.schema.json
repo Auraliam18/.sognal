@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PostTradeReview",
+  "type": "object",
+  "required": [
+    "review_id",
+    "signal_id",
+    "result",
+    "mfe",
+    "mae",
+    "review_horizon",
+    "factor_audit",
+    "lesson_candidates"
+  ],
+  "properties": {
+    "review_id": {
+      "type": "string"
+    },
+    "signal_id": {
+      "type": "string"
+    },
+    "result": {
+      "enum": [
+        "TARGET",
+        "STOP",
+        "INVALIDATED",
+        "EXPIRED",
+        "NO_FILL",
+        "MANUAL_CANCEL"
+      ]
+    },
+    "mfe": {
+      "type": "number"
+    },
+    "mae": {
+      "type": "number"
+    },
+    "review_horizon": {
+      "enum": [
+        "IMMEDIATE",
+        "1H",
+        "6H",
+        "24H"
+      ]
+    },
+    "factor_audit": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "lesson_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": true
+}

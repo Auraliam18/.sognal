@@ -1,0 +1,56 @@
+engine_id: E03
+name: USDT.D Engine / USDT Dominance Agent
+version: 2.1.0
+mission: Analyze USDT dominance independently using Hamid’s 200-candle 4H→1H→15M method, valid trendlines/channels,
+  S/R, OB/FVG, patterns, and regime history.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- USDTD_CANDLE_CLOSE
+- USDTD_STRUCTURE_CHANGED
+- SIGNAL_CANDIDATE
+- MACRO_EVENT
+inputs:
+- USDT market cap dominance series
+- 4H/1H/15M candles
+- macro/news context
+- historical regimes
+output_contract: DominancePacket
+python_responsibilities:
+- pivot detection
+- trendline/channel candidates
+- S/R clustering
+- patterns
+- indicators
+- historical analog features
+agent_responsibilities:
+- validate ambiguous lines/patterns
+- interpret Diamond/Wedge/Range in context
+- review war/regulation/macro regime changes
+hard_rules:
+- Start with at least 200 4H candles.
+- Keep every valid line and track role flips instead of deleting it.
+- Require repeated valid reactions and tolerance normalized by ATR.
+- Alt direction should normally be inverse to USDT.D; conflict is NO_TRADE unless explicitly resolved.
+learning_routine: Weekly pattern-library update; event-triggered study when dominance behavior departs from historical
+  response or a major geopolitical/macro event occurs.
+memory:
+  private_namespace: agent/e03/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.coingecko.com/reference/crypto-global
+- https://coinmarketcap.com/api/documentation
+- John J. Murphy — Technical Analysis of the Financial Markets
+- 'Charles D. Kirkpatrick II & Julie R. Dahlquist — Technical Analysis: The Complete Resource for Financial Market
+  Technicians'
+- Robert D. Edwards, John Magee & W.H.C. Bassetti — Technical Analysis of Stock Trends
+- https://www.nber.org/papers/w7613

@@ -1,0 +1,50 @@
+version: 2.1.0
+market:
+- market.tick
+- market.trade
+- market.depth
+- market.kline.closed
+- market.oi
+- market.funding
+- market.liquidation
+analysis:
+- analysis.structure.updated
+- analysis.smc.updated
+- analysis.indicator.updated
+- analysis.liquidity.updated
+- analysis.dominance.updated
+- analysis.btc.updated
+watch:
+- watch.level.approaching
+- watch.alert.triggered
+- watch.candidate.created
+relationship:
+- pump.event.detected
+- leadlag.candidate
+- analog.ready
+research:
+- catalyst.discovered
+- research.question.created
+- research.claim.ready
+- memory.promotion.requested
+signal:
+- signal.candidate
+- signal.risk.approved
+- signal.ready
+- signal.sent
+- signal.updated
+- signal.result
+learning:
+- posttrade.review.requested
+- posttrade.completed
+- memory.validated
+system:
+- system.heartbeat
+- system.degraded
+- system.recovered
+- data.stale
+- deadletter.created
+routing_rules:
+- Every event carries event_id, symbol, event_time, ingest_time, source, schema_version, trace_id, idempotency_key.
+- Per-symbol events preserve order through a symbol partition/actor.
+- signal.ready bypasses universe batch completion and routes directly to chart/outbox.

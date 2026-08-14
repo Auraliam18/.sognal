@@ -1,0 +1,63 @@
+version: 2.1.0
+principle: discovery_is_not_verification
+tiers:
+- tier: 1
+  name: official_primary
+  use: Production facts and API behavior
+  examples:
+  - exchange/API docs
+  - official project blog/repository
+  - regulator/central bank
+  - on-chain primary data
+- tier: 2
+  name: primary_research
+  use: Hypothesis and methods
+  examples:
+  - peer-reviewed papers
+  - NBER
+  - SSRN author paper
+  - arXiv original research
+- tier: 3
+  name: established_books
+  use: Definitions and structured curriculum
+  examples:
+  - John J. Murphy — Technical Analysis of the Financial Markets
+  - 'Charles D. Kirkpatrick II & Julie R. Dahlquist — Technical Analysis: The Complete Resource for Financial Market
+    Technicians'
+  - Robert D. Edwards, John Magee & W.H.C. Bassetti — Technical Analysis of Stock Trends
+  - David Aronson — Evidence-Based Technical Analysis
+  - Al Brooks — Trading Price Action series
+  - J. Welles Wilder Jr. — New Concepts in Technical Trading Systems
+  - John Bollinger — Bollinger on Bollinger Bands
+  - Larry Harris — Trading and Exchanges
+  - Maureen O'Hara — Market Microstructure Theory
+  - Joel Hasbrouck — Empirical Market Microstructure
+  - Ruey S. Tsay — Analysis of Financial Time Series
+  - Marcos López de Prado — Advances in Financial Machine Learning
+  - Martin Kleppmann — Designing Data-Intensive Applications
+  - Tyler Akidau et al. — Streaming Systems
+  - Gregor Hohpe & Bobby Woolf — Enterprise Integration Patterns
+  - Betsy Beyer et al. — Site Reliability Engineering
+  - Philippe Jorion — Value at Risk
+  - Van K. Tharp — Trade Your Way to Financial Freedom
+- tier: 4
+  name: conceptual_education
+  use: Concept definitions only; must be backtested
+  examples:
+  - ICT/SMC education
+  - professional technical-analysis education
+- tier: 5
+  name: discovery_social_news
+  use: Lead generation only
+  examples:
+  - AInvest
+  - Crypto Bubbles
+  - X posts
+  - aggregator articles
+  - random GitHub repositories
+rules:
+- Material claims from tier 5 require tier 1 verification.
+- GitHub code is implementation reference, never trading truth.
+- Record URL/reference, retrieved_at, hash, author/publisher, claim, confidence, and validation status.
+- Do not reread unchanged sources; use IDs, hashes, ETag/Last-Modified when supported.
+- Do not scrape a source when an official API, RSS, WebSocket, webhook, or changelog exists.

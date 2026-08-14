@@ -1,0 +1,54 @@
+engine_id: E20
+name: Post-Trade Engine / Reviewer Agent
+version: 2.1.0
+mission: Immediately and retrospectively explain target/stop/no-fill outcomes, identify which pre-trade factors
+  held or failed, and create evidence-backed lessons.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- SIGNAL_RESULT
+- TRADE_CLOSED
+- REVIEW_1H
+- REVIEW_6H
+- REVIEW_24H
+inputs:
+- immutable pre-trade snapshot
+- full event trail
+- actual path
+- engine packets
+- prior lessons
+output_contract: PostTradeReview
+python_responsibilities:
+- MFE/MAE
+- factor comparison
+- timing
+- counterfactual metrics
+- failure taxonomy
+- lesson evidence counts
+agent_responsibilities:
+- causal narrative with uncertainty
+- distinguish bad setup from execution/noise
+- propose a testable lesson
+hard_rules:
+- Never rewrite the original thesis.
+- One outcome creates an episode, not a production rule.
+- Review wins for hidden risk and losses for missed opportunity equally.
+- Use real evidence from USDT.D/BTC/structure/liquidity/news/strategy history.
+learning_routine: Immediate close review plus 1h/6h/24h follow-ups; weekly failure-cluster analysis.
+memory:
+  private_namespace: agent/e20/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- David Aronson — Evidence-Based Technical Analysis
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- Betsy Beyer et al. — Site Reliability Engineering
+- https://sre.google/sre-book/postmortem-culture/

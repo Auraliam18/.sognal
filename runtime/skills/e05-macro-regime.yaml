@@ -1,0 +1,52 @@
+engine_id: E05
+name: Macro Regime Engine / Macro Agent
+version: 2.1.0
+mission: Classify risk-on/risk-off context from crypto totals, dominance, DXY/VIX/economic events, and source-verified
+  macro catalysts.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- MACRO_DATA_RELEASE
+- DAILY_MACRO_REFRESH
+- RISK_REGIME_SHIFT
+- SIGNAL_CANDIDATE
+inputs:
+- TOTAL/TOTAL2/TOTAL3/OTHERS/ETH.D
+- DXY
+- VIX
+- Fear & Greed
+- official economic calendar
+output_contract: MacroRegimePacket
+python_responsibilities:
+- calendar normalization
+- event-window flags
+- regime features
+- freshness and source checks
+agent_responsibilities:
+- interpret source-verified macro events
+- assess risk-on/risk-off
+- write concise impact window
+hard_rules:
+- AInvest and social posts are discovery sources, not final truth.
+- Verify material claims with official releases or primary sources.
+- Record event time in Hamid’s configured timezone.
+learning_routine: Daily 72-hour catalyst calendar; immediate review after high-impact releases; weekly source-quality
+  audit.
+memory:
+  private_namespace: agent/e05/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://fred.stlouisfed.org/docs/api/fred/
+- https://www.cboe.com/tradable_products/vix/
+- https://www.cmegroup.com/education.html
+- https://alternative.me/crypto/fear-and-greed-index/
+- https://docs.coingecko.com/reference/crypto-global

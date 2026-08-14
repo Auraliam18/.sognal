@@ -1,0 +1,215 @@
+version: 2.1.0
+generated_at_utc: '2026-08-13T21:35:04.177908+00:00'
+lead_model: claude-fable-5
+live_execution: false
+scan_heartbeat_seconds: 30
+runtime_principle: continuous_event_driven_incremental_python
+engines:
+- id: E00
+  slug: master-orchestrator
+  name: Master Orchestrator / Chief Trader
+  claude_skill: liam-e00-master-orchestrator
+  claude_agent: liam-e00-master-orchestrator-specialist
+  runtime_skill_file: runtime/skills/e00-master-orchestrator.yaml
+  output: DecisionCase
+  owner_write_policy: single_writer_via_main_integrator
+- id: E01
+  slug: universe
+  name: Universe Engine / Universe Agent
+  claude_skill: liam-e01-universe
+  claude_agent: liam-e01-universe-specialist
+  runtime_skill_file: runtime/skills/e01-universe.yaml
+  output: UniverseSnapshot
+  owner_write_policy: single_writer_via_main_integrator
+- id: E02
+  slug: market-data-quality
+  name: Market Data Engine / Data Quality Agent
+  claude_skill: liam-e02-market-data-quality
+  claude_agent: liam-e02-market-data-quality-specialist
+  runtime_skill_file: runtime/skills/e02-market-data-quality.yaml
+  output: DataHealthPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E03
+  slug: usdt-dominance
+  name: USDT.D Engine / USDT Dominance Agent
+  claude_skill: liam-e03-usdt-dominance
+  claude_agent: liam-e03-usdt-dominance-specialist
+  runtime_skill_file: runtime/skills/e03-usdt-dominance.yaml
+  output: DominancePacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E04
+  slug: btc-dominance
+  name: BTC.D Engine / BTC Dominance Agent
+  claude_skill: liam-e04-btc-dominance
+  claude_agent: liam-e04-btc-dominance-specialist
+  runtime_skill_file: runtime/skills/e04-btc-dominance.yaml
+  output: DominancePacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E05
+  slug: macro-regime
+  name: Macro Regime Engine / Macro Agent
+  claude_skill: liam-e05-macro-regime
+  claude_agent: liam-e05-macro-regime-specialist
+  runtime_skill_file: runtime/skills/e05-macro-regime.yaml
+  output: MacroRegimePacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E06
+  slug: btc-analysis
+  name: BTC Analysis Engine / BTC Agent
+  claude_skill: liam-e06-btc-analysis
+  claude_agent: liam-e06-btc-analysis-specialist
+  runtime_skill_file: runtime/skills/e06-btc-analysis.yaml
+  output: BTCContextPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E07
+  slug: structure
+  name: Structure Engine / Structure Agent
+  claude_skill: liam-e07-structure
+  claude_agent: liam-e07-structure-specialist
+  runtime_skill_file: runtime/skills/e07-structure.yaml
+  output: StructurePacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E08
+  slug: smc-order-block-fvg
+  name: SMC Engine / SMC Agent
+  claude_skill: liam-e08-smc-order-block-fvg
+  claude_agent: liam-e08-smc-order-block-fvg-specialist
+  runtime_skill_file: runtime/skills/e08-smc-order-block-fvg.yaml
+  output: SMCPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E09
+  slug: indicators
+  name: Indicator Engine / Indicator Agent
+  claude_skill: liam-e09-indicators
+  claude_agent: liam-e09-indicators-specialist
+  runtime_skill_file: runtime/skills/e09-indicators.yaml
+  output: IndicatorPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E10
+  slug: liquidity-derivatives
+  name: Liquidity & Derivatives Engine / Liquidity Agent
+  claude_skill: liam-e10-liquidity-derivatives
+  claude_agent: liam-e10-liquidity-derivatives-specialist
+  runtime_skill_file: runtime/skills/e10-liquidity-derivatives.yaml
+  output: LiquidityPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E11
+  slug: strategy-router
+  name: Strategy Router / Strategy Agents
+  claude_skill: liam-e11-strategy-router
+  claude_agent: liam-e11-strategy-router-specialist
+  runtime_skill_file: runtime/skills/e11-strategy-router.yaml
+  output: StrategyMatch[]
+  owner_write_policy: single_writer_via_main_integrator
+- id: E12
+  slug: lead-lag-pump-chain
+  name: Lead-Lag Engine / Relationship Agent
+  claude_skill: liam-e12-lead-lag-pump-chain
+  claude_agent: liam-e12-lead-lag-pump-chain-specialist
+  runtime_skill_file: runtime/skills/e12-lead-lag-pump-chain.yaml
+  output: LeadLagPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E13
+  slug: historical-analog
+  name: Historical Analog Engine / Analog Agent
+  claude_skill: liam-e13-historical-analog
+  claude_agent: liam-e13-historical-analog-specialist
+  runtime_skill_file: runtime/skills/e13-historical-analog.yaml
+  output: AnalogPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E14
+  slug: news-catalyst-research
+  name: News & Catalyst Engine / Research Agent
+  claude_skill: liam-e14-news-catalyst-research
+  claude_agent: liam-e14-news-catalyst-research-specialist
+  runtime_skill_file: runtime/skills/e14-news-catalyst-research.yaml
+  output: CatalystPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E15
+  slug: watch-alert
+  name: Watch & Alert Engine / Watch Agent
+  claude_skill: liam-e15-watch-alert
+  claude_agent: liam-e15-watch-alert-specialist
+  runtime_skill_file: runtime/skills/e15-watch-alert.yaml
+  output: WatchCase
+  owner_write_policy: single_writer_via_main_integrator
+- id: E16
+  slug: risk-portfolio
+  name: Risk Engine / Risk Officer
+  claude_skill: liam-e16-risk-portfolio
+  claude_agent: liam-e16-risk-portfolio-specialist
+  runtime_skill_file: runtime/skills/e16-risk-portfolio.yaml
+  output: RiskPacket
+  owner_write_policy: single_writer_via_main_integrator
+- id: E17
+  slug: signal-committee
+  name: Signal Committee / Decision Agent
+  claude_skill: liam-e17-signal-committee
+  claude_agent: liam-e17-signal-committee-specialist
+  runtime_skill_file: runtime/skills/e17-signal-committee.yaml
+  output: SignalDecision
+  owner_write_policy: single_writer_via_main_integrator
+- id: E18
+  slug: paper-replay-backtest
+  name: Paper / Replay / Backtest Engine / Experiment Agent
+  claude_skill: liam-e18-paper-replay-backtest
+  claude_agent: liam-e18-paper-replay-backtest-specialist
+  runtime_skill_file: runtime/skills/e18-paper-replay-backtest.yaml
+  output: ExperimentResult
+  owner_write_policy: single_writer_via_main_integrator
+- id: E19
+  slug: trade-management
+  name: Trade Management Engine / Trade Manager Agent
+  claude_skill: liam-e19-trade-management
+  claude_agent: liam-e19-trade-management-specialist
+  runtime_skill_file: runtime/skills/e19-trade-management.yaml
+  output: TradeState
+  owner_write_policy: single_writer_via_main_integrator
+- id: E20
+  slug: post-trade-review
+  name: Post-Trade Engine / Reviewer Agent
+  claude_skill: liam-e20-post-trade-review
+  claude_agent: liam-e20-post-trade-review-specialist
+  runtime_skill_file: runtime/skills/e20-post-trade-review.yaml
+  output: PostTradeReview
+  owner_write_policy: single_writer_via_main_integrator
+- id: E21
+  slug: memory-curator
+  name: Memory Store / Memory Curator Agent
+  claude_skill: liam-e21-memory-curator
+  claude_agent: liam-e21-memory-curator-specialist
+  runtime_skill_file: runtime/skills/e21-memory-curator.yaml
+  output: ValidatedMemory
+  owner_write_policy: single_writer_via_main_integrator
+- id: E22
+  slug: improvement-research-director
+  name: Improvement Engine / Research Director
+  claude_skill: liam-e22-improvement-research-director
+  claude_agent: liam-e22-improvement-research-director-specialist
+  runtime_skill_file: runtime/skills/e22-improvement-research-director.yaml
+  output: ImprovementProposal
+  owner_write_policy: single_writer_via_main_integrator
+- id: E23
+  slug: supervisor-sre
+  name: Supervisor / SRE Agent
+  claude_skill: liam-e23-supervisor-sre
+  claude_agent: liam-e23-supervisor-sre-specialist
+  runtime_skill_file: runtime/skills/e23-supervisor-sre.yaml
+  output: SystemHealth
+  owner_write_policy: single_writer_via_main_integrator
+- id: E24
+  slug: panel-contract-ui-qa
+  name: Panel Contract Engine / UI QA Agent
+  claude_skill: liam-e24-panel-contract-ui-qa
+  claude_agent: liam-e24-panel-contract-ui-qa-specialist
+  runtime_skill_file: runtime/skills/e24-panel-contract-ui-qa.yaml
+  output: PanelHealth
+  owner_write_policy: single_writer_via_main_integrator
+- id: E25
+  slug: telegram-delivery
+  name: Telegram Delivery Engine / Notification Agent
+  claude_skill: liam-e25-telegram-delivery
+  claude_agent: liam-e25-telegram-delivery-specialist
+  runtime_skill_file: runtime/skills/e25-telegram-delivery.yaml
+  output: DeliveryReceipt
+  owner_write_policy: single_writer_via_main_integrator

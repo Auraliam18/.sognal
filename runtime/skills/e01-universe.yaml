@@ -1,0 +1,51 @@
+engine_id: E01
+name: Universe Engine / Universe Agent
+version: 2.1.0
+mission: Maintain a survivorship-safe Top-200 global crypto universe and a separate Bitunix-tradable subset for
+  actionable signals.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- DAILY_UNIVERSE_REFRESH
+- LISTING
+- DELISTING
+- SYMBOL_MAPPING_CHANGED
+- LIQUIDITY_CHANGED
+inputs:
+- CoinGecko/CMC rankings
+- Bitunix trading pairs
+- volume/liquidity filters
+- stablecoin/wrapped exclusions
+output_contract: UniverseSnapshot
+python_responsibilities:
+- stable ID mapping
+- ranking
+- liquidity filters
+- snapshot versioning
+- symbol/contract resolution
+agent_responsibilities:
+- research ambiguous renames/migrations
+- classify sector/network/layer/use case
+- verify new projects
+hard_rules:
+- Top-200 global is for research and lead-lag; only supported target-exchange symbols may become live signals.
+- Keep historical universe snapshots.
+- Never map assets only by ticker symbol.
+learning_routine: Daily refresh plus event-triggered listing/migration review; weekly metadata reconciliation.
+memory:
+  private_namespace: agent/e01/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.coingecko.com/reference/coins-markets
+- https://coinmarketcap.com/api/documentation
+- https://www.bitunix.com/api-docs/futures/market/get_trading_pairs.html
+- https://coinmarketcap.com/api/documentation/pro-api-reference/cryptocurrency

@@ -1,0 +1,56 @@
+engine_id: E14
+name: News & Catalyst Engine / Research Agent
+version: 2.1.0
+mission: Continuously discover, verify, date, relate, and monitor project launches, listings, upgrades, unlocks,
+  partnerships, regulations, and influential posts.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- NEWS_STREAM_ITEM
+- PROJECT_ANNOUNCEMENT
+- CATALYST_WINDOW_OPEN
+- NEW_PROJECT_DISCOVERED
+- RUMOR_DETECTED
+inputs:
+- CoinGecko/CMC/AInvest/Crypto Bubbles/X discovery
+- official project sites/blogs/GitHub
+- exchange announcements
+output_contract: CatalystPacket
+python_responsibilities:
+- source ingestion
+- dedupe/hash
+- entity/symbol mapping
+- timezone normalization
+- calendar windows
+- source reliability
+agent_responsibilities:
+- verify with primary sources
+- map related assets/networks/layers
+- estimate impact window with uncertainty
+- create research questions
+hard_rules:
+- Discovery source is not proof.
+- Every material catalyst needs provenance and verification status.
+- Never trade only because of a rumor.
+- Store launch time, timezone, affected assets, source confidence, and expiry.
+learning_routine: X/official streams continuously; 72-hour catalyst sweep daily; new-project review every 6 hours;
+  weekly source and taxonomy update.
+memory:
+  private_namespace: agent/e14/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.coingecko.com/reference/coins-markets
+- https://coinmarketcap.com/api/documentation
+- https://docs.x.com/x-api/posts/filtered-stream/introduction
+- https://defillama.com/
+- https://token.unlocks.app/
+- https://www.ainvest.com/

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EvidencePacket",
+  "type": "object",
+  "required": [
+    "packet_id",
+    "engine_id",
+    "symbol",
+    "event_time",
+    "ingest_time",
+    "schema_version",
+    "source_lineage",
+    "status",
+    "payload"
+  ],
+  "properties": {
+    "packet_id": {
+      "type": "string"
+    },
+    "engine_id": {
+      "type": "string",
+      "pattern": "^E[0-9]{2}$"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "event_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ingest_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "source_lineage": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "status": {
+      "enum": [
+        "OK",
+        "UNKNOWN",
+        "STALE",
+        "CONFLICT",
+        "ERROR"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "missing_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,51 @@
+engine_id: E17
+name: Signal Committee / Decision Agent
+version: 2.1.0
+mission: Release only complete, fresh, non-duplicated signals after hard gates, conflict resolution, confidence
+  calibration, and Risk approval.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- PACKET_SET_COMPLETE
+- RISK_APPROVED
+- EVIDENCE_CHANGED
+inputs:
+- DecisionCase
+- RiskPacket
+- all mandatory packets
+- delivery state
+output_contract: SignalDecision
+python_responsibilities:
+- hard gate evaluation
+- missing fields
+- confidence calibration
+- dedupe key
+- release timestamp
+agent_responsibilities:
+- explain final conflict resolution
+- write concise Persian rationale
+- choose NO_TRADE when evidence conflicts
+hard_rules:
+- No majority vote over missing facts.
+- BTC and USDT.D checks are mandatory.
+- Signal immediately when this symbol passes; no batch barrier.
+- Every release includes snapshot and strategy version.
+- NO_TRADE is a valid result.
+learning_routine: Weekly calibration report; immediate review after duplicate, stale, or late signal.
+memory:
+  private_namespace: agent/e17/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- David Aronson — Evidence-Based Technical Analysis
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- https://scikit-learn.org/stable/modules/calibration.html
+- https://en.wikipedia.org/wiki/Brier_score

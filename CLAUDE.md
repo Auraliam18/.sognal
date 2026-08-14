@@ -101,3 +101,24 @@ Deploys go to both `claude/hamid-signal-agent-smc-dkot7v` and `gh-pages`.
 موجود: reapply ضدتصادم، فایل یکتای case، اجتماع (union) برای لاگ/درس/
 تاریخچه، concurrency group در ورک‌فلوها. وضعیت تولیدشدهٔ runtime
 (signals/, brain/) از دانش سورس‌کنترل‌شده (rules/, python/) جداست.
+
+## بستهٔ مهارت‌های v2.1 (نصب ۱۴ اوت — سند حمید)
+
+بستهٔ `AuraLiam369_Claude_Fable5_Skills_Package_v2_1` در ریشه نصب شده است.
+اسناد مرجعش: `AuraLiam369_Trading_Agent_Master_Spec_FA_v2.1.md` ·
+`.claude/rules/00..06-*.md` · `config/engine_registry.yaml` · `docs/*_FA.md`.
+پرامپت اجرا: `prompts/CLAUDE_FABLE5_APPLY_NOW_FA.txt` (مرحله ۰ = فقط Audit).
+
+- **مرز معماری**: کلود کد سازنده/ممیز است، نه اسکنر ۲۴/۷. حلقهٔ زندهٔ
+  هدفِ v2.1 با سرویس Python اجرا می‌شود؛ GitHub Actions به CI/بک‌فیل/گزارش
+  برمی‌گردد. تا وقتی آن سرویس مستقر نشده، چرخهٔ فعلی Actions همان مرجع
+  عملیاتی است — هیچ‌چیزِ کارکرده قبل از جایگزینِ اثبات‌شده خاموش نمی‌شود.
+- **دو خانوادهٔ زیرایجنت**: ۹ ایجنت دامنهٔ رویدادمحور بالا (عملیاتی) سر
+  جایشان‌اند؛ ۲۶ ایجنت `e00..e25` متخصص read-only ممیزی/ساخت‌اند که
+  فقط `ENGINE_REVIEW_PACKET` برمی‌گردانند و هیچ فایل مشترکی را ویرایش
+  نمی‌کنند — نوشتن فقط با ایجنت اصلی (سریالی).
+- **قوانین جدید ۰۰–۰۶ مکمل `trading-core.md`اند نه جایگزین**؛ اگر جایی
+  اختلاف بود، منشور LIAM و دستور صریح حمید حاکم است.
+- **LIVE_EXECUTION=false** می‌ماند؛ فقط Backtest/Replay/Paper/Live-Signal.
+- بعد از هر تغییر: `python scripts/validate_skill_package.py` (هوک Stop
+  هم خودش اجرایش می‌کند).

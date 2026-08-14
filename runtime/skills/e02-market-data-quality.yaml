@@ -1,0 +1,54 @@
+engine_id: E02
+name: Market Data Engine / Data Quality Agent
+version: 2.1.0
+mission: Ingest continuous market data, detect gaps/staleness/out-of-order events, and make freshness explicit before
+  any analysis.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- WEBSOCKET_MESSAGE
+- HEARTBEAT_30S
+- CANDLE_CLOSE
+- SOURCE_OUTAGE
+- BACKFILL_REQUIRED
+inputs:
+- Bitunix WebSocket/REST
+- fallback market feeds
+- clock synchronization
+output_contract: DataHealthPacket
+python_responsibilities:
+- WebSocket manager
+- incremental candle builder
+- sequence checks
+- backfill
+- source lineage
+- latency metrics
+agent_responsibilities:
+- investigate persistent source mismatch
+- review API/changelog changes
+- classify data incidents
+hard_rules:
+- No LLM in the tick loop.
+- UNKNOWN or stale required data blocks the signal.
+- Do not silently merge sources.
+- Use event time and ingest time separately.
+learning_routine: Continuous changelog monitor; immediate incident research after schema drift, reconnect storms,
+  or feed disagreement.
+memory:
+  private_namespace: agent/e02/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://www.bitunix.com/api-docs/futures/websocket/prepare/WebSocket.html
+- https://www.bitunix.com/api-docs/futures/market/get_tickers.html
+- https://docs.coingecko.com/websocket
+- Tyler Akidau et al. — Streaming Systems
+- Martin Kleppmann — Designing Data-Intensive Applications
