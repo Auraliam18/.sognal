@@ -74,6 +74,8 @@ main{max-width:1180px;margin:0 auto;padding:16px}
 .tag{font-family:var(--mono);font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:7px;padding:3px 8px}
 .tag.warn{color:var(--wait);border-color:#5a4420}
 .tag.pat{color:var(--watch);border-color:#1d4357}
+.tag.liq{color:var(--short);border-color:#5a1a26}
+.liqnote{margin:0 14px 10px;font-size:11.5px;color:var(--mut);font-family:var(--mono)}
 
 /* lifecycle rail — the signature device */
 .rail{display:flex;align-items:center;gap:0;padding:11px 14px 13px}
@@ -854,6 +856,199 @@ function analyzeSymbol(asset,m5,m15,m1h,current,funding_rate,market_context){
 
 
 /* =========================================================================
+   LIQUIDITY HUNT ENGINE (additive layer — refines entry/stop placement,
+   does NOT touch the locked engine's direction/score/status).
+   Pure & testable (no DOM); Node-exportable like the Pattern Engine.
+   ========================================================================= */
+(function (root) {
+  "use strict";
+
+  const LCFG = {
+    swingK: 3,
+    clusterTolPct: 0.0015,
+    maxPoolsPerSide: 6,
+    minTouches: 2,
+    searchWindowPct: 0.02,
+    roundBonus: 10,
+    roundBaseStrength: 12,
+    entryShiftFrac: 0.40,
+    bufferFrac: 0.20,
+    huntScoreHigh: 55,
+    huntScoreMed: 30,
+    crowdRatioExtreme: 1.8,
+    fundingExtreme: 0.0008,
+  };
+
+  const clampp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+  function findPivots(cd, k) {
+    const highs = [], lows = [], n = cd.length;
+    for (let i = k; i < n - k; i++) {
+      let isH = true, isL = true;
+      for (let j = i - k; j <= i + k; j++) {
+        if (j === i) continue;
+        if (cd[j].h >= cd[i].h) isH = false;
+        if (cd[j].l <= cd[i].l) isL = false;
+      }
+      if (isH) highs.push({ i, price: cd[i].h });
+      if (isL) lows.push({ i, price: cd[i].l });
+    }
+    return { highs, lows };
+  }
+
+  function clusterLevels(points, tolPct, n) {
+    const sorted = points.slice().sort((a, b) => a.price - b.price);
+    const pools = [];
+    for (const p of sorted) {
+      let pool = pools.find(P => Math.abs(P.price - p.price) / p.price <= tolPct);
+      if (pool) {
+        pool.touches.push(p);
+        pool.price = pool.touches.reduce((s, t) => s + t.price, 0) / pool.touches.length;
+        pool.lastIndex = Math.max(pool.lastIndex, p.i);
+      } else {
+        pools.push({ price: p.price, touches: [p], lastIndex: p.i });
+      }
+    }
+    return pools.map(P => ({
+      price: P.price,
+      touchCount: P.touches.length,
+      recency: n ? clampp(P.lastIndex / n, 0, 1) : 0,
+      type: "swing",
+    }));
+  }
+
+  function roundLevelsNear(price) {
+    if (!price || price <= 0) return [];
+    const mag = Math.pow(10, Math.floor(Math.log10(price)) - 1);
+    const steps = [...new Set([mag, mag * 2, mag * 5, mag * 10])];
+    const out = new Set();
+    for (const s of steps) {
+      const lower = Math.floor(price / s) * s;
+      out.add(lower); out.add(lower + s); out.add(lower - s);
+    }
+    return [...out].filter(v => v > 0 && Math.abs(v - price) / price <= 0.03);
+  }
+
+  function detectLiquidityPools(klines, refPrice, opts) {
+    const cfg = Object.assign({}, LCFG, opts || {});
+    const n = klines ? klines.length : 0;
+    if (n < cfg.swingK * 2 + 5) return { highPools: [], lowPools: [] };
+    const { highs, lows } = findPivots(klines, cfg.swingK);
+    let highPools = clusterLevels(highs, cfg.clusterTolPct, n).filter(p => p.touchCount >= cfg.minTouches);
+    let lowPools = clusterLevels(lows, cfg.clusterTolPct, n).filter(p => p.touchCount >= cfg.minTouches);
+
+    const price = refPrice || klines[n - 1].c;
+    const rounds = roundLevelsNear(price);
+    const addRoundConfluence = (pools, isAbove) => {
+      const candidateRounds = rounds.filter(r => isAbove ? r >= price : r <= price);
+      for (const r of candidateRounds) {
+        const near = pools.find(p => Math.abs(p.price - r) / r <= LCFG.clusterTolPct * 2);
+        if (near) near.roundConfluence = true;
+        else pools.push({ price: r, touchCount: 0, recency: 0.5, type: "round" });
+      }
+      return pools;
+    };
+    highPools = addRoundConfluence(highPools, true);
+    lowPools = addRoundConfluence(lowPools, false);
+
+    const score = p => {
+      let s = p.touchCount * 10 + p.recency * 10;
+      if (p.type === "round") s += cfg.roundBaseStrength;
+      if (p.roundConfluence) s += cfg.roundBonus;
+      return s;
+    };
+    highPools = highPools.map(p => ({ ...p, strength: score(p) })).sort((a, b) => b.strength - a.strength).slice(0, cfg.maxPoolsPerSide);
+    lowPools = lowPools.map(p => ({ ...p, strength: score(p) })).sort((a, b) => b.strength - a.strength).slice(0, cfg.maxPoolsPerSide);
+    return { highPools, lowPools };
+  }
+
+  function crowdBias(longShortRatio, fundingRate, opts) {
+    const cfg = Object.assign({}, LCFG, opts || {});
+    let bias = "BALANCED", strength = 0;
+    if (longShortRatio != null && isFinite(longShortRatio) && longShortRatio > 0) {
+      if (longShortRatio >= cfg.crowdRatioExtreme) { bias = "LONG_HEAVY"; strength = clampp((longShortRatio - 1) * 40, 0, 100); }
+      else if (longShortRatio <= 1 / cfg.crowdRatioExtreme) { bias = "SHORT_HEAVY"; strength = clampp((1 / longShortRatio - 1) * 40, 0, 100); }
+    }
+    if (fundingRate != null && isFinite(fundingRate)) {
+      if (fundingRate >= cfg.fundingExtreme && bias !== "SHORT_HEAVY") { bias = "LONG_HEAVY"; strength = Math.max(strength, 40); }
+      else if (fundingRate <= -cfg.fundingExtreme && bias !== "LONG_HEAVY") { bias = "SHORT_HEAVY"; strength = Math.max(strength, 40); }
+    }
+    return { bias, strength: Math.round(strength), longShortRatio: longShortRatio ?? null, fundingRate: fundingRate ?? null };
+  }
+
+  function pickPoolNearStop(pools, stop, opts) {
+    const cfg = Object.assign({}, LCFG, opts || {});
+    const candidates = pools.filter(p => Math.abs(p.price - stop) / stop <= cfg.searchWindowPct);
+    if (!candidates.length) return null;
+    return candidates.slice().sort((a, b) => {
+      const da = Math.abs(a.price - stop) / stop, db = Math.abs(b.price - stop) / stop;
+      return (b.strength - a.strength) || (da - db);
+    })[0];
+  }
+
+  function huntRiskScore(direction, stop, pool, crowd, opts) {
+    const cfg = Object.assign({}, LCFG, opts || {});
+    if (!pool) return 0;
+    const distPct = Math.abs(stop - pool.price) / stop;
+    const proximity = clampp(1 - distPct / cfg.searchWindowPct, 0, 1);
+    let s = pool.strength * 1.2 + proximity * 40;
+    if (direction === "LONG" && crowd.bias === "LONG_HEAVY") s += crowd.strength * 0.25;
+    if (direction === "SHORT" && crowd.bias === "SHORT_HEAVY") s += crowd.strength * 0.25;
+    return Math.round(clampp(s, 0, 100));
+  }
+
+  function analyzeLiquidityHunt(input) {
+    const { direction, entry, stop, tp1, tp2, klines, longShortRatio, fundingRate } = input;
+    const crowd = crowdBias(longShortRatio, fundingRate);
+    const base = { crowd, pools: { highPools: [], lowPools: [] },
+      huntRisk: { score: 0, level: "NONE", pool: null },
+      refined: { entry, stop, tp1, tp2, rr: input.rr ?? null, adjusted: false,
+        reason: "جهت خنثی است یا داده‌ای برای ارزیابی شکار نقدینگی کافی نیست." } };
+    if (direction !== "LONG" && direction !== "SHORT") return base;
+    if (!(stop > 0) || !(entry > 0)) return base;
+
+    const pools = detectLiquidityPools(klines, entry);
+    base.pools = pools;
+    const relevant = direction === "LONG" ? pools.lowPools : pools.highPools;
+    const pool = pickPoolNearStop(relevant, stop);
+    const score = huntRiskScore(direction, stop, pool, crowd);
+    const level = score >= LCFG.huntScoreHigh ? "HIGH" : score >= LCFG.huntScoreMed ? "MEDIUM" : pool ? "LOW" : "NONE";
+    base.huntRisk = { score, level, pool };
+
+    if (level !== "HIGH" || !pool) {
+      base.refined.reason = pool
+        ? "خوشهٔ نقدینگی نزدیک حد ضرر شناسایی شد اما قدرت/همگرایی آن برای تغییر خودکار ورود و حد ضرر کافی نیست؛ صرفاً برای آگاهی نشان داده می‌شود."
+        : "هیچ خوشهٔ نقدینگی معناداری (سقف/کف برابر یا عدد رُند) نزدیک حد ضرر موتور پیدا نشد؛ اعداد موتور بدون تغییر می‌مانند.";
+      return base;
+    }
+
+    const stopDistance = Math.abs(entry - stop);
+    const sign = direction === "LONG" ? -1 : 1;
+    const refinedEntry = entry + sign * stopDistance * LCFG.entryShiftFrac;
+    const refinedStop = pool.price + sign * stopDistance * LCFG.bufferFrac;
+    const newStopDistance = Math.abs(refinedEntry - refinedStop);
+    const tpSign = direction === "LONG" ? 1 : -1;
+    const r1 = tp1 != null && stopDistance > 0 ? Math.abs(tp1 - entry) / stopDistance : 1.15;
+    const r2 = tp2 != null && stopDistance > 0 ? Math.abs(tp2 - entry) / stopDistance : 2.10;
+    const refinedTp1 = refinedEntry + tpSign * newStopDistance * r1;
+    const refinedTp2 = refinedEntry + tpSign * newStopDistance * r2;
+    const refinedRr = newStopDistance > 0 ? Math.abs(refinedTp2 - refinedEntry) / newStopDistance : 0;
+
+    base.refined = {
+      entry: refinedEntry, stop: refinedStop, tp1: refinedTp1, tp2: refinedTp2, rr: refinedRr,
+      adjusted: true,
+      reason: `احتمال شکار نقدینگی بالاست: حد ضرر موتور (${stop}) درست نزدیک یک خوشهٔ نقدینگی (${pool.type === "round" ? "عدد رُند" : "سقف/کف برابر"} در ${pool.price.toFixed(6)}, قدرت ${Math.round(pool.strength)}) قرار دارد. ورود به سمت ناحیه جابه‌جا و حد ضرر کمی فراتر از خوشه قرار گرفت تا شکار نقدینگی، معامله را قبل از برگشت واقعی نزند.`,
+    };
+    return base;
+  }
+
+  const api = { LCFG, findPivots, clusterLevels, roundLevelsNear, detectLiquidityPools, crowdBias, pickPoolNearStop, huntRiskScore, analyzeLiquidityHunt };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else { for (const k in api) root[k] = api[k]; }
+})(typeof window !== "undefined" ? window : globalThis);
+
+
+/* =========================================================================
    CANDLESTICK CHART RENDERER + PATTERN OVERLAY  (canvas, runs locally)
    ========================================================================= */
 const COL={up:"#26d0a4",dn:"#ff5d77",grid:"#1b2533",axis:"#566479",txt:"#8597ad",
@@ -1043,6 +1238,7 @@ function parseKlines(raw){return raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+
 async function fetchKlines(sym,iv,limit=S.kline_limit){return parseKlines(await jget(`/fapi/v1/klines?symbol=${sym}&interval=${iv}&limit=${limit}`));}
 async function fetchTickers(){return jget(`/fapi/v1/ticker/24hr`);}
 async function fetchFundingMap(){const a=await jget(`/fapi/v1/premiumIndex`);const m={};a.forEach(x=>m[x.symbol]=+x.lastFundingRate||0);return m;}
+async function fetchLongShortRatio(sym){try{const a=await jget(`/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=15m&limit=1`);return a&&a[0]?+a[0].longShortRatio:null;}catch(e){return null;}}
 
 /* market regime — reconstructed (browser side), clearly labeled in UI */
 async function fetchMarketContext(){
@@ -1074,7 +1270,12 @@ async function analyzeOne(asset,funding,ctx){
   const[c5,c15,c1h]=await Promise.all([fetchKlines(asset.binance_symbol,"5m"),fetchKlines(asset.binance_symbol,"15m"),fetchKlines(asset.binance_symbol,"1h")]);
   const m5=timeframeMetrics(c5,"5m"),m15=timeframeMetrics(c15,"15m"),m1h=timeframeMetrics(c1h,"1h");
   const cur=asset.lastPrice||m5.close;
-  return analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+  const r=analyzeSymbol(asset,m5,m15,m1h,cur,funding[asset.binance_symbol]||0,ctx);
+  if(["SIGNAL","WAITING_CONFIRMATION","VALID_ENTRY","WATCHING"].includes(r.status)){
+    let lsRatio=null;try{lsRatio=await fetchLongShortRatio(asset.binance_symbol);}catch(e){}
+    try{r.liquidity=analyzeLiquidityHunt({direction:r.direction,entry:r.entry,stop:r.stop_loss,tp1:r.tp1,tp2:r.tp2,rr:r.rr,klines:c15,longShortRatio:lsRatio,fundingRate:funding[asset.binance_symbol]||0});}catch(e){r.liquidity=null;}
+  }
+  return r;
 }
 async function pool(items,worker,limit,onEach){
   const q=items.slice();let done=0;const out=[];
@@ -1138,23 +1339,28 @@ function railHTML(status,direction){
   }).join("")+`</div>`;
 }
 function chkLabelFa(k){return{higher_tf_direction:"جهت ۱ساعته",setup_tf_direction:"جهت ۱۵م",entry_tf_confirmation:"تأیید ۵م",not_overextended:"اشباع نشده",trend_strength:"قدرت روند",volume_expansion:"انبساط حجم"}[k]||k;}
+function liveLevels(r){const liq=r.liquidity;if(liq&&liq.refined&&liq.refined.adjusted)return{entry:liq.refined.entry,stop:liq.refined.stop,tp1:liq.refined.tp1,tp2:liq.refined.tp2,rr:liq.refined.rr,adjusted:true};return{entry:r.entry,stop:r.stop_loss,tp1:r.tp1,tp2:r.tp2,rr:r.rr,adjusted:false};}
+function huntLevelFa(l){return{HIGH:"بالا",MEDIUM:"متوسط",LOW:"کم",NONE:"—"}[l]||l;}
 
 function signalCard(r){
-  const z=r.entry_zone||{};
-  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(r.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`]
+  const lv=liveLevels(r);
+  const tags=[`<span class="tag">${r.setup}</span>`,`<span class="tag">RR ${fmt(lv.rr,2)}</span>`,`<span class="tag">TF ${r.tf_agreement}/3</span>`,`<span class="tag">vol ${fmtVol(r.quote_volume)}</span>`]
+    .concat(lv.adjusted?[`<span class="tag liq">شکار نقدینگی ⚠ تنظیم‌شد</span>`]:[])
     .concat((r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}✕</span>`)).join("");
+  const liqNote=lv.adjusted?`<div class="liqnote">موتور: ورود ${fmt(r.entry)} · استاپ ${fmt(r.stop_loss)} → تنظیم‌شده: ورود ${fmt(lv.entry)} · استاپ ${fmt(lv.stop)}</div>`:"";
   return `<div class="card fade">
     <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
       <span class="side ${r.direction}">${r.direction}</span></div>
     <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · <span class="statuspill st-${r.status}">${r.status}</span></div>
     <div class="levels">
-      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
-      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
-      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
-      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+      <div><div class="k">entry</div><div class="val">${fmt(lv.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(lv.stop)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(lv.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(lv.tp2)}</div></div>
     </div>
     ${railHTML(r.status,r.direction)}
     <div class="tags">${tags}</div>
+    ${liqNote}
     <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو روی چارت</button></div>
   </div>`;
 }
@@ -1166,13 +1372,15 @@ function renderSignals(){
     `<div class="empty">هنوز سیگنالی نیست. سیگنال فقط وقتی صادر می‌شود که همهٔ فیلترهای سخت پاس شوند — بقیه در واچ‌لیست می‌مانند. یک اسکن بزن.</div>`);
 }
 function watchRow(r){
+  const lv=liveLevels(r);
+  const liqTag=lv.adjusted?`<span class="tag liq">شکار نقدینگی ⚠</span>`:"";
   return `<div class="card fade">
     <div class="top"><span class="sym">${r.asset_symbol}</span><span class="rank">#${r.rank||"-"}</span>
       <span class="side ${r.direction}">${r.direction}</span>
       <span class="statuspill st-${r.status}" style="margin-inline-start:8px">${LIFE_SHORT[r.status]||r.status}</span></div>
-    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(r.rr,2)}</div>
+    <div class="scorebig">امتیاز <b>${fmt(r.score,1)}</b> · ${r.setup} · RR ${fmt(lv.rr,2)}</div>
     ${railHTML(r.status,r.direction)}
-    <div class="tags">${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
+    <div class="tags">${liqTag}${(r.blockers||[]).length?`<span class="dim mono" style="font-size:11px">مانع تا سیگنال: </span>`+(r.blockers||[]).map(b=>`<span class="tag warn">${chkLabelFa(b)}</span>`).join(""):`<span class="tag">آمادهٔ تأیید</span>`}</div>
     <div style="padding:0 14px 13px"><button class="btn ghost" style="width:100%" onclick='openDeep("${r.binance_symbol}")'>تحلیل کامل + الگو</button></div>
   </div>`;
 }
@@ -1202,6 +1410,24 @@ async function deepAnalyze(symInput){
     $("#ddMeta").textContent=`${fmtVol(r.quote_volume)} · ${fmtTime(new Date())}`;
   }catch(e){$("#ddOut").innerHTML=`<div class="empty">تحلیل ${sym} ناموفق: ${e.message}. نماد یا اتصال را بررسی کن.</div>`;}
 }
+function liquidityBox(r){
+  const liq=r.liquidity;if(!liq)return"";
+  const hr=liq.huntRisk,crowd=liq.crowd,lv=liq.refined;
+  const lvCls={HIGH:"v-conflict",MEDIUM:"v-caution",LOW:"v-neutral",NONE:"v-aligned"}[hr.level]||"v-neutral";
+  const crowdTxt={LONG_HEAVY:`لانگ‌سنگین (نسبت ${crowd.longShortRatio!=null?crowd.longShortRatio.toFixed(2):"—"})`,SHORT_HEAVY:`شورت‌سنگین (نسبت ${crowd.longShortRatio!=null?crowd.longShortRatio.toFixed(2):"—"})`,BALANCED:"متعادل"}[crowd.bias]||crowd.bias;
+  const poolHtml=hr.pool?`<div class="patmatch" style="margin-top:8px"><span class="lv ${lvCls}">${hr.pool.type==="round"?"عدد رُند":"سقف/کف برابر"} @ ${fmt(hr.pool.price)}</span> · لمس ${hr.pool.touchCount} · قدرت ${Math.round(hr.pool.strength)}</div>`:"";
+  const adjHtml=lv&&lv.adjusted?`<div style="margin-top:10px;font-size:12px;color:var(--mut)">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div><span class="dim">موتور</span>  ورود <b>${fmt(r.entry)}</b> · استاپ <b>${fmt(r.stop_loss)}</b> · RR <b>${fmt(r.rr,2)}</b></div>
+      <div style="color:var(--long)">تنظیم‌شده  ورود <b>${fmt(lv.entry)}</b> · استاپ <b>${fmt(lv.stop)}</b> · RR <b>${fmt(lv.rr,2)}</b></div>
+    </div></div>`:"";
+  return `<div class="box" style="margin-bottom:12px">
+    <h3>شکار نقدینگی — ارزیابی ریسک</h3>
+    <div class="verdict ${lvCls}" style="margin-top:6px">خطر: ${huntLevelFa(hr.level)} · امتیاز ${hr.score}/100 · جمعیت: ${crowdTxt}</div>
+    ${poolHtml}${adjHtml}
+    <p class="muted" style="margin-top:8px;font-size:12px">${lv?lv.reason:""}</p>
+  </div>`;
+}
 function renderDeep(r){
   const M=r.metrics,tfRow=(tf,m)=>`<div class="tfrow">
     <div class="tf">${tf}</div>
@@ -1212,19 +1438,22 @@ function renderDeep(r){
     <div class="tfdir side ${m.direction}">${m.direction}</div></div>`;
   const sc=r.scorecard,bar=(fa,v,max)=>`<div class="scbar"><span class="n">${fa}</span><span class="track"><i style="width:${v/max*100}%"></i></span><span class="v">${v}</span></div>`;
   const checks=Object.entries(r.mandatory_checks).map(([k,v])=>`<div class="chk ${v?"ok":"no"}"><span class="i">${v?"✓":"✕"}</span><span>${chkLabelFa(k)}</span><span class="k" style="margin-inline-start:auto">${k}</span></div>`).join("");
+  const deepLv=liveLevels(r);
+  const liqBadge=deepLv.adjusted?`<span class="tag liq" style="margin-inline-start:8px">شکار نقدینگی ⚠ تنظیم‌شد</span>`:"";
   $("#ddOut").innerHTML=`
   <div class="card" style="margin-bottom:12px">
     <div class="top"><span class="sym">${r.asset_symbol}</span><span class="side ${r.direction}">${r.direction}</span>
-      <span class="statuspill st-${r.status}" style="margin-inline-start:auto">${r.status}</span></div>
-    <div class="scorebig">امتیاز موتور <b>${fmt(r.score,1)}</b> · ستاپ ${r.setup} · RR ${fmt(r.rr,2)} · TF ${r.tf_agreement}/3</div>
+      <span class="statuspill st-${r.status}" style="margin-inline-start:auto">${r.status}</span>${liqBadge}</div>
+    <div class="scorebig">امتیاز موتور <b>${fmt(r.score,1)}</b> · ستاپ ${r.setup} · RR ${fmt(deepLv.rr,2)} · TF ${r.tf_agreement}/3</div>
     <div class="levels">
-      <div><div class="k">entry</div><div class="val">${fmt(r.entry)}</div></div>
-      <div><div class="k">stop</div><div class="val sl">${fmt(r.stop_loss)}</div></div>
-      <div><div class="k">tp1</div><div class="val tp">${fmt(r.tp1)}</div></div>
-      <div><div class="k">tp2</div><div class="val tp">${fmt(r.tp2)}</div></div>
+      <div><div class="k">entry</div><div class="val">${fmt(deepLv.entry)}</div></div>
+      <div><div class="k">stop</div><div class="val sl">${fmt(deepLv.stop)}</div></div>
+      <div><div class="k">tp1</div><div class="val tp">${fmt(deepLv.tp1)}</div></div>
+      <div><div class="k">tp2</div><div class="val tp">${fmt(deepLv.tp2)}</div></div>
     </div>
     ${railHTML(r.status,r.direction)}
   </div>
+  ${liquidityBox(r)}
   <div class="dd">
     <div class="box"><h3>تایم‌فریم‌ها</h3>${tfRow("5m",M["5m"])}${tfRow("15m",M["15m"])}${tfRow("1h",M["1h"])}
       <h3 style="margin-top:14px">ناحیهٔ ورود</h3>
