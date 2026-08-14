@@ -3744,7 +3744,11 @@ function renderPumpCloud(){
       <td><span class="chip" style="${c.role==="سردسته"?"border-color:#8a6d1e;color:#f0d24e":c.role==="دنباله‌رو"?"border-color:#2f7d5b;color:#8fe3bd":""}">${c.role}</span>
         ${c.leaders&&c.leaders.length?`<div class="dim" style="font-size:9.5px">سردسته: ${c.leaders[0].symbol.replace("USDT","")}</div>`:""}</td>
       <td style="font-size:10.5px">${
-        (c.lag_corr_followers&&c.lag_corr_followers.length)?
+        (c.event_leaders&&c.event_leaders.length)?
+          c.event_leaders.slice(0,2).map(l=>`<div class="mono" style="color:#9ff59f">🧾 ${l.symbol.replace("USDT","")} <span class="dim">${l.k_after}از${l.N} (${Math.round(l.prob*100)}٪)</span></div>`).join("")
+        :(c.event_followers&&c.event_followers.length)?
+          c.event_followers.slice(0,2).map(f=>`<div class="mono" style="color:#9ff59f">🧾→ ${f.symbol.replace("USDT","")} <span class="dim">${f.k_after}از${f.N} (${Math.round(f.prob*100)}٪)</span></div>`).join("")
+        :(c.lag_corr_followers&&c.lag_corr_followers.length)?
           c.lag_corr_followers.slice(0,2).map(f=>`<div class="mono" style="color:#8fc7f5">→ ${f.symbol.replace("USDT","")} <span class="dim">r=${(f.best.r>0?"+":"")+f.best.r}@${f.best.lag_h}س${f.both_tf?" ·۲TF":""}</span></div>`).join("")
         :(c.lag_corr_leaders&&c.lag_corr_leaders.length)?
           c.lag_corr_leaders.slice(0,2).map(l=>`<div class="mono" style="color:#f5d98f">← ${l.symbol.replace("USDT","")} <span class="dim">r=${(l.best.r>0?"+":"")+l.best.r}@${l.best.lag_h}س${l.both_tf?" ·۲TF":""}</span></div>`).join("")

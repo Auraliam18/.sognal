@@ -166,6 +166,49 @@ def examine():
     else:
         finds.append("تلگرام وصل نیست — دو Secret هنوز ثبت نشده (سیگنال فقط روی پنل می‌ماند)")
 
+    # ── گشت میان کل ایجنت‌ها (دستور حمید، ۱۴ اوت): «با گردش میان مجموعهٔ
+    # ایجنت‌ها و با سؤال پرسیدن در مورد هر چیز خودش دنبال جواب برود» ──────
+    # هر اتاق در brain/rooms یک ایجنت است و _saved آخرین ضربانش. سؤال از
+    # هرکدام: «آخرین بار کی کار کردی؟» — جوابِ کهنه‌تر از ۶ ساعت یعنی آن
+    # ایجنت خوابیده؛ سؤال و جوابش در دفتر پرسش‌ها ثبت می‌شود.
+    try:
+        rooms_dir = Path(__file__).resolve().parent.parent.parent.parent / "brain" / "rooms"
+        questions = []
+        stale_rooms = []
+        for d in sorted(rooms_dir.iterdir() if rooms_dir.is_dir() else []):
+            if not d.is_dir():
+                continue
+            q = {"q": f"اتاق {d.name}: آخرین بار کی کار کردی؟", "room": d.name}
+            try:
+                stj = json.loads((d / "state.json").read_text())
+                saved = stj.get("_saved") or stj.get("at") or 0
+                age_h = (time.time() * 1000 - saved) / 3600000 if saved else None
+                q["a"] = f"{age_h:.1f} ساعت پیش" if age_h is not None else "هرگز"
+                if age_h is None or age_h > 6:
+                    stale_rooms.append(d.name)
+                    q["fault"] = True
+            except Exception as e:                    # noqa: BLE001
+                q["a"] = f"جواب نداد ({type(e).__name__})"
+                q["fault"] = True
+                stale_rooms.append(d.name)
+            questions.append(q)
+        if stale_rooms:
+            finds.append("گشت ایجنت‌ها: این اتاق‌ها ۶+ ساعت است کار نکرده‌اند یا "
+                         "جواب نمی‌دهند: " + "، ".join(stale_rooms[:6]))
+            # اتاق خوابیده معمولاً یعنی چرخهٔ مادرش خوابیده — همان درمان
+            if len(stale_rooms) >= 3 and "heartbeat.yml" not in wake:
+                wake.append("heartbeat.yml")
+                sick = True
+        elif questions:
+            finds.append(f"گشت ایجنت‌ها: هر {len(questions)} اتاق در ۶ ساعت اخیر کار کرده‌اند")
+        # دفتر پرسش‌های عیب‌یاب — append، برای بازخوانی خودش و حمید
+        qp = Path(__file__).resolve().parent.parent.parent.parent / "brain" / "medic-questions.jsonl"
+        with open(qp, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"at": int(time.time() * 1000),
+                                "questions": questions}, ensure_ascii=False) + "\n")
+    except Exception:                                 # noqa: BLE001 - گشت نباید معاینه را بکشد
+        pass
+
     # ── سؤال جدید عیب‌یاب (ترس حمید، ۱۴ اوت): «حافظه کوچک نشده؟» ──────────
     # جمع کل معاملات بسته فقط باید بالا برود. اگر نسبت به آخرین معاینه
     # پایین آمد، یعنی دفتر واقعاً از دست رفته — همان اتفاقی که حمید فکر

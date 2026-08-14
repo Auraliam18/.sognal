@@ -41,9 +41,16 @@ jobs:
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.test_learning
 
-      - name: پایش منابع
+      - name: پایش منابع (دوشنبه‌ها همهٔ ۲۶ انجین، بقیهٔ روزها هستهٔ فاز ۱)
         working-directory: claude-liam-signal/python
-        run: python3 -m research.source_monitor ${{ inputs.engines }}
+        run: |
+          if [ -n "${{ inputs.engines }}" ]; then
+            python3 -m research.source_monitor ${{ inputs.engines }}
+          elif [ "$(date -u +%u)" = "1" ]; then
+            python3 -m research.source_monitor all
+          else
+            python3 -m research.source_monitor
+          fi
 
       - name: ثبت وضعیت جدید
         run: |

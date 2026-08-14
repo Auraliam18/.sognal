@@ -68,7 +68,7 @@ jobs:
 
       - name: matplotlib برای چارت پیک و هشدار ریزش
         if: steps.guard.outputs.skip != '1'
-        run: pip -q install matplotlib
+        run: pip -q install matplotlib pyyaml
 
       - name: آزمون آفلاین
         if: steps.guard.outputs.skip != '1'
@@ -82,6 +82,7 @@ jobs:
           python3 -m hamid.test_deep
           python3 -m hamid.test_mirror
           python3 -m hamid.test_learning
+          python3 -m hamid.test_pump_study
           python3 -m hamid.test_fixit
 
       - name: حلقهٔ ۵ دقیقه‌ای (۵ دور در یک job)

@@ -737,6 +737,23 @@ def review_cycle():
             n_skip = len([k for k in led if str(k).startswith("skip|")])
             if n_skip:
                 why.append(f"دروازه‌ها {n_skip} کاندیدا را رد کردند (ضدتکرار/هم‌زمانی/بازجویی)")
+            # تشخیص حمید (۱۴ اوت): «دقیقاً بین دو اردر بلاک بازی می‌کند و نه
+            # استاپ می‌زند نه تی‌پی — تریدر خسته می‌شود.» دو نشانهٔ قابل‌سنجش:
+            # ۱) معامله‌های باز کهنه (>۱۲س نه استاپ نه تارگت = معلق در وسط)
+            # ۲) سهم بالای timeout در بسته‌های اخیر میز تمرین
+            now0 = int(time.time() * 1000)
+            open_rows = _p._read(_p.OPEN)
+            stuck = [t for t in open_rows
+                     if t.get("filled") and now0 - t["filled"] > 12 * 3600 * 1000]
+            if len(stuck) >= 3:
+                why.append(f"{len(stuck)} معاملهٔ پرشده {12}+ ساعت است نه استاپ خورده "
+                           "نه تارگت — نشانهٔ چرخش بین دو اردر بلاک مخالف (NO_TRADE_ROTATION)")
+            recent = [t for t in _p._read(_p.CLOSED)[-120:]
+                      if t.get("outcome") in ("stop", "target", "trail", "timeout")]
+            n_to = sum(1 for t in recent if t["outcome"] == "timeout")
+            if len(recent) >= 20 and n_to / len(recent) > 0.5:
+                why.append(f"{n_to} از {len(recent)} بستهٔ اخیر timeout بوده — "
+                           "بازار رنجِ بین‌OB است؛ قانون رنج: NO_TRADE_ROTATION معتبر است")
             if not why:
                 why.append("هیچ نشانهٔ فعالیتی در بازه نیست — اگر تکرار شد، خودِ چرخه مشکوک است")
             verdict += "\n🔎 علت‌یابی خودکار: " + "؛ ".join(why)
