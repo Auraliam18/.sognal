@@ -62,6 +62,16 @@ main{max-width:1180px;margin:0 auto;padding:16px}
 .progress{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin:0 0 14px}
 .progress>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--watch),var(--long));transition:width .25s}
 .hint{color:var(--mut);font-size:13px;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;background:rgba(22,31,43,.4)}
+/* شکایت حمید (۱۴ اوت): «هر تبی را می‌زنم باز یک باکسی بالاش ثابته».
+   علت: بلوک‌های مشترک (نوار پیشرفت، وضعیت، بنر تلگرام، آلارم، جعبهٔ
+   «چرا سیگنالی نیست») بیرون از sectionهای تب‌اند و بعضی رندرها —
+   مثل showProg — display را زورکی برمی‌گرداندند. حالا حکم با CSS است،
+   نه با JS: هر بلوکِ data-tab فقط وقتی دیده می‌شود که تب فعال، خودش
+   باشد؛ !important تا هیچ style اینلاینی نتواند نقضش کند. */
+[data-tab]{display:none !important}
+body[data-active="signals"] [data-tab="signals"],
+body[data-active="watch"]   [data-tab="watch"],
+body[data-active="ops"]     [data-tab="ops"]{display:block !important}
 
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
@@ -214,10 +224,10 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 </style>
 </head>
-<body dir="ltr">
+<body dir="ltr" data-active="signals">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.25 · کارنامهٔ دائمی برد/استاپ روی پنل</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.26 · تب‌ها با CSS قطعی جدا شدند</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -253,7 +263,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x.dataset.t===t);});
     ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
       .forEach(function(k){var el=document.getElementById("view-"+k);if(el)el.style.display=k===t?"":"none";});
-    document.querySelectorAll("[data-tab]").forEach(function(el){el.style.display=el.dataset.tab===t?"":"none";});
+    document.body.dataset.active=t;
   });
   </script>
   <div style="display:none">
@@ -261,7 +271,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 </header>
 
 <main>
-  <div class="progress" id="prog" style="display:none"><span></span></div>
+  <div class="progress" id="prog" data-tab="signals"><span></span></div>
   <!-- دستور حمید (۱۴ اوت): «هر تبی که کلیک می‌کنی باید فقط اطلاعات مربوط
        به همون تب درش قرار بگیره.» این بلوک‌ها قبلاً بیرون از تب‌ها بودند و
        روی هر تبی تکرار می‌شدند. رندررهایشان innerHTML خود section را
@@ -5089,8 +5099,9 @@ function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
   ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
     .forEach(k=>{const el=$("#view-"+k);if(el)el.style.display=k===t?"":"none";});
-  /* بلوک‌های خارج از section فقط در تب خودشان — دستور حمید ۱۴ اوت */
-  $$("[data-tab]").forEach(el=>{el.style.display=el.dataset.tab===t?"":"none";});
+  /* بلوک‌های خارج از section فقط در تب خودشان — حکم با CSS است (بالا)،
+     اینجا فقط تب فعال روی body نوشته می‌شود تا هیچ رندری نتواند نقضش کند. */
+  document.body.dataset.active=t;
   const R={ops:"renderOps",paper:"renderReview",real:"renderReal",net:"renderNet",
            agent:"renderAgent",radar:"renderPumpCloud",graph:"renderGraph",bub:"renderBubbles"};
   if(R[t])try{window[R[t]]&&window[R[t]]();}catch(err){console.error("render",t,err);}
