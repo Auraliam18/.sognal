@@ -86,7 +86,7 @@ flat = [{"t": i * 900_000, "o": 100.0, "h": 100.0, "l": 100.0, "c": 100.0, "v": 
         for i in range(210)]
 s = {"dir": "LONG", "entry": 100.0, "sl": 99.0, "tp1": 102.0}
 flat.append({"t": 210 * 900_000, "o": 100.0, "h": 103.0, "l": 98.0, "c": 100.0, "v": 1})
-j, outcome, r = trainer.resolve(flat, 209, s)     # ورود در ۲۰۹؛ کندل بحرانی ۲۱۰
+j, outcome, r, exc = trainer.resolve(flat, 209, s)   # ورود در ۲۰۹؛ کندل بحرانی ۲۱۰
 check("کندلی که هم استاپ زد هم تارگت → استاپ (بدون خوش‌بینی)",
       outcome == "stop" and r == -1.0)
 
@@ -99,7 +99,7 @@ base.append({"t": 211 * 900_000, "o": 100.7, "h": 100.75, "l": 99.9, "c": 99.95,
 base += [{"t": (212 + i) * 900_000, "o": 99.95, "h": 100.0, "l": 99.9, "c": 99.95, "v": 1}
          for i in range(10)]
 s3 = {"dir": "LONG", "entry": 100.0, "sl": 99.0, "tp1": 102.0}
-j3, out3, r3 = trainer.resolve(base, 210, s3)
+j3, out3, r3, exc3 = trainer.resolve(base, 210, s3)
 check("⅓ مسیر رفت و برگشت → تریل با سود کارمزددار (نه ضرر کامل)",
       out3 == "trail" and r3 > 0)
 
@@ -128,6 +128,18 @@ check("هر معامله دلیل ساختاری دارد (setup/stop_pct)",
           and "stop_pct" in t["why"] for t in trades))
 check("نتیجه‌ها فقط از چهار نوع مجازند",
       all(t["outcome"] in ("stop", "target", "trail", "timeout") for t in trades))
+
+# ── عمق (دستور «عمیق‌ترش کن») ─────────────────────────────────────────────
+check("MFE/MAE روی هر پرونده هست",
+      all("mfe" in t["why"] and "mae" in t["why"] for t in trades))
+check("MFE نامنفی و MAE نامثبت است (تعریف درست excursion)",
+      all(t["why"]["mfe"] >= 0 and t["why"]["mae"] <= 0 for t in trades))
+check("مدت نگهداری (hold_bars) ثبت می‌شود",
+      all(t.get("hold_bars", 0) > 0 for t in trades))
+check("عمق تاریخ ≥ ۲۰۰۰ کندل شد", trainer.BARS >= 2000)
+stopped_with_profit = [t for t in trades
+                       if t["outcome"] == "stop" and t["why"]["mfe"] >= 1.0]
+print(f"    (نمونهٔ درس تریل: {len(stopped_with_profit)} استاپ که اول ۱R+ سود بودند)")
 
 # ── ۷. درس‌ها به حافظه رفتند ───────────────────────────────────────────────
 lessons = json.loads(memory.LESSONS.read_text()).get("lessons", [])

@@ -115,6 +115,8 @@ def run(engines=None, fetch=None, quiet=False):
     reg = load_registry()
     rows = {e["id"]: e for e in reg["engines"]}
     results = {}
+    if engines == ["all"] or engines == "all":
+        engines = [e["id"] for e in reg["engines"]]
     for eid in (engines or PHASE1):
         e = rows.get(eid)
         if not e:

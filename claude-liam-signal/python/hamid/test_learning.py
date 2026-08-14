@@ -65,6 +65,12 @@ check("نوشتن مستقیم در production خاموش است",
       reg["production_learning_direct_write"] is False)
 ids = [e["id"] for e in reg["engines"]]
 check("هر ۵ انجین فاز ۱ در رجیستری هستند", all(e in ids for e in sm.PHASE1))
+# بند G سند (۱۴ اوت): داربست research/private برای هر ۲۶ انجین
+_root = Path(__file__).resolve().parents[3]
+check("داربست brain/research برای هر ۲۶ انجین هست",
+      all((_root / "brain" / "research" / e).is_dir() for e in ids))
+check("داربست brain/memory/private برای هر ۲۶ انجین هست",
+      all((_root / "brain" / "memory" / "private" / e).is_dir() for e in ids))
 check("هر انجین ۳ کتاب و ۲ منبع دارد",
       all(len(e["books"]) == 3 and e.get("primary_source") and e.get("secondary_source")
           for e in reg["engines"]))

@@ -38,7 +38,7 @@ STATE = ROOT / "brain" / "paper" / "trainer-state.json"
 
 TARGET = 200          # کف معامله در هر اجرا — دستور صریح حمید
 TOP_N = 100           # ۱۰۰ ارز برتر
-BARS = 800            # ~۸ روز کندل ۱۵د
+BARS = 2000           # ~۲۱ روز کندل ۱۵د — «عمیق‌ترش کن» (حمید، ۱۴ اوت)
 WARMUP = 160          # قبل از این، پنجره برای ساختار/OB کوتاه است
 MAX_HOLD = 96         # حداکثر ۲۴ ساعت؛ بعدش با قیمت روز بسته می‌شود
 RR = 2.0              # تارگت = ۲R — قانون ثابت میز تمرین
@@ -105,7 +105,24 @@ def decide(window):
         if ob:
             why.update({"reactions": ob.get("reactions"),
                         "ob_hunts": ob.get("hunts"),
-                        "ob_fresh": ob.get("fresh")})
+                        "ob_fresh": ob.get("fresh"),
+                        "ob_age": ob.get("age")})
+        # بستر عمیق‌تر (دستور «عمیق‌ترش کن»): جای قیمت در کانال، جهش حجم،
+        # و نوسان — هر سه شرط‌پذیرند و ماشین بونفرونی شبانه می‌تواند
+        # بپرسد «ورود نزدیک سقف کانال بدتر است؟»، «جهش حجم کمک می‌کند؟»
+        try:
+            from hamid.structure import atr as _atr, channel as _chan
+            ch = _chan(window)
+            if ch:
+                why["chan_pos"] = round(ch.position, 2)
+            why["atr_pct"] = round((_atr(window) / px) * 100, 2)
+        except Exception:                             # noqa: BLE001 - بستر اختیاری است
+            pass
+        try:
+            from hamid.ob_intel import vol_z_at
+            why["vol_z"] = round(vol_z_at(window, len(window) - 1), 2)
+        except Exception:                             # noqa: BLE001
+            pass
         return {"dir": d, "entry": px, "sl": sl, "tp1": tp, "why": why}
 
     # A) پولبک به اردر بلاک (داخل یا نزدیک ≤۲×ATR — خروجی near)
@@ -136,17 +153,41 @@ def decide(window):
 
 
 def resolve(c15, i, s):
-    """از کندل i+1 جلو برو تا استاپ/تارگت/تایم‌اوت. برخورد هم‌زمان = استاپ."""
+    """از کندل i+1 جلو برو تا استاپ/تارگت/تایم‌اوت. برخورد هم‌زمان = استاپ.
+
+    خروجی: (اندیس خروج، نتیجه، R، excursion) — excursion یعنی MFE/MAE به
+    واحد R و «چند کندل تا بهترین/بدترین نقطه». این همان جزئیاتی است که
+    درس واقعی می‌سازد: استاپی که اول ۱.۵R سود بود، درسِ «تریل زودتر»
+    است؛ استاپی که یک‌راست منفی رفت، درسِ «ورود غلط» — بدون MFE/MAE این
+    دو یکی دیده می‌شوند.
+    """
     e, sl, tp = s["entry"], s["sl"], s["tp1"]
     long = s["dir"] == "LONG"
+    risk = (e - sl) if long else (sl - e)
+    mfe, mae, mfe_bar, mae_bar = 0.0, 0.0, 0, 0
+
+    def track(c, j):
+        nonlocal mfe, mae, mfe_bar, mae_bar
+        up = (c["h"] - e) / risk if long else (e - c["l"]) / risk
+        dn = (c["l"] - e) / risk if long else (e - c["h"]) / risk
+        if up > mfe:
+            mfe, mfe_bar = up, j - i
+        if dn < mae:
+            mae, mae_bar = dn, j - i
+
+    def exc():
+        return {"mfe": round(mfe, 2), "mae": round(mae, 2),
+                "mfe_bar": mfe_bar, "mae_bar": mae_bar}
+
     for j in range(i + 1, min(i + 1 + MAX_HOLD, len(c15))):
         c = c15[j]
+        track(c, j)
         hit_sl = (c["l"] <= sl) if long else (c["h"] >= sl)
         hit_tp = (c["h"] >= tp) if long else (c["l"] <= tp)
         if hit_sl:                                    # هم‌زمان → بدخیم‌ترین فرض
-            return j, "stop", -1.0
+            return j, "stop", -1.0, exc()
         if hit_tp:
-            return j, "target", RR
+            return j, "target", RR, exc()
         # قانون تریل حمید (⅓ مسیر → استاپ در سود) — ساده‌شدهٔ میز تمرین:
         # اگر ⅓ مسیر رفت و بعد به ورود برگشت، خروج سربه‌سرِ کارمزددار
         third = e + (tp - e) / 3
@@ -154,18 +195,19 @@ def resolve(c15, i, s):
         if reached:
             for k in range(j + 1, min(i + 1 + MAX_HOLD, len(c15))):
                 ck = c15[k]
+                track(ck, k)
                 if (ck["h"] >= tp) if long else (ck["l"] <= tp):
-                    return k, "target", RR
+                    return k, "target", RR, exc()
                 if (ck["l"] <= e) if long else (ck["h"] >= e):
-                    return k, "trail", 0.15           # سود کارمزددار — قانون ۱۲ اوت
+                    return k, "trail", 0.15, exc()    # سود کارمزددار — قانون ۱۲ اوت
             k = min(i + MAX_HOLD, len(c15) - 1)
             px = c15[k]["c"]
-            r = (px - e) / (e - sl) if long else (e - px) / (sl - e)
-            return k, "timeout", round(r, 3)
+            r = (px - e) / risk if long else (e - px) / risk
+            return k, "timeout", round(r, 3), exc()
     j = min(i + MAX_HOLD, len(c15) - 1)
     px = c15[j]["c"]
-    r = (px - e) / (e - sl) if long else (e - px) / (sl - e)
-    return j, "timeout", round(r, 3)
+    r = (px - e) / risk if long else (e - px) / risk
+    return j, "timeout", round(r, 3), exc()
 
 
 def replay_symbol(sym, c15, after_ms=0, cap=40):
@@ -185,11 +227,14 @@ def replay_symbol(sym, c15, after_ms=0, cap=40):
         if not s:
             i += 1
             continue
-        j, outcome, r = resolve(c15, i, s)
+        j, outcome, r, excursion = resolve(c15, i, s)
+        why = dict(s["why"])
+        why.update(excursion)                         # MFE/MAE روی خود پرونده
         trades.append({"sym": sym, "dir": s["dir"], "entry": s["entry"],
                        "sl": s["sl"], "tp1": s["tp1"], "tp2": None,
                        "opened": c15[i]["t"], "filled": c15[i]["t"],
-                       "why": s["why"], "outcome": outcome, "R": r,
+                       "why": why, "outcome": outcome, "R": r,
+                       "hold_bars": j - i,
                        "closed": c15[j]["t"]})
         i = j + 1                                     # بدون معاملهٔ هم‌پوشان
     frontier = c15[min(i, len(c15) - 1)]["t"] if len(trades) < cap \
