@@ -106,16 +106,23 @@ def _reacted(cand, t0, direction=1):
             "ret_pct": round((peak / base - 1) * 100, 1)}
 
 
-def study(leader_sym, leader_c1h, candidates):
+def study(leader_sym, leader_c1h, candidates, pumps=None, coverage_from=None):
     """شمارش واکنش هر کاندیدا به همهٔ پامپ‌های تاریخی لیدر.
 
     candidates: {sym: c1h}. خروجی هر کاندیدا:
       N (پامپ‌های پوشش‌داده)، k_after، prob، میانهٔ تأخیر، k_before
     و فقط رابطهٔ ازقاعده‌گذشته qualified می‌شود (k≥۳ و prob≥۳۰٪).
+
+    `pumps` قابل تزریق است تا وقتی فهرست پامپ‌ها از کش می‌آید، تاریخچهٔ
+    کامل دوباره از صرافی گرفته نشود — قرار حمید: «ارزی که پامپ شده رو یه
+    بار تاریخچشو می‌خونی و دیگه ذخیره داریش».
     """
-    pumps = find_pumps(leader_c1h)
+    if pumps is None:
+        pumps = find_pumps(leader_c1h)
+    if coverage_from is None:
+        coverage_from = leader_c1h[0]["t"] if leader_c1h else None
     res = {"leader": leader_sym, "pumps_n": len(pumps),
-           "coverage_from": leader_c1h[0]["t"] if leader_c1h else None,
+           "coverage_from": coverage_from,
            "followers": {}}
     for sym, cand in candidates.items():
         if sym == leader_sym or not cand:
@@ -151,6 +158,97 @@ def reason_fa(leader, sym, row):
             f"({round(row['prob']*100)}٪{lag})")
 
 
+# ── کش تاریخچه ────────────────────────────────────────────────────────────
+#
+# «ارزی که پامپ شده رو یه بار تاریخچشو می‌خونی و دیگه ذخیره داریش.»
+#
+# چیزی که ذخیره می‌شود **فهرست پامپ‌هاست**، نه کندل خام. دلیلش دو تاست:
+# study() از تاریخچهٔ لیدر فقط همین را می‌خواهد (find_pumps و بس)، و ۶۰۰۰
+# کندل خام برای هر نماد صدها کیلوبایت است که در brain/ بالا می‌آورد. فهرست
+# پامپ چند ده ردیف است و همان دانشِ ماندگار است.
+#
+# به‌روزرسانی افزایشی: در اجرای بعدی فقط دنبالهٔ تازه (یک صفحه ~۴۱ روز ۱س)
+# گرفته می‌شود و رخداد تازه با همان ضدهم‌پوشانی به فهرست اضافه می‌شود.
+EVENTS = ROOT / "brain" / "pump-events.json"
+TAIL_FRESH_H = 6                     # کش تازه‌تر از این، اصلاً شبکه نمی‌خواهد
+
+
+def _load_events():
+    try:
+        return json.loads(EVENTS.read_text(encoding="utf-8"))
+    except Exception:                                 # noqa: BLE001
+        return {}
+
+
+def _save_events(led):
+    EVENTS.parent.mkdir(parents=True, exist_ok=True)
+    EVENTS.write_text(json.dumps(led, ensure_ascii=False, indent=1),
+                      encoding="utf-8")
+
+
+def merge_pumps(old, new):
+    """رخدادهای تازه را کنار قدیمی‌ها بگذار با همان ضدهم‌پوشانی find_pumps.
+
+    خالص و تست‌پذیر. دو پامپ نزدیک‌تر از WINDOW_H یک موج‌اند، نه دو رخداد —
+    و بدون این، مرزِ کش خودش یک پامپ قلابی می‌ساخت."""
+    out = sorted({p["t"]: p for p in list(old) + list(new)}.values(),
+                 key=lambda p: p["t"])
+    kept = []
+    for p in out:
+        if kept and p["t"] - kept[-1]["t"] < WINDOW_H * H1:
+            if p["ret_pct"] > kept[-1]["ret_pct"]:
+                kept[-1] = p                          # همان موج، اوج بزرگ‌تر
+            continue
+        kept.append(p)
+    return kept
+
+
+def leader_pumps(sym, fetch_page=None, now_ms=None, cache=None, force=False):
+    """(pumps, meta) — تاریخچهٔ پامپ لیدر، یک بار عمیق و بعد فقط افزایشی.
+
+    meta: {"from_ms", "to_ms", "bars", "cached", "mode"}
+    mode یکی از deep / tail / cache — تا گزارش صادقانه بگوید از کجا آمد."""
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    # کش تزریقی **در جا** عوض می‌شود، نه کپی. کپی‌کردنش یعنی نوشتن هیچ‌وقت
+    # به تماس بعدی نمی‌رسد — یعنی کشی که کش نیست، و آزمون هم دقیقاً همین را
+    # گرفت. با فایل هم همین‌طور است: آن‌جا خودِ دیسک نقش حافظه را دارد.
+    led = _load_events() if cache is None else cache
+    rec = led.get(sym)
+    fetch = fetch_page or (lambda s, e: _mexc_page(s, e, "1h"))
+
+    if rec and not force and (now - (rec.get("at") or 0)) < TAIL_FRESH_H * 3600e3:
+        return rec["pumps"], {**{k: rec.get(k) for k in ("from_ms", "to_ms", "bars")},
+                              "cached": True, "mode": "cache"}
+
+    if rec and not force:
+        # فقط دنباله — تاریخچهٔ عمیق قبلاً خوانده شده و عوض نمی‌شود
+        tail = fetch(sym, None) or []
+        if tail:
+            pumps = merge_pumps(rec["pumps"], find_pumps(tail))
+            rec = {"pumps": pumps, "from_ms": rec.get("from_ms"),
+                   "to_ms": tail[-1]["t"], "bars": rec.get("bars"), "at": now}
+            led[sym] = rec
+            if cache is None:
+                _save_events(led)
+            return pumps, {"from_ms": rec["from_ms"], "to_ms": rec["to_ms"],
+                           "bars": rec["bars"], "cached": True, "mode": "tail"}
+
+    hist = deep_history(sym, fetch_page=fetch_page)
+    if not hist:
+        return (rec or {}).get("pumps", []), {"cached": bool(rec), "mode": "empty",
+                                              "from_ms": None, "to_ms": None,
+                                              "bars": 0}
+    pumps = find_pumps(hist)
+    if rec:
+        pumps = merge_pumps(rec["pumps"], pumps)      # رخداد قدیمی هرگز پاک نمی‌شود
+    led[sym] = {"pumps": pumps, "from_ms": hist[0]["t"], "to_ms": hist[-1]["t"],
+                "bars": len(hist), "at": now}
+    if cache is None:
+        _save_events(led)
+    return pumps, {"from_ms": hist[0]["t"], "to_ms": hist[-1]["t"],
+                   "bars": len(hist), "cached": False, "mode": "deep"}
+
+
 def save_ledger(res):
     """دفتر ماندگار — union: لیدرهای قبلی می‌مانند، همین لیدر تازه می‌شود."""
     led = {}
@@ -167,8 +265,9 @@ def save_ledger(res):
 
 def run_for_leader(leader_sym, kc, universe, fetch_page=None, max_candidates=60):
     """کل چرخه برای یک لیدر تازه‌پامپ‌شده. خروجی: نتیجهٔ study + دفتر."""
-    lead = deep_history(leader_sym, fetch_page=fetch_page)
-    if len(lead) < 60:
+    # تاریخچهٔ عمیق فقط بار اول؛ بعدش از کش و فقط دنبالهٔ تازه
+    pumps, meta = leader_pumps(leader_sym, fetch_page=fetch_page)
+    if not pumps:
         return None
     cands = {}
     for sym in list(universe)[:max_candidates]:
@@ -178,10 +277,14 @@ def run_for_leader(leader_sym, kc, universe, fetch_page=None, max_candidates=60)
             cands[sym] = kc.get(sym, "1h", 1000)
         except Exception:                             # noqa: BLE001 - کاندیدای خراب حذف
             continue
-    res = study(leader_sym, lead, cands)
+    res = study(leader_sym, None, cands, pumps=pumps,
+                coverage_from=meta.get("from_ms"))
     save_ledger(res)
     q = {s: r for s, r in res["followers"].items() if r["qualified"]}
-    days = round((lead[-1]["t"] - lead[0]["t"]) / (24 * H1))
-    print(f"  مطالعهٔ رویدادی {leader_sym}: {res['pumps_n']} پامپ در {days} روز "
-          f"({len(lead)} کندل) · {len(q)} دنباله‌روی ازقاعده‌گذشته")
+    span = ((meta.get("to_ms") or 0) - (meta.get("from_ms") or 0)) / (24 * H1)
+    src = {"deep": "تاریخچهٔ کامل تازه خوانده شد",
+           "tail": "از کش + دنبالهٔ تازه",
+           "cache": "از کش (تاریخچه قبلاً خوانده شده)"}.get(meta.get("mode"), "")
+    print(f"  مطالعهٔ رویدادی {leader_sym}: {res['pumps_n']} پامپ در "
+          f"{round(span)} روز · {len(q)} دنباله‌روی ازقاعده‌گذشته — {src}")
     return res

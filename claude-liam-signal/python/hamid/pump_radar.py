@@ -49,6 +49,27 @@ SENT = ROOT / "brain" / "pump-radar-sent.json"
 SENT_TTL_MS = 6 * 3600 * 1000        # همان نتیجه دوباره فرستاده نمی‌شود
 BITUNIX_TICKERS = "https://fapi.bitunix.com/api/v1/futures/market/tickers"
 
+# ── قانون تازگی رهبر (دستور حمید، ۱۴ اوت) ─────────────────────────────────
+#
+# «وقتی یهو یک ارزی میره بالای ۱۰ درصد و ۲ روز توی صدر پامپ‌ها می‌مونه نیاز
+# نیست هر روز گزارش پامپشو بدی. تو باید تمرکزت روی ارزایی باشه که سریع حجم
+# می‌خورن و بین ۵ تا ۱۰ درصد حرکت سریع دارند.»
+#
+# دو چیز جداست و قبلاً یکی گرفته می‌شد: ارزی که **الان** ۶٪ پریده رویدادِ
+# تازه است؛ ارزی که دو روز است +۴۰٪ بالای جدول نشسته یک واقعیتِ کهنه است که
+# هر اجرا دوباره کشف می‌شود. دومی ماشه نیست، فقط نویز گزارش است.
+SEEN = ROOT / "brain" / "pump-leaders-seen.json"
+STALE_PCT = 10.0                     # بالای این درصد «صدر جدول» حساب می‌شود
+STALE_AFTER_H = 48                   # دو روز — عدد خودِ حمید
+SWEET_LO, SWEET_HI = 5.0, 10.0       # حرکت سریعی که حمید می‌خواهد
+
+# کاندیدای پیشنهاد باید **هنوز نپریده** باشد. آستانهٔ قبلی ۱۰٪ بود و شکایت
+# حمید دقیقاً همین بود: «لیست ارزایی که دادی همشون توی پامپ بودن.» ارزی که
+# ۸٪ بالا رفته از نظر جدول «زیر ۱۰٪» است ولی از نظر چشم، در حال پامپ.
+QUIET_24H = 5.0
+QUIET_60M = 3.0
+QUIET_30M = 3.0
+
 
 # ── تاپ گینرز ──────────────────────────────────────────────────────────────
 
@@ -217,6 +238,70 @@ def gainers(top=6, min_pct=5.0):
     out.sort(key=lambda x: -x["change_pct"])
     return "MEXC (جایگزین — بیتیونیکس در دسترس نبود)", \
         [x for x in out if x["change_pct"] >= min_pct][:top]
+
+
+# ── تازگی رهبر ─────────────────────────────────────────────────────────────
+
+def _load_seen():
+    try:
+        return json.loads(SEEN.read_text(encoding="utf-8"))
+    except Exception:                                # noqa: BLE001
+        return {}
+
+
+def freshness(gs, now_ms=None, seen=None):
+    """کدام گینر رویدادِ تازه است و کدام کهنه — با دفتر ماندگار.
+
+    قاعده: از اولین باری که یک نماد بالای STALE_PCT دیده می‌شود ساعت شروع
+    به کار می‌کند. اگر بعد از STALE_AFTER_H هنوز آن‌جاست، کهنه است و دیگر
+    ماشه نمی‌شود. به‌محض این‌که زیر آستانه برگردد پرونده‌اش بسته می‌شود، پس
+    پامپ بعدیِ همان ارز دوباره تازه حساب می‌شود.
+
+    خالص نگه داشته شده (now_ms/seen تزریق‌شدنی) تا بدون شبکه و بدون
+    صبرکردنِ دو روزه آزمون شود. برگشتی: (gs_annotated, seen_updated)."""
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    seen = dict(_load_seen() if seen is None else seen)
+    out = []
+    live = set()
+    for g in gs:
+        s, pct = g["symbol"], g.get("change_pct") or 0
+        g = dict(g)
+        if pct >= STALE_PCT:
+            live.add(s)
+            first = (seen.get(s) or {}).get("first_ms")
+            if first is None:
+                first = now
+            seen[s] = {"first_ms": first, "last_ms": now, "last_pct": pct}
+            age_h = (now - first) / 3600e3
+            g["top_age_h"] = round(age_h, 1)
+            g["stale"] = age_h >= STALE_AFTER_H
+            if g["stale"]:
+                g["stale_note"] = (f"{round(age_h / 24, 1)} روز است بالای "
+                                   f"{STALE_PCT:.0f}٪ در صدر جدول مانده — "
+                                   "خبر کهنه، ماشهٔ تازه نیست")
+        else:
+            seen.pop(s, None)                        # برگشت زیر آستانه = پروندهٔ بسته
+            g["stale"] = False
+            g["sweet"] = SWEET_LO <= pct < SWEET_HI
+        out.append(g)
+    # نمادی که دیگر در جدول نیست هم پرونده‌اش بسته می‌شود، وگرنه دفتر
+    # بی‌نهایت رشد می‌کند و یک پامپِ ماه پیش تا ابد «کهنه» می‌ماند.
+    for s in [k for k in seen if k not in live]:
+        seen.pop(s, None)
+    return out, seen
+
+
+def triggers_of(gs, ign=None, deep_n=4):
+    """ماشه‌ها به ترتیب اولویت حمید: حرکت سریع ۵–۱۰٪ اول، بعد بقیه؛ کهنه‌ها
+    هرگز. اگر همه کهنه بودند فهرست خالی برمی‌گردد و رادار صادقانه می‌گوید
+    امروز رویداد تازه‌ای نبود — بهتر از گزارش تکراری."""
+    ign = ign or []
+    fresh = [g for g in gs if not g.get("stale")]
+    sweet = [g for g in fresh if SWEET_LO <= (g.get("change_pct") or 0) < SWEET_HI]
+    rest = [g for g in fresh if g not in sweet]
+    ordered = sweet + rest
+    have = {g["symbol"] for g in ordered[:deep_n]}
+    return ordered[:deep_n] + [x for x in ign if x["symbol"] not in have][:3]
 
 
 # ── ابزار تحلیل ────────────────────────────────────────────────────────────
@@ -626,13 +711,21 @@ def recommend(blocks, hot=None):
             continue
         c30, c24 = b.get("change_30m_pct"), b.get("change_24h_pct")
         c60 = b.get("change_60m_pct")
-        if c60 is not None and c60 >= 10:
-            b["skipped"] = f"در یک ساعت اخیر +{c60}٪ پامپ شده — قانون حمید: پامپ‌شده سیگنال نیست، فقط ماشه است"
-            continue
-        if (c30 is not None and c30 >= 10) or (c24 is not None and c24 >= 10):
-            b["skipped"] = (f"خودش پامپ خورده ({'+%s٪/30د' % c30 if c30 and c30 >= 10 else ''}"
-                            f"{' ' if c30 and c30 >= 10 and c24 and c24 >= 10 else ''}"
-                            f"{'+%s٪/24س' % c24 if c24 and c24 >= 10 else ''}) — دیر است، سیگنال نیست")
+        # آستانه‌ها از ۱۰٪ به «هنوز نپریده» سفت شدند. شکایت حمید (۱۴ اوت):
+        # «لیست ارزایی که دادی در گذشته پامپ شده بودند نگاه کردم همشون توی
+        # پامپ بودن.» ارزی که ۸٪ رفته از نظر عدد زیر ۱۰٪ بود ولی از نظر او
+        # در حال پامپ — و حق با او بود. پیشنهاد یعنی «هنوز نرفته»، نه
+        # «کمتر از ۱۰ درصد رفته».
+        moved = []
+        if c60 is not None and c60 >= QUIET_60M:
+            moved.append(f"+{c60}٪ در ۱س")
+        if c30 is not None and c30 >= QUIET_30M:
+            moved.append(f"+{c30}٪ در ۳۰د")
+        if c24 is not None and c24 >= QUIET_24H:
+            moved.append(f"+{c24}٪ در ۲۴س")
+        if moved:
+            b["skipped"] = ("هنوز-نپریده نیست (" + "، ".join(moved) +
+                            ") — پیشنهاد پامپ فقط برای ارزی است که حرکتش را نکرده")
             continue
         # داور بیرونی: قول spec («فقط دنباله‌رو با ۲+ سابقه») در کد نبود —
         # حالا شرط سخت است. راه دوم اثبات رابطه، خواست بعدی حمید است:
@@ -744,6 +837,29 @@ def tg_message(source, picks, blocks):
          "🚀 <b>گزینه‌های پامپ — رادار خوشه‌ای</b>",
          f"<i>منبع تاپ گینرز: {source}</i>", ""]
     bmap = {b["symbol"]: b for b in blocks}
+
+    # ترکیب اجباری گزارش (دستور حمید): یک رهبرِ **پامپ‌شده** + کاندیداهایی
+    # که **هنوز پامپ نشده‌اند**. بدون نام‌بردن رهبر، گزارش می‌شود فهرستی از
+    # چند ارز بی‌ربط؛ با نام‌بردنش، خواننده می‌بیند رابطه از کجا آمده.
+    lead = [b for b in blocks if b.get("layer") == 1]
+    lead.sort(key=lambda b: -(b.get("change_24h_pct") or 0))
+    if lead:
+        h = lead[0]
+        mv = [f"+{h[k]}٪ در {lab}" for k, lab in
+              (("change_30m_pct", "۳۰د"), ("change_60m_pct", "۱س"),
+               ("change_24h_pct", "۲۴س")) if h.get(k)]
+        L.append(f"⚡️ <b>رهبر (پامپ‌شده): {h['symbol']}</b>"
+                 + (f" — {'، '.join(mv)}" if mv else ""))
+        es0 = h.get("event_study") or {}
+        if es0.get("pumps_n"):
+            L.append(f"<i>تاریخچه‌اش خوانده شد: {es0['pumps_n']} پامپ از "
+                     f"{es0.get('from_date') or '؟'}</i>")
+        if len(lead) > 1:
+            L.append("<i>رهبرهای دیگر همین اجرا: "
+                     + "، ".join(b["symbol"] for b in lead[1:4]) + "</i>")
+        L.append("")
+    if picks:
+        L.append("<b>کاندیداها — هیچ‌کدام هنوز پامپ نشده‌اند:</b>")
     for rank, p in enumerate(picks, 1):
         head = "انتخاب اول" if rank == 1 else "جایگزین"
         L.append(f"<b>{head}: {p['symbol']}</b>  (امتیاز {p['score']})")
@@ -952,8 +1068,29 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     if ign:
         print("شعله‌ور در ۳۰ دقیقهٔ اخیر: " +
               ", ".join(f"{x['symbol']} {x['change_pct']:+}%" for x in ign[:5]))
-    triggers = gs[:deep_n] + [x for x in ign
-                              if x["symbol"] not in {g["symbol"] for g in gs}][:3]
+    # تازگی رهبر — «دو روز بالای ۱۰٪ = خبر کهنه». پرونده‌ها ذخیره می‌شوند تا
+    # سن واقعی هر رهبر بین اجراها بماند؛ بدون این دفتر، هر اجرا همه‌چیز را
+    # «تازه» می‌بیند و همان گزارش تکراری ساخته می‌شود.
+    gs, _seen = freshness(gs)
+    stale = [g for g in gs if g.get("stale")]
+    if stale:
+        print("رهبرهای کهنه (ماشه نمی‌شوند): " +
+              "، ".join(f"{g['symbol']} {g['change_pct']:+}٪ / {g['top_age_h']}س"
+                        for g in stale))
+    try:
+        SEEN.parent.mkdir(parents=True, exist_ok=True)
+        SEEN.write_text(json.dumps(_seen, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+    except Exception as e:                           # noqa: BLE001
+        print(f"دفتر تازگی رهبر: {type(e).__name__}: {e}")
+
+    triggers = triggers_of(gs, ign, deep_n=deep_n)
+    if not triggers:
+        print("هیچ رویداد پامپِ تازه‌ای نیست — گینرهای فعلی همان‌های دیروزند")
+    sweet = [t for t in triggers if t.get("sweet")]
+    if sweet:
+        print(f"حرکت سریع ۵–۱۰٪ (اولویت حمید): " +
+              "، ".join(f"{g['symbol']} {g['change_pct']:+}٪" for g in sweet))
     hot = {t["symbol"] for t in triggers}
 
     blocks, seen = [], set()
@@ -1012,8 +1149,13 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
             from hamid import pump_study
             es = pump_study.run_for_leader(g["symbol"], kc, uni)
             if es:
-                b["event_study"] = {"pumps_n": es["pumps_n"],
-                                    "coverage_from": es["coverage_from"]}
+                b["event_study"] = {
+                    "pumps_n": es["pumps_n"],
+                    "coverage_from": es["coverage_from"],
+                    # تاریخِ خواندنی برای کپشن — timestamp خام روی پیام
+                    # تلگرام هیچ چیزی به حمید نمی‌گوید
+                    "from_date": (_teh_date(es["coverage_from"])
+                                  if es.get("coverage_from") else None)}
                 for sym2, row in es["followers"].items():
                     if not row["qualified"]:
                         continue
@@ -1068,7 +1210,10 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     except Exception as e:                           # noqa: BLE001
         print(f"دفتر تاریخچه: {type(e).__name__}: {e}")
 
-    picks = recommend(blocks, hot=hot)[:3]
+    # قانون ترکیب، ساختاری نه اتفاقی: رهبرِ همین اجرا هرگز کاندیدا نیست.
+    # دروازهٔ «هنوز-نپریده» در recommend این را عملاً می‌گیرد، ولی اتکا به
+    # یک آستانهٔ عددی برای یک قانونِ قطعی درست نیست — رهبر با نام حذف می‌شود.
+    picks = [p for p in recommend(blocks, hot=hot) if p["symbol"] not in hot][:3]
     picks = [p for p in picks if p["score"] >= 2]
 
     # پنجرهٔ زمانی تاریخی — هستهٔ قانون جدید حمید: دنباله‌رو فقط تا وقتی

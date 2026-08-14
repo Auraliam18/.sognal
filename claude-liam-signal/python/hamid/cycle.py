@@ -890,7 +890,9 @@ def _for_telegram(x):
                   "touches": x["on_level"]["touches"]},
         "footer": (f"<i>فاصلهٔ استاپ {x.get('stop_pct')}٪. "
                    f"{x.get('why','')}</i>\n"
-                   f"<i>{_method_record()}</i>"),
+                   + (f"<i>🏦 قابل معامله در: {x['venues']}</i>\n"
+                      if x.get("venues") else "")
+                   + f"<i>{_method_record()}</i>"),
     }
 
 
@@ -1001,6 +1003,7 @@ def main():
         print(f"Universe: {type(e).__name__}: {e}")
 
     if mode == "active":
+        _vidx = {}                                   # صرافی‌های هدف؛ پر می‌شود پایین‌تر
         try:
             tick = sources.tickers()
             ranked = [s["symbol"] for s in
@@ -1021,6 +1024,21 @@ def main():
                     f"(رتبه‌های {core_n + off} به بعد)")
             else:
                 syms = ranked[:a.symbols]
+
+            # اولویت صرافی‌های حمید (دستور ۱۴ اوت): بیت‌یونیکس / XT / KCEX.
+            # مجموعه عوض نمی‌شود، فقط ترتیب — و ترتیب حالا واقعاً مهم است،
+            # چون ارسال per-symbol فوری شده و سهمیهٔ روزانه دارد: هر که
+            # زودتر خوانده شود زودتر سیگنال می‌گیرد. سیگنالی که حمید
+            # نمی‌تواند اجرا کند سهمیه را نباید بخورد.
+            try:
+                from hamid import venues as _vn
+                _vidx = _vn.index()
+                syms, _vnote = _vn.prioritize(syms, idx=_vidx)
+                act(_vnote)
+            except Exception as e:                   # noqa: BLE001 - اسکن را نمی‌کشد
+                print(f"اولویت صرافی: {type(e).__name__}: {e}")
+                _vidx = {}
+
             # 🆕 انجین کشف لیست‌شدن — دیفِ نمادها با حافظهٔ اجرای قبل
             try:
                 from hamid import discovery as _dv
@@ -1064,6 +1082,11 @@ def main():
                 return                               # سهمیهٔ روز پر است
             x = {"symbol": sym, **r.setup, "trend_4h": r.trend_4h,
                  "channel": r.channel_note}
+            try:
+                from hamid import venues as _vn2
+                x["venues"] = _vn2.where(sym, idx=_vidx)
+            except Exception:                        # noqa: BLE001
+                pass
             e = _exp_live.get((sym, x.get("dir")))
             if e and not e["thin"] and e["mean_r"] < 0 and e["win_pct"] < 45:
                 return                               # وتوی تجربه — مثل مسیر عادی
@@ -1193,6 +1216,15 @@ def main():
         # سیگنال را نهایی کن و شباهت قوی را صریح ذکر کن.» برای هر ستاپ آماده،
         # حافظهٔ آماری همین ارز/جهت پرسیده می‌شود؛ جمله‌اش با عدد روی سیگنال
         # می‌نشیند و به تلگرام هم می‌رود. اثر رتبه‌ای فقط با ۸+ مورد مشابه.
+        # کدام صرافیِ هدف این نماد را دارد — روی کپشن می‌نشیند تا حمید
+        # نپرسد «این را کجا بزنم».
+        try:
+            from hamid import venues as _vn3
+            for x in ready:
+                x["venues"] = _vn3.where(x["symbol"], idx=_vidx)
+        except Exception as e:                       # noqa: BLE001
+            print(f"برچسب صرافی: {type(e).__name__}: {e}")
+
         try:
             from hamid import memory as _mem
             for x in ready:
