@@ -1,0 +1,51 @@
+engine_id: E04
+name: BTC.D Engine / BTC Dominance Agent
+version: 2.1.0
+mission: Track capital rotation between BTC and altcoins with a separate chart, memory, patterns, trendlines, S/R,
+  and multi-timeframe regime.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- BTCD_CANDLE_CLOSE
+- BTCD_STRUCTURE_CHANGED
+- ALT_SIGNAL_CANDIDATE
+- BTC_IMPULSE
+inputs:
+- BTC dominance series
+- TOTAL/TOTAL2/TOTAL3/OTHERS
+- BTC/ETH context
+output_contract: DominancePacket
+python_responsibilities:
+- dominance computation/check
+- pattern and structure detection
+- rotation metrics
+- regime features
+agent_responsibilities:
+- explain rotation regime
+- validate classical pattern candidates
+- compare prior altseason transitions
+hard_rules:
+- Do not combine BTC.D memory with USDT.D memory.
+- Do not assume falling BTC.D is automatically bullish if total market liquidity is contracting.
+- Require macro and BTC context.
+learning_routine: Weekly capital-rotation study; event-triggered review around major BTC/ETH flows or dominance
+  pattern breaks.
+memory:
+  private_namespace: agent/e04/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.coingecko.com/reference/crypto-global
+- https://coinmarketcap.com/api/documentation
+- John J. Murphy — Technical Analysis of the Financial Markets
+- 'Charles D. Kirkpatrick II & Julie R. Dahlquist — Technical Analysis: The Complete Resource for Financial Market
+  Technicians'
+- https://www.nber.org/papers/w7613

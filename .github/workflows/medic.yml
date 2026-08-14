@@ -9,7 +9,7 @@
 # برای نگهبان این قابل تحمل است: از ۴ شلیک ساعت اگر یکی هم برسد، خرابی حداکثر
 # یک ساعت بی‌درمان می‌ماند نه دو روز. لایهٔ بیرونی (n8n) و مرور دوره‌ای کلود
 # بقیهٔ پوشش‌اند.
-name: Medic
+name: Fault-finder repairman
 
 on:
   workflow_dispatch:
@@ -40,6 +40,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: |
           set +e
           python3 claude-liam-signal/python/medic.py
@@ -52,9 +54,9 @@ jobs:
           git config user.email "noreply@anthropic.com"
           # git diff فایل untracked را «بدون تغییر» می‌بیند — اولین اجرا همین‌طور
           # بی‌صدا از دست رفت. اول add، بعد مقایسه با ایندکس.
-          git add brain/medic.json 2>/dev/null || true
+          git add brain/medic.json brain/medic-questions.jsonl brain/memory/ 2>/dev/null || true
           if ! git diff --cached --quiet 2>/dev/null; then
-            git commit -m "نگهبان: وضعیت عوض شد $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "عیب‌یاب: وضعیت عوض شد $(date -u '+%Y-%m-%d %H:%M UTC')"
             # ضربان هم به main پوش می‌کند؛ چند بار تلاش با ریبیس، بعد رها کن —
             # وضعیت در اجرای بعدی دوباره نوشته می‌شود، گم نمی‌شود.
             for i in 1 2 3; do
@@ -69,6 +71,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: |
           [ -z "$TELEGRAM_BOT_TOKEN" ] && exit 0
           python3 - <<'EOF'

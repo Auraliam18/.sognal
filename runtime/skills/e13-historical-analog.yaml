@@ -1,0 +1,51 @@
+engine_id: E13
+name: Historical Analog Engine / Analog Agent
+version: 2.1.0
+mission: Find past states that resemble the current symbol across structure, location, indicators, volume, liquidity,
+  BTC/USDT.D, news, and session—not visual shape alone.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- SIGNAL_CANDIDATE
+- PUMP_EVENT
+- UNUSUAL_BEHAVIOR
+- POST_TRADE_REVIEW
+inputs:
+- feature store
+- episodic memory
+- regime labels
+- strategy outcomes
+output_contract: AnalogPacket
+python_responsibilities:
+- feature vector normalization
+- nearest-neighbor/DTW/matrix-profile candidates
+- outcome stats
+- no-lookahead queries
+agent_responsibilities:
+- compare critical similarities/differences
+- reject superficial analogs
+- summarize historical behavior
+hard_rules:
+- Current and historical features must use the same version.
+- No future leakage.
+- Always report sample size and regime.
+- Analog similarity proposes evidence; it cannot bypass hard strategy gates.
+learning_routine: Nightly index refresh; event-triggered feature review after poor analog performance.
+memory:
+  private_namespace: agent/e13/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://www.nber.org/papers/w7613
+- Ruey S. Tsay — Analysis of Financial Time Series
+- https://scikit-learn.org/stable/
+- https://www.cs.ucr.edu/~eamonn/MatrixProfile.html
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253

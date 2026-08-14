@@ -1,0 +1,57 @@
+# میز تمرین ۲۰۰تایی — دستور حمید (۱۴ اوت): «هر یک ساعت حداقل ۲۰۰ ترید
+# کاغذی؛ هر ساعت ۱۰۰ ارز برتر را شناسایی می‌کنی و بلافاصله ترید کاغذی
+# ادامه دارد و با هر نتیجه ایجنت درس جدیدی یاد می‌گیرد.»
+#
+# اولین اجرا ~۸ روز تاریخ را بازپخش می‌کند (صدها معامله)؛ اجراهای بعد فقط
+# کندل‌های تازه را — ضدتکرار با مرز پیشروی هر ارز در trainer-state.json.
+name: Practice trainer (hourly)
+
+on:
+  schedule:
+    - cron: "41 * * * *"          # دقیقهٔ ۴۱ — دور از ازدحام چرخه‌های دیگر
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: practice-trainer
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: خودآزمایی میز تمرین
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.test_trainer
+
+      - name: تمرین — ۱۰۰ ارز برتر، بازپخش بدون look-ahead
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.trainer
+
+      - name: ثبت دفتر و درس‌ها
+        run: |
+          git config user.name "Hamid Signal Agent"
+          git config user.email "noreply@anthropic.com"
+          git add brain/paper/ brain/memory/ brain/learning/ || true
+          if git diff --cached --quiet; then
+            echo "دادهٔ تازه‌ای نبود"
+            exit 0
+          fi
+          git commit -m "میز تمرین $(date -u '+%Y-%m-%d %H:%M UTC')"
+          for i in 1 2 3 4 5; do
+            git fetch origin main --quiet
+            git rebase origin/main --quiet && git push origin HEAD:main --quiet && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 3))
+          done
+          echo "پوش نشد — اجرای بعدی جبران می‌کند"
+          exit 1

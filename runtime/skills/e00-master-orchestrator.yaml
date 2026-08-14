@@ -1,0 +1,56 @@
+engine_id: E00
+name: Master Orchestrator / Chief Trader
+version: 2.1.0
+mission: Build the per-symbol decision DAG, request only missing evidence, resolve dependencies, and produce one
+  traceable DecisionCase without skipping Hamid’s workflow.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- CANDIDATE_CREATED
+- EVIDENCE_UPDATED
+- ALERT_TRIGGERED
+- CATALYST_DISCOVERED
+- SIGNAL_REVIEW_REQUESTED
+inputs:
+- all engine packets
+- strategy registry
+- data health
+- memory references
+output_contract: DecisionCase
+python_responsibilities:
+- event routing
+- case state machine
+- timeouts
+- idempotency
+- dependency graph
+- packet completeness
+agent_responsibilities:
+- resolve genuine ambiguity
+- request specialist review
+- explain conflicts
+- produce final audit trail
+hard_rules:
+- Never infer missing evidence.
+- Never let a lower timeframe silently override 4H/1H.
+- Never wait for the global 30-second sweep to finish after a symbol is signal-ready.
+- No agent writes production strategy directly.
+learning_routine: Weekly orchestration audit; event-triggered review after timeout, duplicate signal, missed handoff,
+  or contradictory packet.
+memory:
+  private_namespace: agent/e00/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.langchain.com/oss/python/langgraph/persistence
+- https://docs.langchain.com/oss/python/langgraph/use-subgraphs
+- https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode
+- Martin Kleppmann — Designing Data-Intensive Applications
+- Gregor Hohpe & Bobby Woolf — Enterprise Integration Patterns

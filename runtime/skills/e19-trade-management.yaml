@@ -1,0 +1,53 @@
+engine_id: E19
+name: Trade Management Engine / Trade Manager Agent
+version: 2.1.0
+mission: Track paper/live-signal state, invalidation, partial targets, trailing, break-even, and exit logic without
+  rewriting the entry thesis after the fact.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- SIGNAL_SENT
+- PRICE_UPDATE
+- TP_HIT
+- SL_HIT
+- INVALIDATION_CHANGED
+- POSITION_TIMEOUT
+inputs:
+- signal snapshot
+- market updates
+- strategy-specific management plan
+- risk packet
+output_contract: TradeState
+python_responsibilities:
+- state machine
+- target/stop events
+- trailing rules
+- MFE/MAE live tracking
+- outbox result
+agent_responsibilities:
+- interpret exceptional invalidation
+- explain management decision
+- flag thesis drift
+hard_rules:
+- Management rules are fixed at signal creation by strategy version.
+- Do not move stop farther to avoid a loss.
+- Do not hide missed entries or late fills.
+- Every state transition is timestamped and auditable.
+learning_routine: After every closed signal; monthly trailing/partial-exit experiment review.
+memory:
+  private_namespace: agent/e19/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- Van K. Tharp — Trade Your Way to Financial Freedom
+- Larry Harris — Trading and Exchanges
+- J. Welles Wilder Jr. — New Concepts in Technical Trading Systems
+- https://www.cmegroup.com/education/courses/trade-and-risk-management.html

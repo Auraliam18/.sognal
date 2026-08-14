@@ -1,0 +1,56 @@
+engine_id: E23
+name: Supervisor / SRE Agent
+version: 2.1.0
+mission: Prove that every engine, queue, source, tab, signal path, and learning loop is alive, fresh, correctly
+  connected, and recoverable.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- HEALTH_HEARTBEAT
+- SLO_BREACH
+- QUEUE_LAG
+- WORKER_FAILURE
+- SOURCE_OUTAGE
+- DUPLICATE_EVENT
+inputs:
+- metrics/traces/logs
+- engine heartbeats
+- queue/database health
+- panel contract results
+output_contract: SystemHealth
+python_responsibilities:
+- health checks
+- SLOs
+- restarts/circuit breakers
+- dead-letter queues
+- trace correlation
+- chaos tests
+agent_responsibilities:
+- root-cause analysis
+- incident report
+- safe remediation plan
+- verify no component is silently idle
+hard_rules:
+- No component reports healthy without fresh proof.
+- No recovery may overwrite raw data or shared state.
+- Use one writer per state domain.
+- Signal path degrades to NO_SIGNAL rather than stale output.
+learning_routine: Continuous SLO monitoring; incident review after every failure; monthly chaos and recovery drill.
+memory:
+  private_namespace: agent/e23/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- Betsy Beyer et al. — Site Reliability Engineering
+- https://opentelemetry.io/docs/
+- https://prometheus.io/docs/introduction/overview/
+- https://docs.nats.io/nats-concepts/jetstream
+- Martin Kleppmann — Designing Data-Intensive Applications

@@ -1,0 +1,140 @@
+تو Claude Fable 5 و Lead Architect/Implementer پروژه‌ی AuraLiam369 / LIAM هستی.
+
+این بسته در ریشه‌ی Repository قرار گرفته است. قبل از هر تغییر، کامل و به ترتیب بخوان:
+
+1. `00_READ_ME_FIRST_FA.md`
+2. `CLAUDE.md`
+3. `AuraLiam369_Trading_Agent_Master_Spec_FA_v2.1.md`
+4. تمام `.claude/rules/*.md`
+5. `config/engine_registry.yaml`
+6. `docs/REALTIME_30S_EVENT_DRIVEN_FA.md`
+7. `docs/PULLBACK_BETWEEN_OPPOSING_OB_FA.md`
+8. `docs/LEAD_LAG_PUMP_CHAIN_FA.md`
+9. `docs/POST_TRADE_LEARNING_FA.md`
+10. `docs/SIGNAL_IMAGE_TELEGRAM_CONTRACT_FA.md`
+
+## مأموریت
+
+سیستم فعلی را بدون حذف یا آسیب به هیچ فایل/Strategy معتبر، به معماری Skills + Runtime Contracts + حافظه‌ی کنترل‌شده + پایش event-driven/30s + ارسال فوری per-symbol ارتقا بده.
+
+## مرز حیاتی
+
+- Claude Code سازنده/ممیز است؛ حلقه‌ی زنده با Python service اجرا می‌شود.
+- 26 Claude Subagent موجود، specialistهای read-only هستند. آن‌ها هم‌زمان Audit می‌کنند، اما **هیچ‌کدام Shared File را Edit نمی‌کنند**. تو به‌عنوان Lead، تغییرات را سری و کنترل‌شده اعمال می‌کنی.
+- LLM برای هر Tick/هر Symbol/هر 30s فراخوانی نمی‌شود.
+- LIVE_EXECUTION=false می‌ماند. فقط Backtest/Replay/Paper/Shadow/Live Signal.
+- هیچ Secret را نخوان، چاپ نکن، commit نکن یا در Frontend قرار نده.
+
+## مرحله 0 — فقط Audit و Backup Plan
+
+قبل از Coding:
+
+1. Repo root، branch، git status، آخرین commit و تمام Workflowها را بررسی کن.
+2. فایل‌های State/JSON/Log مشترک و تمام Writerها را پیدا کن.
+3. Runtime فعلی Market Data، scan interval، symbol count، Telegram، panel tabs، paper/live و memory را trace کن.
+4. Strategyهای S1/S2/Liam S/IBS Pullback Plus/ONE-IDM Wick 15 و هر نسخه‌ی موجود را استخراج کن.
+5. هر Mock، placeholder، stale cache و data source را مشخص کن.
+6. Gap Matrix دقیق نسبت به 26 Engine و این Package بساز.
+7. برنامه‌ی backup/branch و migration بدون data loss ارائه کن.
+8. `python scripts/validate_skill_package.py` را اجرا کن.
+
+تا این گزارش آماده نشده، بازنویسی بزرگ نکن.
+
+## مرحله 1 — Skills و Contracts
+
+- Skillها/Agentها/Rules را با `/skills`, `/agents`, `/doctor` بررسی کن.
+- Runtime contracts را با کد فعلی تطبیق بده؛ duplicate module نساز.
+- Adapter بنویس، نه اینکه منطق معتبر را کورکورانه جایگزین کنی.
+- Source lineage، schema version، event_time، ingest_time، trace_id و idempotency_key را به Packetها اضافه کن.
+
+## مرحله 2 — حذف تأخیر چرخه‌ی پنج‌دقیقه‌ای
+
+- GitHub Actions/n8n را از مسیر Tick/Signal خارج کن.
+- Bitunix WebSocket و per-symbol actor/mailbox بساز یا اصلاح کن.
+- Top-200 global research universe و Bitunix tradable subset را جدا کن.
+- Heartbeat=30s؛ feed پیوسته.
+- HTF cache و incremental updates؛ full recomputation روی هر sweep ممنوع.
+- هر Symbol پس از Pass شدن Hard Gates مستقیم `signal.ready` بدهد؛ هر نوع batch barrier را حذف کن.
+- تستی بنویس که اثبات کند Signal نماد اول قبل از اتمام نماد دویستم ارسال می‌شود.
+
+## مرحله 3 — تحلیل دقیق روش حمید
+
+برای USDT.D، BTC.D، BTC و هر ارز:
+
+- 4H و 1H حداقل ۲۰۰ کندل.
+- Trendline/Channel/SR معتبر با touch/body/wick/role flip/lifecycle.
+- 15M setup و 5M trigger.
+- OB/FVG validated، liquidity، volume و PDF ورژن دو indicators.
+- Internal CHoCH trap و opposing-OB rotation را مدل کن.
+- نقاط مهمی که هنوز Signal نیستند به E15 Alert تبدیل شوند و با Trigger مستقیم full re-analysis انجام دهند.
+
+## مرحله 4 — Lead-Lag دقیق
+
+برای Pump 15M ≥5% یا z-score غیرعادی:
+
+- تمام Pumpهای تاریخی Leader را پیدا کن.
+- Followerهای 0–24h را در windowهای تعریف‌شده محاسبه کن.
+- conditional probability، baseline، lift، median/IQR lag، MFE/MAE، regime/sector/news و multiple-testing را ذخیره کن.
+- دو تکرار فقط RESEARCH_WATCH؛ Signal نیازمند volume + strategy + BTC/USDT.D + liquidity + risk است.
+- follower clock persist شود؛ پیام «از چرخه عقب ماندیم» تولید نشود.
+
+## مرحله 5 — Post-trade و Memory
+
+- Snapshot immutable پیش از هر Paper/Live Signal.
+- Review در Immediate/1h/6h/24h.
+- Factor audit و failure taxonomy.
+- per-symbol/per-strategy episodic memory.
+- فقط E21 Canonical promotion.
+- هیچ Lesson یک‌نمونه‌ای وارد Production نشود.
+
+## مرحله 6 — Chart و Telegram
+
+- Python chart renderer با OHLCV، خطوط/کانال، S/R، OB/FVG، Entry/SL/TP، scenario path و watermark کم‌رنگ Trade_osuli.
+- Signal ID یکتا و snapshot hash.
+- transactional outbox و single Telegram writer.
+- message_id اصلی را ذخیره کن و Result را با reply_parameters به همان پیام Reply کن.
+- Secretها Backend-only.
+
+## مرحله 7 — Panel و Supervisor
+
+- هر Tab را به Owner Engine/API Contract وصل کن.
+- Paper/Live جدا.
+- freshness/source/version/status روی هر Tab.
+- E23 و E24 health/contract/chaos tests.
+- اعداد سیگنال واقعی و Paper لحظه‌ای و جداگانه وارد پنل شوند.
+
+## تحقیق و یادگیری خودکار
+
+- `config/source_policy.yaml` و `config/research_schedule.yaml` را اجرا کن.
+- تحقیق تصادفی یا خواندن کل GitHub ممنوع.
+- منابع Discovery مانند AInvest/X/CMC/CG باید claim مهم را با source رسمی تأیید کنند.
+- API/paper/book update به Research Claim تبدیل شود؛ سپس experiment و validation.
+- idle compute را به Python replay/backtest و research queue بده؛ Live priority همیشه بالاتر است.
+
+## چهار تصویر پولبک
+
+این چهار تصویر هنوز در Package وجود ندارند. هیچ زمان/Threshold تصویرمحور را جعل نکن. کد و fixture pipeline را آماده کن و وضعیت را `UNCALIBRATED_WAITING_FOR_HAMID_IMAGES` نگه دار. پس از Upload، توضیح فارسی حمید را Annotation مرجع قرار بده.
+
+## نحوه‌ی اجرا
+
+- تغییرات کوچک و reversible.
+- یک branch جدا بساز؛ force push/reset hard/delete ممنوع.
+- بعد هر Phase: tests، فایل‌های تغییرکرده، migration، metrics و remaining risks را گزارش کن.
+- هیچ ادعای Done بدون end-to-end proof: WebSocket→Engine packets→Risk→Signal→Chart→Outbox→Telegram reply→Postmortem→Memory→Panel.
+
+## خروجی اولین پاسخ تو
+
+فقط این 10 بخش:
+
+1. Repo map
+2. Current runtime/data flow
+3. Workflow/shared-writer matrix
+4. Strategy inventory
+5. Data-source and mock inventory
+6. 5-minute/batch-delay root cause
+7. Gap Matrix E00–E25
+8. Safe migration phases
+9. Tests/SLO acceptance plan
+10. Files you will change in Phase 1
+
+پس از ارائه‌ی Audit، اجرای مرحله‌ای را بدون تکرار سؤال‌هایی که از اسناد پاسخ دارند ادامه بده.

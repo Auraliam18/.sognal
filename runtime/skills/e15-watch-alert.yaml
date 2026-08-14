@@ -1,0 +1,50 @@
+engine_id: E15
+name: Watch & Alert Engine / Watch Agent
+version: 2.1.0
+mission: Mark important nearby levels and trigger immediate symbol re-analysis when price approaches or crosses
+  a relevant line, zone, OB, FVG, or liquidity level.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- STRUCTURE_PACKET
+- SMC_PACKET
+- PRICE_UPDATE
+- CATALYST_WINDOW_OPEN
+inputs:
+- all active levels/zones
+- ATR/volatility
+- strategy proximity
+- data health
+output_contract: WatchCase
+python_responsibilities:
+- distance/ETA
+- dynamic thresholds
+- alert state machine
+- cooldown/dedupe
+- per-symbol requeue
+agent_responsibilities:
+- resolve ambiguous alert priority
+- explain why a symbol remains on watch
+hard_rules:
+- Alert does not equal signal.
+- A triggered alert re-enters the full analysis path immediately.
+- Do not wait for the next full universe batch.
+- Persist alerts across restarts.
+learning_routine: Weekly alert precision/recall audit; tune only after replay/paper validation.
+memory:
+  private_namespace: agent/e15/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.python.org/3/library/asyncio.html
+- https://docs.nats.io/nats-concepts/jetstream
+- Gregor Hohpe & Bobby Woolf — Enterprise Integration Patterns
+- Tyler Akidau et al. — Streaming Systems

@@ -1,0 +1,52 @@
+engine_id: E06
+name: BTC Analysis Engine / BTC Agent
+version: 2.1.0
+mission: Produce the full BTC context using 4H/1H/15M/5M structure, S/R, trendlines/channels, OB/FVG, indicators,
+  Fibonacci, liquidity, and Pullback Plus.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- BTC_CANDLE_CLOSE
+- BTC_STRUCTURE_CHANGED
+- ALT_SIGNAL_CANDIDATE
+- BTC_LIQUIDITY_EVENT
+inputs:
+- BTC OHLCV
+- USDT.D/BTC.D/macro packets
+- CoinGlass derivatives/liquidity
+- indicators
+output_contract: BTCContextPacket
+python_responsibilities:
+- all deterministic TA/SMC features
+- liquidity distances
+- Fibonacci levels
+- scenario state machine
+agent_responsibilities:
+- interpret conflicting scenarios
+- select likely liquidity path with evidence
+- compare historical BTC analogs
+hard_rules:
+- BTC context is mandatory for every alt signal.
+- RSI/MACD/MFI are secondary evidence, not sole triggers.
+- Internal 15M CHoCH during a pullback is not automatically a reversal.
+- Do not signal against validated 4H/1H trend without a versioned counter-trend strategy.
+learning_routine: Daily BTC regime review; immediate post-event analysis after liquidation cascade or unusual divergence.
+memory:
+  private_namespace: agent/e06/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://www.bitunix.com/api-docs/futures/websocket/prepare/WebSocket.html
+- https://docs.coinglass.com/
+- https://docs.coinglass.com/reference/liquidation-aggregate-heatmap
+- John J. Murphy — Technical Analysis of the Financial Markets
+- Al Brooks — Trading Price Action series
+- J. Welles Wilder Jr. — New Concepts in Technical Trading Systems

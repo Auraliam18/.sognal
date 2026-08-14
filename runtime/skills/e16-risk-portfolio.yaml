@@ -1,0 +1,56 @@
+engine_id: E16
+name: Risk Engine / Risk Officer
+version: 2.1.0
+mission: Approve or block entry based on invalidation, RR, liquidity hunt, correlation clusters, exposure, portfolio
+  heat, and prior symbol behavior.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- STRATEGY_MATCH
+- SIGNAL_CANDIDATE
+- POSITION_UPDATE
+- VOLATILITY_SPIKE
+inputs:
+- entry/SL/TP
+- ATR/liquidity
+- open positions
+- correlations
+- risk configuration
+- historical MAE/MFE
+output_contract: RiskPacket
+python_responsibilities:
+- position sizing
+- RR
+- portfolio heat
+- cluster exposure
+- slippage/funding stress
+- daily loss limits
+agent_responsibilities:
+- explain risk rejection
+- review unusual tail risk
+- propose tested risk experiments
+hard_rules:
+- LIVE_EXECUTION remains disabled.
+- No leverage above 15x without Hamid’s explicit approval.
+- Default paper risk is conservative and configurable; never hardcode aggressive live risk.
+- Stop location follows invalidation and hunt evidence, not a desired position size.
+- Risk Officer can veto any signal.
+learning_routine: Daily exposure review; post-trade MAE/MFE calibration; monthly stress-test and parameter audit.
+memory:
+  private_namespace: agent/e16/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- Philippe Jorion — Value at Risk
+- Marcos López de Prado — Advances in Financial Machine Learning
+- Van K. Tharp — Trade Your Way to Financial Freedom
+- Larry Harris — Trading and Exchanges
+- https://www.cmegroup.com/education/courses/trade-and-risk-management.html

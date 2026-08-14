@@ -383,6 +383,18 @@ def _equity():
          "practice_desk": run_book(practices),
          "alarm_signals": run_book(alarm_trades),
          "sent_scan_signals": run_book(sent_scan),
+         # نگرانی حمید (۱۴ اوت): «اطلاعات پنل مجدد صفر شده بود». صفر نشده
+         # بود — سرتیتر فقط دفتر سیگنال‌شده را می‌گفت و ۴ دفتر دیگر پنهان
+         # بودند. از حالا جمع کل انباشته صریح صادر می‌شود تا پنل همیشه
+         # نشانش دهد: این عدد فقط بالا می‌رود؛ اگر روزی پایین رفت، خرابی
+         # واقعی است و باید داد بزند.
+         "total_closed": len(closed),
+         "books_breakdown": {"signalled": len(signalled),
+                             "first_pullback": len(experiments),
+                             "inducement": len(inducements),
+                             "practice": len(practices),
+                             "alarm": len(alarm_trades),
+                             "sent_scan": len(sent_scan)},
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
@@ -458,6 +470,16 @@ CONDITIONS = [
     ("ترس شدید (<۳۰)", lambda w: (w.get("fear") or 50) < 30),
     ("فاندینگ مثبت", lambda w: (w.get("funding") or 0) > 0),
     ("دامیننس تتر بالای ۸٪", lambda w: (w.get("usdt_dom") or 0) > 8),
+    # میز تمرین عمیق (۱۴ اوت): این سه شرط از پرونده‌های تمرینی می‌آیند و
+    # سؤال‌هایشان مستقیماً «کشف ضعف/قوت استراتژی» حمید است.
+    ("اول ۱R+ سود رفت (تریل دیر؟)", lambda w: (w.get("mfe") or 0) >= 1.0),
+    ("ورود نزدیک سقف کانال", lambda w: (w.get("chan_pos") or 0.5) > 0.75),
+    ("جهش حجم در ورود (z≥2)", lambda w: (w.get("vol_z") or 0) >= 2),
+    # سؤال حمید (۱۴ اوت): «ارزها در بازهٔ زمانی خاصی به پولبک‌ردشون پایان
+    # می‌دهند؟» — اگر حرکت اصلی معمولاً در ≤۸ کندل شروع می‌شود، ورودی که
+    # ۸ کندل معطل ماند دیگر پولبک نیست، تلهٔ چرخش بین دو OB است.
+    ("حرکت اصلی در ≤۸ کندل شروع شد", lambda w: (w.get("mfe") or 0) >= 1.0 and (w.get("mfe_bar") or 99) <= 8),
+    ("۸+ کندل معطل ماند (چرخش؟)", lambda w: (w.get("mfe") or 0) < 0.5 and (w.get("mfe_bar") or 0) >= 8),
 ]
 
 

@@ -1,0 +1,40 @@
+version: 2.1.0
+live_execution: false
+release_mode: immediate_per_symbol_no_batch_barrier
+signal_id_format: LIAM-YYYYMMDDTHHMMSSmmmZ-SYMBOL-STRATEGY-8HEX
+mandatory:
+- fresh_data
+- usdt_d
+- btc_context
+- 4h_structure
+- 1h_structure
+- 15m_setup
+- 5m_trigger
+- smc
+- liquidity
+- strategy_id_version
+- risk_approval
+- snapshot_hash
+- dedupe_key
+- supervisor_online
+chart:
+  watermark: Trade_osuli
+  watermark_opacity: 0.08
+  must_show:
+  - OHLCV
+  - trendlines
+  - channel
+  - support_resistance
+  - order_blocks
+  - fair_value_gaps
+  - entry
+  - stop
+  - targets
+  - scenario_path
+  - signal_id
+telegram:
+  single_writer: true
+  use_outbox: true
+  store_original_message_id: true
+  result_uses_reply_parameters: true
+  dedupe: true

@@ -1,0 +1,327 @@
+version: '1.0'
+generated_at: '2026-08-14'
+production_learning_direct_write: false
+live_execution: false
+knowledge_pipeline:
+  - DISCOVERED
+  - SOURCE_VERIFIED
+  - CLAIM_EXTRACTED
+  - HYPOTHESIS
+  - BACKTESTED
+  - WALK_FORWARD_VALIDATED
+  - PAPER_VALIDATED
+  - SHADOW_VALIDATED
+  - PRODUCTION_VALIDATED
+engines:
+  - id: E00
+    name: 'Master Orchestrator / Chief Trader'
+    books:
+      - 'Designing Data-Intensive Applications — Martin Kleppmann'
+      - 'Enterprise Integration Patterns — Gregor Hohpe & Bobby Woolf'
+      - 'Building Microservices, 2nd Edition — Sam Newman'
+    primary_source: 'https://docs.langchain.com/oss/python/langgraph/'
+    secondary_source: 'https://code.claude.com/docs/en/sub-agents'
+    focus: 'طراحی گراف تصمیم، جداسازی مسئولیت، Handoff، State، Idempotency، Failure Recovery و جلوگیری از Agent همه‌کاره.'
+    cadence: 'هفتگی و هنگام انتشار Release/Breaking Change'
+    paper_test: 'شبیه‌سازی Workflowهای چندایجنتی، قطع Worker، اجرای دوباره Event و اثبات نبود Duplicate/State Loss.'
+    memory_namespace: 'agent/E00/orchestrator'
+  - id: E01
+    name: 'Universe Engine / Universe Agent'
+    books:
+      - 'Cryptoassets — Chris Burniske & Jack Tatar'
+      - 'Advances in Financial Machine Learning — Marcos López de Prado'
+      - 'Analysis of Financial Time Series — Ruey S. Tsay'
+    primary_source: 'https://docs.coingecko.com/docs/market-research'
+    secondary_source: 'https://coinmarketcap.com/api/documentation/'
+    focus: 'ساخت Top-200 بدون Survivorship Bias، فیلتر نقدشوندگی، دسته‌بندی Sector/Network/Layer، Listing/Delisting و Symbol Mapping.'
+    cadence: 'Snapshot روزانه؛ تغییر Listing/Delisting رویدادمحور'
+    paper_test: 'مقایسه Universeهای مختلف روی Coverage، Slippage، Data Availability و ثبات نتایج بدون تغییر Strategy.'
+    memory_namespace: 'agent/E01/universe'
+  - id: E02
+    name: 'Market Data Engine / Data Quality Agent'
+    books:
+      - 'Designing Data-Intensive Applications — Martin Kleppmann'
+      - 'Streaming Systems — Tyler Akidau, Slava Chernyak & Reuven Lax'
+      - 'Database Internals — Alex Petrov'
+    primary_source: 'https://www.bitunix.com/api-docs/'
+    secondary_source: 'https://docs.coingecko.com/'
+    focus: 'WebSocket، Sequence، Clock Sync، Missing Candle، Out-of-order Event، Backfill، Source Lineage و Freshness.'
+    cadence: 'مستندات هفتگی؛ Health و Gap Detection پیوسته'
+    paper_test: 'Chaos Test برای قطع WebSocket، کندل گمشده، Event تکراری، اختلاف منبع و بازسازی دقیق State.'
+    memory_namespace: 'agent/E02/data-quality'
+  - id: E03
+    name: 'USDT.D Engine / USDT Dominance Agent'
+    books:
+      - 'Technical Analysis of the Financial Markets — John J. Murphy'
+      - 'Trading with Intermarket Analysis — John J. Murphy'
+      - 'Analysis of Financial Time Series — Ruey S. Tsay'
+    primary_source: 'https://www.tradingview.com/markets/cryptocurrencies/dominance/'
+    secondary_source: 'https://fred.stlouisfed.org/docs/api/fred/'
+    focus: 'Trendline/Channel، S/R، OB/FVG، الگوها، Regime و رابطه USDT.D با جریان ریسک بازار؛ تحلیل مستقل 4H/1H/15m.'
+    cadence: 'دانش هفتگی؛ داده و ساختار با بسته‌شدن کندل یا Event مهم'
+    paper_test: 'Event Study رابطه تغییر USDT.D با BTC/Altها با تفکیک Regime و کنترل زمان انتشار داده‌های کلان.'
+    memory_namespace: 'agent/E03/usdt-dominance'
+  - id: E04
+    name: 'BTC.D Engine / BTC Dominance Agent'
+    books:
+      - 'Trading with Intermarket Analysis — John J. Murphy'
+      - 'Technical Analysis: The Complete Resource for Financial Market Technicians — Charles D. Kirkpatrick II & Julie R. Dahlquist'
+      - 'Analysis of Financial Time Series — Ruey S. Tsay'
+    primary_source: 'https://www.tradingview.com/markets/cryptocurrencies/dominance/'
+    secondary_source: 'https://docs.coingecko.com/docs/market-research'
+    focus: 'جریان سرمایه میان BTC و Altها، الگوهای کلاسیک، شکست/فیک‌اوت و تلاقی BTC.D با TOTAL3/OTHERS.'
+    cadence: 'دانش هفتگی؛ ساختار با Candle Close و Break Event'
+    paper_test: 'آزمون اثر Regimeهای BTC.D روی بازده Altها، Breadth و موفقیت Long/Short با کنترل حرکت خود BTC.'
+    memory_namespace: 'agent/E04/btc-dominance'
+  - id: E05
+    name: 'Macro Regime Engine / Macro Agent'
+    books:
+      - 'The Economics of Money, Banking, and Financial Markets — Frederic S. Mishkin'
+      - 'Trading with Intermarket Analysis — John J. Murphy'
+      - 'Forecasting: Principles and Practice — Rob J. Hyndman & George Athanasopoulos'
+    primary_source: 'https://fred.stlouisfed.org/docs/api/fred/'
+    secondary_source: 'https://fred.stlouisfed.org/docs/api/fred/alfred.html'
+    focus: 'Risk-on/Risk-off، نرخ بهره، DXY، نقدینگی کلان، تقویم داده و استفاده از Vintage واقعی برای جلوگیری از Look-ahead.'
+    cadence: 'تقویم روزانه؛ Research هفتگی؛ Eventهای کلان رویدادمحور'
+    paper_test: 'Replay با داده Vintage از ALFRED؛ مقایسه تصمیم با اطلاعاتی که واقعاً در همان زمان منتشر شده بود.'
+    memory_namespace: 'agent/E05/macro'
+  - id: E06
+    name: 'BTC Analysis Engine / BTC Agent'
+    books:
+      - 'Technical Analysis of the Financial Markets — John J. Murphy'
+      - 'Trading and Exchanges: Market Microstructure for Practitioners — Larry Harris'
+      - 'Mastering Bitcoin — Andreas M. Antonopoulos'
+    primary_source: 'https://www.coinbase.com/institutional/research-insights/research'
+    secondary_source: 'https://coinmetrics.io/insights/state-of-the-network/'
+    focus: 'ساختار BTC، Liquidity، OI/Funding، On-chain Context، Pullback Plus و نقش BTC به‌عنوان Gate همه Altها.'
+    cadence: 'Market Data پیوسته؛ Research روزانه/هفتگی'
+    paper_test: 'بازسازی سناریوهای BTC در 4H/1H/15m/5m و سنجش تأثیر Bias درست/غلط BTC بر سیگنال Altها.'
+    memory_namespace: 'agent/E06/btc'
+  - id: E07
+    name: 'Structure Engine / Structure Agent'
+    books:
+      - 'Technical Analysis: The Complete Resource for Financial Market Technicians — Charles D. Kirkpatrick II & Julie R. Dahlquist'
+      - 'Technical Analysis of the Financial Markets — John J. Murphy'
+      - 'Encyclopedia of Chart Patterns, 3rd Edition — Thomas N. Bulkowski'
+    primary_source: 'https://cmtassociation.org/education/publications/journal-of-technical-analysis/'
+    secondary_source: 'https://www.tradingview.com/'
+    focus: 'Pivot، Trendline معتبر، Channel، S/R Zone، BOS/CHoCH، Role Flip و Pattern Recognition بدون Repaint.'
+    cadence: 'Journal ماهانه/فصلی؛ Detector با Candle Close و Structure Event'
+    paper_test: 'Golden Chart Fixtures تأییدشده توسط حمید، Precision/Recall خطوط و الگوها، و آزمون Out-of-sample روی ارز/Regime دیگر.'
+    memory_namespace: 'agent/E07/structure'
+  - id: E08
+    name: 'SMC Engine / SMC Agent'
+    books:
+      - 'Trading and Exchanges: Market Microstructure for Practitioners — Larry Harris'
+      - 'Market Microstructure Theory — Maureen O’Hara'
+      - 'Empirical Market Microstructure — Joel Hasbrouck'
+    primary_source: 'https://www.cmegroup.com/liquiditytool'
+    secondary_source: 'https://arxiv.org/list/q-fin.TR/recent'
+    focus: 'Order Block، FVG، Displacement، Mitigation، Breaker، Liquidity Sweep و Inducement. اصطلاحات ICT/SMC فرضیه‌اند، نه حقیقت آماری.'
+    cadence: 'Research هفتگی؛ OB/FVG State رویدادمحور'
+    paper_test: 'ثبت همه OBها با Freshness/Mitigation/Regime و سنجش Reaction Probability، MFE/MAE و زمان واکنش.'
+    memory_namespace: 'agent/E08/smc'
+  - id: E09
+    name: 'Indicator Engine / Indicator Agent'
+    books:
+      - 'New Concepts in Technical Trading Systems — J. Welles Wilder Jr.'
+      - 'Technical Analysis: The Complete Resource for Financial Market Technicians — Charles D. Kirkpatrick II & Julie R. Dahlquist'
+      - 'Evidence-Based Technical Analysis — David R. Aronson'
+    primary_source: 'https://ta-lib.org/functions/'
+    secondary_source: 'https://cmtassociation.org/education/publications/journal-of-technical-analysis/'
+    focus: 'فرمول و Warm-up دقیق RSI/MACD/MFI/ADX/ATR/Stochastic/BB/Moving Averages، واگرایی و جلوگیری از استفاده تک‌اندیکاتوری.'
+    cadence: 'Release/Formula Review ماهانه؛ محاسبات Incremental'
+    paper_test: 'Unit Test در برابر TA-Lib، آزمون ارزش افزوده هر Indicator روی Strategy ثابت و کنترل Data Snooping.'
+    memory_namespace: 'agent/E09/indicators'
+  - id: E10
+    name: 'Liquidity & Derivatives Engine / Liquidity Agent'
+    books:
+      - 'Trading and Exchanges: Market Microstructure for Practitioners — Larry Harris'
+      - 'Market Microstructure Theory — Maureen O’Hara'
+      - 'Empirical Market Microstructure — Joel Hasbrouck'
+    primary_source: 'https://docs.coinglass.com/'
+    secondary_source: 'https://www.bitunix.com/api-docs/futures/websocket/public/depth%20channel.html'
+    focus: 'Order Book، Depth، Spread، OI، Funding، Liquidation، Order-flow Imbalance، Stop Hunt و تفکیک داده مستقیم از تخمین.'
+    cadence: 'Data پیوسته؛ مستندات هفتگی؛ Research ماهانه'
+    paper_test: 'آزمون Liquidity Magnet، Sweep، OI/Funding Extremes و Stop Buffer با داده Direct و Estimated جدا.'
+    memory_namespace: 'agent/E10/liquidity'
+  - id: E11
+    name: 'Strategy Router / Strategy Agents'
+    books:
+      - 'Systematic Trading — Robert Carver'
+      - 'Quantitative Trading — Ernest P. Chan'
+      - 'Advances in Financial Machine Learning — Marcos López de Prado'
+    primary_source: 'https://arxiv.org/list/q-fin.TR/recent'
+    secondary_source: 'https://cmtassociation.org/education/publications/journal-of-technical-analysis/'
+    focus: 'Registry نسخه‌دار، Hard Gate/Soft Score، انتخاب Strategy مناسب Regime و جلوگیری از تغییر هم‌زمان چند Rule.'
+    cadence: 'Research هفتگی؛ Registry فقط پس از Promotion'
+    paper_test: 'هر فرضیه روی یک Strategy Version جدا، Walk-forward، Paper و Shadow؛ مقایسه با Baseline ثابت.'
+    memory_namespace: 'agent/E11/strategy-router'
+  - id: E12
+    name: 'Lead-Lag Engine / Relationship Agent'
+    books:
+      - 'Analysis of Financial Time Series — Ruey S. Tsay'
+      - 'Time Series Analysis — James D. Hamilton'
+      - 'Forecasting: Principles and Practice — Rob J. Hyndman & George Athanasopoulos'
+    primary_source: 'https://arxiv.org/list/q-fin.ST/recent'
+    secondary_source: 'https://arxiv.org/list/q-fin.TR/recent'
+    focus: 'Cross-correlation، Event Study، Conditional Probability، Lift، Lag Distribution، Granger-style tests و کنترل Market Beta/FDR.'
+    cadence: 'Pump Event رویدادمحور؛ Research هفتگی؛ Backfill شبانه'
+    paper_test: 'تمام Pumpهای تاریخی Leader، واکنش 0–24h همه Followers، حذف اثر BTC و آزمون Out-of-sample.'
+    memory_namespace: 'agent/E12/lead-lag'
+  - id: E13
+    name: 'Historical Analog Engine / Analog Agent'
+    books:
+      - 'Pattern Recognition and Machine Learning — Christopher M. Bishop'
+      - 'Analysis of Financial Time Series — Ruey S. Tsay'
+      - 'Advances in Financial Machine Learning — Marcos López de Prado'
+    primary_source: 'https://stumpy.readthedocs.io/en/latest/'
+    secondary_source: 'https://arxiv.org/list/q-fin.ST/recent'
+    focus: 'Matrix Profile، Distance Metrics، Feature Similarity، Regime-aware nearest neighbors و جلوگیری از شباهت ظاهری گمراه‌کننده.'
+    cadence: 'Research ماهانه؛ Index تاریخی Incremental'
+    paper_test: 'Analog Retrieval را با Outcomeهای مخفی ارزیابی کن؛ Top-k، Calibration و Baseline تصادفی گزارش شود.'
+    memory_namespace: 'agent/E13/analog'
+  - id: E14
+    name: 'News & Catalyst Engine / Research Agent'
+    books:
+      - 'The Handbook of News Analytics in Finance — Gautam Mitra & Leela Mitra (eds.)'
+      - 'Machine Learning for Trading, Third Edition — Stefan Jansen'
+      - 'Cryptoassets — Chris Burniske & Jack Tatar'
+    primary_source: 'https://coinmarketcap.com/api/documentation/pro-api-reference/content'
+    secondary_source: 'https://docs.messari.io/api-reference/endpoints/news/news-api'
+    focus: 'Entity Resolution، Event Time در برابر Publish Time، Source Credibility، Launch/Unlock/Listing/Upgrade و Historical Event Impact.'
+    cadence: 'Feed هر 1–5 دقیقه بسته به API؛ Research و Dedup روزانه'
+    paper_test: 'خبر فقط Candidate می‌سازد؛ اثر Eventهای هم‌نوع روی همان ارز/Sector در پنجره‌های زمانی مشخص Paper Test شود و از منبع رسمی پروژه تأیید گردد.'
+    memory_namespace: 'agent/E14/news-catalyst'
+  - id: E15
+    name: 'Watch & Alert Engine / Watch Agent'
+    books:
+      - 'Streaming Systems — Tyler Akidau, Slava Chernyak & Reuven Lax'
+      - 'Enterprise Integration Patterns — Gregor Hohpe & Bobby Woolf'
+      - 'Release It! — Michael T. Nygard'
+    primary_source: 'https://prometheus.io/docs/alerting/latest/alertmanager/'
+    secondary_source: 'https://prometheus.io/docs/alerting/latest/configuration/'
+    focus: 'Proximity Alert، Debounce، Dedup، Cooldown، Alert Storm، Priority Queue و Re-analysis Trigger فوری.'
+    cadence: 'Health پیوسته؛ Docs/Release هفتگی'
+    paper_test: 'Replay با 200 نماد؛ سنجش Missed Alert، Duplicate، Latency و اینکه Symbol اول منتظر Symbol دویستم نماند.'
+    memory_namespace: 'agent/E15/watch-alert'
+  - id: E16
+    name: 'Risk Engine / Risk Officer'
+    books:
+      - 'Quantitative Risk Management — Alexander J. McNeil, Rüdiger Frey & Paul Embrechts'
+      - 'The Mathematics of Money Management — Ralph Vince'
+      - 'Systematic Trading — Robert Carver'
+    primary_source: 'https://www.cmegroup.com/education/courses/trade-and-risk-management'
+    secondary_source: 'https://rpc.cfainstitute.org/research'
+    focus: 'Position Sizing، Portfolio Heat، Correlation Cluster، Drawdown، Structural Stop، Tail Risk و حق Veto.'
+    cadence: 'Risk Metrics پیوسته؛ Research ماهانه'
+    paper_test: 'Monte Carlo/Bootstrap، Stress Scenario، Gap/Slippage/Funding و مقایسه Risk Policyها بدون تغییر Entry Logic.'
+    memory_namespace: 'agent/E16/risk'
+  - id: E17
+    name: 'Signal Committee / Decision Agent'
+    books:
+      - 'Bayesian Data Analysis — Andrew Gelman et al.'
+      - 'Superforecasting — Philip E. Tetlock & Dan Gardner'
+      - 'Forecasting: Principles and Practice — Rob J. Hyndman & George Athanasopoulos'
+    primary_source: 'https://scikit-learn.org/stable/modules/calibration.html'
+    secondary_source: 'https://scikit-learn.org/stable/api/sklearn.calibration.html'
+    focus: 'Probability Calibration، Evidence Weighting، Conflict Resolution، Abstention/NO_TRADE و جداسازی Confidence از Score.'
+    cadence: 'Calibration هفتگی یا پس از Sample جدید کافی'
+    paper_test: 'Reliability Diagram، Brier Score، Calibration Error و Outcome Split بر اساس Regime/Strategy/Symbol.'
+    memory_namespace: 'agent/E17/signal-committee'
+  - id: E18
+    name: 'Paper / Replay / Backtest Engine / Experiment Agent'
+    books:
+      - 'Evidence-Based Technical Analysis — David R. Aronson'
+      - 'Advances in Financial Machine Learning — Marcos López de Prado'
+      - 'Quantitative Trading — Ernest P. Chan'
+    primary_source: 'https://vectorbt.dev/'
+    secondary_source: 'https://vectorbt.dev/getting-started/resources/'
+    focus: 'No Look-ahead، Walk-forward، Purged Split، Fees/Slippage/Funding، Reproducibility، Parameter Stability و Historical Universe.'
+    cadence: 'Paper پیوسته؛ Replay/Backfill شبانه؛ Research هفتگی'
+    paper_test: 'هر تغییر یک Experiment ID و Baseline؛ OOS، Bootstrap CI، Regime Split و Reproduction Script اجباری.'
+    memory_namespace: 'agent/E18/experiments'
+  - id: E19
+    name: 'Trade Management Engine / Trade Manager Agent'
+    books:
+      - 'The Mathematics of Money Management — Ralph Vince'
+      - 'Systematic Trading — Robert Carver'
+      - 'Trading Psychology 2.0 — Brett N. Steenbarger'
+    primary_source: 'https://www.bitunix.com/api-docs/'
+    secondary_source: 'https://www.cmegroup.com/education/courses/trade-and-risk-management'
+    focus: 'Trailing ساختاری، Partial Exit، Invalidation، Time Stop، Order State و جلوگیری از مدیریت احساسی.'
+    cadence: 'Position Event پیوسته؛ Review هفتگی'
+    paper_test: 'Entry ثابت نگه داشته شود و فقط Exit Policyها روی MFE/MAE، Expectancy و Drawdown مقایسه شوند.'
+    memory_namespace: 'agent/E19/trade-management'
+  - id: E20
+    name: 'Post-Trade Engine / Reviewer Agent'
+    books:
+      - 'The Daily Trading Coach — Brett N. Steenbarger'
+      - 'The PlayBook — Mike Bellafiore'
+      - 'Evidence-Based Technical Analysis — David R. Aronson'
+    primary_source: 'https://cmtassociation.org/education/publications/journal-of-technical-analysis/'
+    secondary_source: 'https://github.com/ranaroussi/quantstats'
+    focus: 'MFE/MAE، Failure Taxonomy، Premortem/Postmortem، Attribution، خطای Data/Latency/Regime و تشخیص علت از هم‌زمانی.'
+    cadence: 'پس از هر Close فوری؛ مرور 1h/6h/24h؛ جمع‌بندی هفتگی'
+    paper_test: 'بازبینی TP/SL و فرصت‌های ردشده؛ هر Lesson با Counterfactual و Evidence IDs ثبت شود.'
+    memory_namespace: 'agent/E20/post-trade'
+  - id: E21
+    name: 'Memory Store / Memory Curator Agent'
+    books:
+      - 'Designing Data-Intensive Applications — Martin Kleppmann'
+      - 'Database Internals — Alex Petrov'
+      - 'Knowledge Graphs — Aidan Hogan et al.'
+    primary_source: 'https://docs.langchain.com/oss/python/langgraph/persistence'
+    secondary_source: 'https://docs.langchain.com/oss/javascript/langgraph/add-memory'
+    focus: 'Namespace، Provenance، Versioning، Semantic Retrieval، Conflict، Supersede، Expiry و Promotion کنترل‌شده.'
+    cadence: 'Ingest رویدادمحور؛ Compaction شبانه؛ Audit هفتگی'
+    paper_test: 'Recall Precision، جلوگیری از Memory Contamination، Conflict Test و بازتولید Lesson از Evidence خام.'
+    memory_namespace: 'agent/E21/memory-curator'
+  - id: E22
+    name: 'Improvement Engine / Research Director'
+    books:
+      - 'Causal Inference: The Mixtape — Scott Cunningham'
+      - 'Experimentation Works — Stefan H. Thomke'
+      - 'The Craft of Research — Wayne C. Booth, Gregory G. Colomb, Joseph M. Williams et al.'
+    primary_source: 'https://www.nber.org/papers'
+    secondary_source: 'https://www.ssrn.com/'
+    focus: 'Research Question، Causal Hypothesis، Experimental Design، Priority، Expected Value of Information و رد ایده‌های کم‌کیفیت.'
+    cadence: 'Research Feed هفتگی؛ Backlog روزانه'
+    paper_test: 'یک تغییر کنترل‌شده در هر Cycle، Pre-registration، Baseline، Kill Criteria و تصمیم Keep/Revert.'
+    memory_namespace: 'agent/E22/improvement'
+  - id: E23
+    name: 'Supervisor / SRE Agent'
+    books:
+      - 'Site Reliability Engineering — Betsy Beyer, Chris Jones, Jennifer Petoff & Niall Richard Murphy (eds.)'
+      - 'The Site Reliability Workbook — Betsy Beyer et al.'
+      - 'Observability Engineering — Charity Majors, Liz Fong-Jones & George Miranda'
+    primary_source: 'https://sre.google/resources/'
+    secondary_source: 'https://sre.google/books/'
+    focus: 'SLO، Latency، Queue Lag، Circuit Breaker، Recovery، Error Budget، Capacity و Health هر Engine/Agent.'
+    cadence: 'Monitoring پیوسته؛ SRE Review هفتگی'
+    paper_test: 'Fault Injection، Worker Restart، DB Failure، Telegram Failure و اثبات Recovery بدون Duplicate/Data Loss.'
+    memory_namespace: 'agent/E23/sre'
+  - id: E24
+    name: 'Panel Contract Engine / UI QA Agent'
+    books:
+      - 'Continuous Delivery — Jez Humble & David Farley'
+      - 'The Art of Software Testing — Glenford J. Myers, Corey Sandler & Tom Badgett'
+      - 'Designing Interfaces — Jenifer Tidwell, Charles Brewer & Aynne Valencia'
+    primary_source: 'https://playwright.dev/docs/intro'
+    secondary_source: 'https://spec.openapis.org/oas/latest.html'
+    focus: 'API/UI Contract، E2E، Cross-browser، Freshness Badge، Source/Trace ID، Paper/Live Separation و Accessibility.'
+    cadence: 'Contract Test در هر Commit؛ E2E شبانه و قبل Deploy'
+    paper_test: 'Playwright روی تمام Tabها، Mock ممنوع در Production، Tie-out عدد UI با DB/API و Screenshot/Trace روی Failure.'
+    memory_namespace: 'agent/E24/panel-qa'
+  - id: E25
+    name: 'Telegram Delivery Engine / Notification Agent'
+    books:
+      - 'Enterprise Integration Patterns — Gregor Hohpe & Bobby Woolf'
+      - 'Release It! — Michael T. Nygard'
+      - 'Designing Data-Intensive Applications — Martin Kleppmann'
+    primary_source: 'https://core.telegram.org/bots/api'
+    secondary_source: 'https://prometheus.io/docs/alerting/latest/alertmanager/'
+    focus: 'Outbox، Idempotency، Retry، Rate Limit، Signal ID، Photo+Caption، Reply به Message ID و Delivery Receipt.'
+    cadence: 'Delivery پیوسته؛ API Change هفتگی'
+    paper_test: 'قطع شبکه، Retry، Duplicate Event، Message Reply Mapping و اثبات Exactly-once منطقی با Unique Constraint.'
+    memory_namespace: 'agent/E25/telegram'

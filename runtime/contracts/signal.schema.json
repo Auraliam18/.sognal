@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Signal",
+  "type": "object",
+  "required": [
+    "signal_id",
+    "symbol",
+    "direction",
+    "strategy_id",
+    "strategy_version",
+    "entry",
+    "stop",
+    "targets",
+    "rr",
+    "snapshot_hash",
+    "created_at",
+    "mode"
+  ],
+  "properties": {
+    "signal_id": {
+      "type": "string",
+      "pattern": "^LIAM-"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "LONG",
+        "SHORT"
+      ]
+    },
+    "strategy_id": {
+      "type": "string"
+    },
+    "strategy_version": {
+      "type": "string"
+    },
+    "entry": {
+      "type": "object"
+    },
+    "stop": {
+      "type": "number"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "number"
+      }
+    },
+    "rr": {
+      "type": "number"
+    },
+    "snapshot_hash": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "PAPER",
+        "SHADOW_LIVE",
+        "LIVE_SIGNAL"
+      ]
+    },
+    "telegram_message_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "missing_requirements": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "additionalProperties": true
+}

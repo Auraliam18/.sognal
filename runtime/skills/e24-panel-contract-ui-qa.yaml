@@ -1,0 +1,51 @@
+engine_id: E24
+name: Panel Contract Engine / UI QA Agent
+version: 2.1.0
+mission: Verify each panel tab is connected to the correct engine/API, displays fresh separated paper/live data,
+  and never shows placeholders as real results.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- DEPLOYMENT
+- API_SCHEMA_CHANGED
+- TAB_OPENED
+- PANEL_HEALTH_SWEEP
+inputs:
+- OpenAPI/JSON Schema
+- UI routes
+- API responses
+- freshness timestamps
+output_contract: PanelHealth
+python_responsibilities:
+- contract tests
+- schema validation
+- tab-to-engine mapping
+- freshness badges
+- end-to-end tests
+agent_responsibilities:
+- UX consistency review
+- identify misleading labels
+- propose tab architecture
+hard_rules:
+- Paper/live never visually mix.
+- Every number has source time and engine version.
+- No broken tab may silently show cached success.
+- All changes require contract and browser tests.
+learning_routine: Run on every deployment/schema change; weekly full panel audit.
+memory:
+  private_namespace: agent/e24/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://spec.openapis.org/oas/latest.html
+- https://json-schema.org/specification
+- https://playwright.dev/docs/intro
+- https://fastapi.tiangolo.com/

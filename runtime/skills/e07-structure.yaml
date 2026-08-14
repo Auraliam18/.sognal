@@ -1,0 +1,57 @@
+engine_id: E07
+name: Structure Engine / Structure Agent
+version: 2.1.0
+mission: Detect and preserve valid pivots, trendlines, channels, S/R, BOS/CHoCH, role flips, and multi-timeframe
+  structure exactly in Hamid’s hierarchy.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- CANDLE_CLOSE
+- PIVOT_CONFIRMED
+- LINE_APPROACHING
+- STRUCTURE_BREAK
+inputs:
+- OHLCV 4H/1H/15M/5M
+- ATR
+- volume
+- existing line lifecycle
+output_contract: StructurePacket
+python_responsibilities:
+- causal pivots
+- line fitting/scoring
+- channel pairing
+- S/R clustering
+- BOS/CHoCH
+- line lifecycle
+agent_responsibilities:
+- review ambiguous competing lines
+- compare Golden Fixtures
+- explain why a line/channel is valid
+hard_rules:
+- Use at least 200 candles for 4H and 1H map building.
+- Prefer lines with at least three valid reactions unless a strategy explicitly permits two.
+- Do not force a line through unrelated pivots.
+- Never delete valid historical lines; track BROKEN/FLIPPED/HISTORICAL.
+- A wick touch and body acceptance must be recorded separately.
+learning_routine: Weekly chart-pattern and line-validation review; event-triggered research when false-break rate
+  drifts.
+memory:
+  private_namespace: agent/e07/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- John J. Murphy — Technical Analysis of the Financial Markets
+- 'Charles D. Kirkpatrick II & Julie R. Dahlquist — Technical Analysis: The Complete Resource for Financial Market
+  Technicians'
+- Robert D. Edwards, John Magee & W.H.C. Bassetti — Technical Analysis of Stock Trends
+- Al Brooks — Trading Price Action series
+- https://www.nber.org/papers/w7613
+- https://onlinelibrary.wiley.com/doi/10.1111/j.1540-6261.1992.tb04681.x
