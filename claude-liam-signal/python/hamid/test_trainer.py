@@ -116,6 +116,40 @@ trades2 = trainer.run(symbols=syms, fetch_c15=lambda s: data[s], quiet=True)
 check(f"اجرای دوم روی همان داده تکرار نمی‌سازد ({len(trades2)})",
       len(trades2) == 0)
 
+# ── ۵.۵ بودجهٔ زمانی — کشته‌شدن job یعنی ایمیل قرمز و کارِ ازدست‌رفته ───────
+# با بودجهٔ صفر هیچ کاری نباید شروع شود، ولی اجرا باید **سالم** تمام شود:
+# نه استثنا، نه معاملهٔ نصفه. اجرای بعدی از همان‌جا ادامه می‌دهد.
+before = len(paper.CLOSED.read_text().strip().split("\n"))
+t_budget = trainer.run(symbols=[f"B{i:02d}USDT" for i in range(20)],
+                       fetch_c15=lambda s: synth15(800, seed=99),
+                       quiet=True, budget_s=0)
+after = len(paper.CLOSED.read_text().strip().split("\n"))
+check("بودجهٔ تمام‌شده کار تازه شروع نمی‌کند", t_budget == [])
+check("بودجهٔ تمام‌شده دفتر را دست نمی‌زند", after == before)
+
+# ── ۵.۶ چند تایم‌فریمی: هر معامله برچسب tf دارد ────────────────────────────
+mtf = {}
+
+
+def _fetch_tf(sym, tf, bars):
+    mtf.setdefault(tf, 0)
+    mtf[tf] += 1
+    return synth15(700, seed=hash((sym, tf)) % 1000)
+
+
+t_mtf = trainer.run(symbols=[f"M{i:02d}USDT" for i in range(12)],
+                    fetch=_fetch_tf, quiet=True, tfs=["5m", "15m", "1h"])
+check("هر سه تایم‌فریم خوانده شدند", set(mtf) == {"5m", "15m", "1h"})
+check("هر معامله برچسب tf دارد",
+      t_mtf and all(t.get("tf") in ("5m", "15m", "1h") for t in t_mtf))
+check("برچسب tf داخل why هم هست",
+      all(t["why"].get("tf") == t["tf"] for t in t_mtf))
+check("بیش از یک تایم‌فریم واقعاً معامله ساخت",
+      len({t["tf"] for t in t_mtf}) >= 2)
+check("کلید ضدتکرارِ ۱۵د با کلید قدیمی یکی است",
+      trainer._state_key("XUSDT", "15m") == "XUSDT"
+      and trainer._state_key("XUSDT", "1h") == "XUSDT|1h")
+
 # ── ۶. شکل ردیف دفتر ───────────────────────────────────────────────────────
 t0 = trades[0]
 check("ردیف شکل دفتر واقعی را دارد",

@@ -274,8 +274,11 @@ def _state_key(sym, tf):
     return sym if tf == "15m" else f"{sym}|{tf}"
 
 
+BUDGET_S = 15 * 60     # بودجهٔ دیوارِ ساعت — پایین‌تر از timeout ورک‌فلو
+
+
 def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
-        tfs=None, fetch=None):
+        tfs=None, fetch=None, budget_s=BUDGET_S):
     """یک نوبت تمرین: ۱۰۰ ارز روی هر سه تایم‌فریم، تا کف ۲۰۰ معامله.
 
     `fetch(sym, tf, bars)` جای `fetch_c15` را می‌گیرد و برای تست تزریق
@@ -302,10 +305,24 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
     st = _load_state()
     started = time.time()
 
+    # سه برابر شدن کار (سه تایم‌فریم) + بک‌فیلِ بارِ اول برای ۵د و ۱س یعنی
+    # اجرای اول می‌تواند از timeout ورک‌فلو رد شود. jobِ کشته‌شده یعنی
+    # ایمیل «Run failed» برای حمید **و** از دست رفتن کل کار: _save_state
+    # هرگز اجرا نمی‌شود، پس اجرای بعد همان تاریخ را دوباره می‌خواند.
+    #
+    # بودجهٔ نرم هر دو را حل می‌کند: کارهای شروع‌نشده کنار گذاشته می‌شوند،
+    # مرز پیشرویِ هر چه تمام شده ذخیره می‌شود، و اجرای بعدی دقیقاً از
+    # همان‌جا ادامه می‌دهد. کندی، تأخیر است نه شکست.
+    deadline = started + budget_s
+    skipped = {"n": 0}
+
     def one(job):
         sym, tf = job
         cfg = TFS.get(tf) or TFS["15m"]
         key = _state_key(sym, tf)
+        if time.time() > deadline:
+            skipped["n"] += 1
+            return key, [], None
         try:
             cd = fetch(sym, tf, cfg["bars"])
         except Exception:                             # noqa: BLE001 - یک ارز خراب، بقیه نه
@@ -319,7 +336,10 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
     # مرز پیشرویِ ارزهای باقی‌مانده را ثبت‌نشده رها می‌کرد و اجرای بعد
     # دوباره همان‌ها را ترید می‌کرد (نمونهٔ متورم تکراری). سقف واقعی همان
     # cap هر ارز است: ۱۰۰ ارز × ۴۰؛ عملاً هر ارز در ۸ روز کندل ~۵ ستاپ می‌دهد.
-    jobs = [(s, tf) for tf in tfs for s in symbols]
+    # ارز-به-ارز، نه تایم‌فریم-به-تایم‌فریم. اگر بودجه وسط کار تمام شود،
+    # این ترتیب یعنی هر سه تایم‌فریم داده دارند و جدول دسته‌بندی قابل
+    # ساختن است؛ ترتیب دیگر یعنی تایم‌فریم سوم همیشه خالی می‌ماند.
+    jobs = [(s, tf) for s in symbols for tf in tfs]
     all_trades = []
     with ThreadPoolExecutor(max_workers=8) as pool:
         for key, trades, frontier in pool.map(one, jobs):
@@ -349,6 +369,10 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
               f"{round(wins / n * 100, 1) if n else 0}٪"
               + (" · " + "، ".join(f"{k}: {v}" for k, v in sorted(per.items()))
                  if per else ""))
+        if skipped["n"]:
+            print(f"⏱ بودجهٔ {budget_s // 60} دقیقه تمام شد — {skipped['n']} کار "
+                  "شروع‌نشده ماند. مرز پیشروی ذخیره شد؛ اجرای بعدی از همین‌جا "
+                  "ادامه می‌دهد (شکست نیست، تأخیر است).")
         if n < target:
             print(f"⚠ کمتر از کف {target} — دادهٔ تازه از اجرای قبل کم بود "
                   "(ضدتکرار درست کار می‌کند؛ کندل جدید که بیاید جبران می‌شود)")
