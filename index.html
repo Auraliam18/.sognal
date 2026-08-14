@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.22 · خوددرمانی کش + تب‌های تأییدشده</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.23 · تب‌های ایزوله + حافظهٔ انباشته روی پنل</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -253,6 +253,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x.dataset.t===t);});
     ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
       .forEach(function(k){var el=document.getElementById("view-"+k);if(el)el.style.display=k===t?"":"none";});
+    document.querySelectorAll("[data-tab]").forEach(function(el){el.style.display=el.dataset.tab===t?"":"none";});
   });
   </script>
   <div style="display:none">
@@ -261,14 +262,19 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 
 <main>
   <div class="progress" id="prog" style="display:none"><span></span></div>
-  <div id="statusLine" class="hint" style="margin-bottom:14px">
+  <!-- دستور حمید (۱۴ اوت): «هر تبی که کلیک می‌کنی باید فقط اطلاعات مربوط
+       به همون تب درش قرار بگیره.» این بلوک‌ها قبلاً بیرون از تب‌ها بودند و
+       روی هر تبی تکرار می‌شدند. رندررهایشان innerHTML خود section را
+       بازنویسی می‌کنند، پس جابه‌جایی به داخل section ممکن نبود — به‌جایش
+       هر بلوک data-tab گرفته و سوییچر تب فقط در تب خودش نشانش می‌دهد. -->
+  <div id="statusLine" class="hint" data-tab="ops" style="margin-bottom:14px;display:none">
     آماده. دکمهٔ «اسکن بازار» را بزن تا کل یونیورس پرحجم اسکن شود، یا برو به «تحلیل تک‌نماد + الگو»؛ آنجا بعد از تحلیل کامل،
     چارت ۱۵دقیقه‌ای با ۲۰۰ کندل اخیر باز می‌شود و الگوهای کلاسیک روی همان چارت علامت‌گذاری و هدف الگو ترسیم می‌شود.
     داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
   </div>
 
-  <div id="tgBanner"></div>
-  <div id="alarmBox"></div>
+  <div id="tgBanner" data-tab="signals"></div>
+  <div id="alarmBox" data-tab="watch" style="display:none"></div>
   <section id="view-ops" style="display:none">
     <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px">هر اتاق یک بخش از موتور است که مستقل کار می‌کند. اینجا لحظه‌به‌لحظه می‌بینی هرکدام الان مشغول چه کاری‌ست و چند ارز را پایش می‌کند.</p>
@@ -277,7 +283,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="box" style="margin-top:12px"><h3>گزارش تعمیرها <span class="dim" style="font-size:11px;font-weight:400">هر خرابی و اینکه چطور برطرف شد</span></h3><div id="opsRepairs"></div></div>
     <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
   </section>
-  <div id="whyBox"></div>
+  <div id="whyBox" data-tab="signals"></div>
   <section id="view-signals"></section>
   <section id="view-real" style="display:none"></section>
   <section id="view-net" style="display:none"></section>
@@ -3822,6 +3828,15 @@ function hamidHTML(){
         <span>باز <b>${j.paper.open||0}</b></span>
         <span>بیشترین افت <b>${j.paper.max_drawdown_pct||0}٪</b></span>
       </div>
+      ${!j.paper.total_closed?"":`
+      <div style="font-size:12px;margin-top:6px;padding:6px 8px;border-radius:8px;background:rgba(46,204,113,.07);border:1px solid rgba(46,204,113,.25)">
+        🧠 <b>حافظهٔ انباشته: ${j.paper.total_closed.toLocaleString("fa-IR")} معاملهٔ بسته</b>
+        <span class="dim">— هرگز ریست نمی‌شود؛ هر معامله درس می‌شود.</span>
+        ${!j.paper.books_breakdown?"":`<div class="dim" style="font-size:11px;margin-top:3px">
+          سیگنال‌شده ${j.paper.books_breakdown.signalled} · میز تمرین ${j.paper.books_breakdown.practice} ·
+          پولبک اول ${j.paper.books_breakdown.first_pullback} · ایندوسمنت ${j.paper.books_breakdown.inducement} ·
+          آلارم ${j.paper.books_breakdown.alarm} · ارسالی اسکن ${j.paper.books_breakdown.sent_scan}</div>`}
+      </div>`}
       ${!j.paper.experiments_first_pullback||!j.paper.experiments_first_pullback.trades?"":`
       <div class="dim" style="font-size:11.5px;margin-top:4px">
         آزمایش پولبک اول (سیگنال نشده): ${j.paper.experiments_first_pullback.trades} معامله ·
@@ -5048,6 +5063,8 @@ function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
   ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
     .forEach(k=>{const el=$("#view-"+k);if(el)el.style.display=k===t?"":"none";});
+  /* بلوک‌های خارج از section فقط در تب خودشان — دستور حمید ۱۴ اوت */
+  $$("[data-tab]").forEach(el=>{el.style.display=el.dataset.tab===t?"":"none";});
   const R={ops:"renderOps",paper:"renderReview",real:"renderReal",net:"renderNet",
            agent:"renderAgent",radar:"renderPumpCloud",graph:"renderGraph",bub:"renderBubbles"};
   if(R[t])try{window[R[t]]&&window[R[t]]();}catch(err){console.error("render",t,err);}

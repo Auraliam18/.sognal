@@ -383,6 +383,18 @@ def _equity():
          "practice_desk": run_book(practices),
          "alarm_signals": run_book(alarm_trades),
          "sent_scan_signals": run_book(sent_scan),
+         # نگرانی حمید (۱۴ اوت): «اطلاعات پنل مجدد صفر شده بود». صفر نشده
+         # بود — سرتیتر فقط دفتر سیگنال‌شده را می‌گفت و ۴ دفتر دیگر پنهان
+         # بودند. از حالا جمع کل انباشته صریح صادر می‌شود تا پنل همیشه
+         # نشانش دهد: این عدد فقط بالا می‌رود؛ اگر روزی پایین رفت، خرابی
+         # واقعی است و باید داد بزند.
+         "total_closed": len(closed),
+         "books_breakdown": {"signalled": len(signalled),
+                             "first_pullback": len(experiments),
+                             "inducement": len(inducements),
+                             "practice": len(practices),
+                             "alarm": len(alarm_trades),
+                             "sent_scan": len(sent_scan)},
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
