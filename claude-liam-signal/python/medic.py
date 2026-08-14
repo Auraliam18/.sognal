@@ -166,6 +166,44 @@ def examine():
     else:
         finds.append("تلگرام وصل نیست — دو Secret هنوز ثبت نشده (سیگنال فقط روی پنل می‌ماند)")
 
+    # ── سرزدن به گیت‌هاب (دستور حمید، ۱۴ اوت): «هر از گاهی سر به گیت‌هاب
+    # هم بزنه که گیت‌هاب مشکلی نداشته باشه» ────────────────────────────────
+    # اجراهای ناموفق ۶ ساعت اخیر شمرده می‌شوند؛ ۳ شکستِ یک ورک‌فلو یعنی عیب
+    # واقعی نه نوسان — همان ایمیل‌های Run failed که حمید می‌گیرد.
+    try:
+        tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        hdr = {"User-Agent": "medic/2",
+               **({"Authorization": f"Bearer {tok}"} if tok else {})}
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                              time.gmtime(time.time() - 6 * 3600))
+        req = urllib.request.Request(
+            "https://api.github.com/repos/Auraliam18/.sognal/actions/runs"
+            f"?status=failure&per_page=40&created=%3E{since}", headers=hdr)
+        with urllib.request.urlopen(req, timeout=25) as r:
+            runs = json.load(r).get("workflow_runs", [])
+        from collections import Counter
+        bad = Counter(x["name"] for x in runs if x.get("created_at", "") >= since)
+        if bad:
+            finds.append(f"گیت‌هاب: {sum(bad.values())} اجرای ناموفق در ۶ ساعت اخیر — "
+                         + "، ".join(f"{n}×{c}" for n, c in bad.most_common(4)))
+            top_name, top_n = bad.most_common(1)[0]
+            if top_n >= 3:
+                sick = True
+                finds.append(f"⚠️ «{top_name}» {top_n} بار شکست خورده — عیب واقعی است")
+                if top_name.lower().startswith("hamid"):
+                    wake.append("heartbeat.yml")
+        else:
+            finds.append("گیت‌هاب: هیچ اجرای ناموفقی در ۶ ساعت اخیر")
+        with urllib.request.urlopen(urllib.request.Request(
+                "https://api.github.com/repos/Auraliam18/.sognal",
+                headers=hdr), timeout=20) as r:
+            repo = json.load(r)
+        if not repo.get("private"):
+            finds.append("مخزن عمومی است — خصوصی‌کردن باعث می‌شود پنل gh-pages "
+                         "بدون اکانت Pro از دسترس خارج شود؛ تصمیم با حمید")
+    except Exception as e:                            # noqa: BLE001 - گیت‌هاب نباید معاینه را بکشد
+        finds.append(f"گیت‌هاب: بررسی نشد ({type(e).__name__})")
+
     # ── گشت میان کل ایجنت‌ها (دستور حمید، ۱۴ اوت): «با گردش میان مجموعهٔ
     # ایجنت‌ها و با سؤال پرسیدن در مورد هر چیز خودش دنبال جواب برود» ──────
     # هر اتاق در brain/rooms یک ایجنت است و _saved آخرین ضربانش. سؤال از
