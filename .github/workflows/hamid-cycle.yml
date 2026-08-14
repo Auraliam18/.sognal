@@ -69,6 +69,7 @@ jobs:
           python3 -m hamid.test_orderblocks
           python3 -m hamid.test_ob_intel
           python3 -m hamid.test_deep
+          python3 -m hamid.test_mirror
 
       # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
       # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.
@@ -85,6 +86,8 @@ jobs:
           # have changed nothing, silently.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
@@ -190,4 +193,6 @@ jobs:
           WATCHDOG_AFTER_PUBLISH: "1"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: python3 -m hamid.watchdog --alert

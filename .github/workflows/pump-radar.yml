@@ -80,6 +80,7 @@ jobs:
           python3 -m hamid.test_orderblocks
           python3 -m hamid.test_ob_intel
           python3 -m hamid.test_deep
+          python3 -m hamid.test_mirror
 
       - name: حلقهٔ ۵ دقیقه‌ای (۵ دور در یک job)
         if: steps.guard.outputs.skip != '1'
@@ -87,6 +88,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: |
           export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(jq -r '.inputs.token // empty' "$GITHUB_EVENT_PATH")}"
           export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(jq -r '.inputs.chat_id // empty' "$GITHUB_EVENT_PATH")}"
