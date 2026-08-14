@@ -389,12 +389,30 @@ def _equity():
          # نشانش دهد: این عدد فقط بالا می‌رود؛ اگر روزی پایین رفت، خرابی
          # واقعی است و باید داد بزند.
          "total_closed": len(closed),
-         "books_breakdown": {"signalled": len(signalled),
-                             "first_pullback": len(experiments),
-                             "inducement": len(inducements),
-                             "practice": len(practices),
-                             "alarm": len(alarm_trades),
-                             "sent_scan": len(sent_scan)},
+         # «تعداد برد و استاپا برام مهمه» (حمید، ۱۴ اوت) — کارنامهٔ همیشگیِ
+         # همهٔ دفترها روی هم. این اعداد هرگز ریست نمی‌شوند.
+         "lifetime": (lambda real: {
+             "trades": len(real),
+             "wins": sum(1 for t in real if t["R"] > 0),
+             "stops": sum(1 for t in real if t["R"] <= 0),
+             "win_pct": round(sum(1 for t in real if t["R"] > 0) / len(real) * 100, 1)
+             if real else None,
+             "mean_r": round(sum(t["R"] for t in real) / len(real), 3) if real else None,
+             "sum_r": round(sum(t["R"] for t in real), 1) if real else None,
+             "expired_not_trades": sum(1 for t in closed if t.get("outcome") == "expired"),
+             "by_outcome": {k: sum(1 for t in real if t.get("outcome") == k)
+                            for k in ("target", "trail", "stop", "timeout")},
+         })([t for t in closed
+             if t.get("R") is not None and t.get("outcome") != "expired"]),
+         "books_breakdown": {
+             k: {"n": len(v),
+                 "wins": sum(1 for t in v if (t.get("R") or 0) > 0),
+                 "stops": sum(1 for t in v
+                              if t.get("R") is not None and t["R"] <= 0
+                              and t.get("outcome") != "expired")}
+             for k, v in (("signalled", signalled), ("first_pullback", experiments),
+                          ("inducement", inducements), ("practice", practices),
+                          ("alarm", alarm_trades), ("sent_scan", sent_scan))},
          "recent": [public(t) for t in recent],
          "updated": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     EQUITY.parent.mkdir(parents=True, exist_ok=True)
