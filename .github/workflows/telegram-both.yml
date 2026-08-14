@@ -1,0 +1,51 @@
+# سلامت‌سنجی هر دو مقصد تلگرام — «یک پیام تست بفرست که برای هر دو برود و
+# بدونم که سالم هست» (دستور حمید، ۱۴ اوت).
+#
+# برای هر مقصد جدا می‌گوید: بات معتبر است؟ چت در دسترس است؟ پیام رسید؟
+# اگر مقصد دوم هنوز سکرت ندارد، صریح می‌گوید کدام سکرت کم است — به‌جای
+# اینکه بی‌صدا رد شود.
+name: Telegram both-destination health
+
+on:
+  workflow_dispatch:
+    inputs:
+      send:
+        description: "پیام تست هم فرستاده شود (خاموش = فقط سلامت‌سنجی)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-both
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: آزمون آینه قبل از تست زنده
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.test_mirror
+
+      - name: سلامت‌سنجی هر دو مقصد
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
+        run: |
+          if [ "${{ inputs.send }}" = "true" ]; then
+            python3 tg_health.py
+          else
+            python3 tg_health.py --check
+          fi
