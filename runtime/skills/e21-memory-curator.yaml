@@ -1,0 +1,52 @@
+engine_id: E21
+name: Memory Store / Memory Curator Agent
+version: 2.1.0
+mission: Maintain raw, episodic, symbol, strategy, research, and canonical validated memory with provenance, confidence,
+  and promotion controls.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- POSTMORTEM_COMPLETE
+- RESEARCH_RESULT
+- MEMORY_PROMOTION_REQUEST
+- MEMORY_CONFLICT
+inputs:
+- episodes
+- research claims
+- experiment results
+- source lineage
+output_contract: ValidatedMemory
+python_responsibilities:
+- namespaces
+- dedupe
+- versioning
+- confidence updates
+- retrieval indexes
+- retention/compaction
+agent_responsibilities:
+- resolve semantic duplicates/conflicts
+- summarize reusable lesson
+- approve/reject promotion based on evidence
+hard_rules:
+- Only Memory Curator promotes canonical lessons.
+- Store source, retrieval date, agent, claim, context, sample size, confidence, and validation status.
+- Do not let one agent read another private scratch memory directly.
+- Never delete contradictory evidence; version it.
+learning_routine: Continuous dedupe; weekly memory quality audit; monthly compaction and stale-claim review.
+memory:
+  private_namespace: agent/e21/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://code.claude.com/docs/en/memory
+- https://docs.langchain.com/oss/python/langgraph/persistence
+- https://www.w3.org/TR/prov-overview/
+- Martin Kleppmann — Designing Data-Intensive Applications

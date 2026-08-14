@@ -639,12 +639,17 @@ def recommend(blocks, hot=None):
         # لگ-کورولیشنِ سری بازده‌ها در گذشته (r≥۰.۲ با تأخیر مثبت).
         strong_leaders = [l for l in (b.get("leaders") or []) if (l.get("n") or 0) >= 2]
         lc_leaders = b.get("lag_corr_leaders") or []
+        ev_leaders = b.get("event_leaders") or []     # مطالعهٔ رویدادی — مدل حمید
         event_ok = b.get("role") == "دنباله‌رو" and strong_leaders
-        if not event_ok and not lc_leaders:
-            b["skipped"] = ("رابطهٔ خوشه‌ای اثبات‌شده ندارد (نه ۲+ سابقهٔ رخدادی، "
-                            "نه لگ-کورولیشن قانع‌کننده) — پیشنهاد نمی‌شود")
+        if not event_ok and not lc_leaders and not ev_leaders:
+            b["skipped"] = ("رابطهٔ اثبات‌شده ندارد (نه ۲+ سابقهٔ رخدادی، نه "
+                            "لگ-کورولیشن، نه k/N مطالعهٔ رویدادی) — پیشنهاد نمی‌شود")
             continue
         s, why = 0, []
+        # قوی‌ترین مدرک: k از N پامپ واقعی تاریخچه — «ارز با احتمال پامپ»
+        for el in ev_leaders[:2]:
+            s += 3
+            why.append(el["reason"])
         for lc in lc_leaders[:2]:
             s += 2 if lc.get("both_tf") else 1
             why.append(lc["reason"])
@@ -754,6 +759,27 @@ def tg_message(source, picks, blocks):
                                f"({r['lag_h']}س بعد)" for r in ev["reactions"][:2])
                 L.append(f"  {ev['date']} پامپ +{ev['ret_4h_pct']}٪"
                          + (f" → {rx}" if rx else " → واکنشی ثبت نشد"))
+        # لگ-کورولیشن کل تاریخچه (قرار حمید، ۱۳ اوت — و شکایت ۱۴ اوت که از
+        # گزارش افتاده بود): رابطهٔ آماری با تأخیر، جدا از سابقهٔ رخدادی
+        lcl = b.get("lag_corr_leaders") or []
+        if lcl:
+            L.append("📊 لگ-کورولیشن تاریخی: " + " · ".join(
+                f"دنبال {l['symbol'].replace('USDT','')} با r={l['best']['r']:+.2f} "
+                f"در تأخیر {l['best']['lag_h']}س"
+                + (" (هر دو تایم‌فریم)" if l.get("both_tf") else "")
+                for l in lcl[:2]))
+        lcf = b.get("lag_corr_followers") or []
+        if lcf:
+            L.append("📊 دنباله‌روهای آماری‌اش: " + "، ".join(
+                f"{f['symbol'].replace('USDT','')} (r={f['best']['r']:+.2f}@{f['best']['lag_h']}س)"
+                for f in lcf[:3]))
+        evf = b.get("event_followers") or []
+        es = b.get("event_study") or {}
+        if evf:
+            L.append(f"🧾 مطالعهٔ رویدادی ({es.get('pumps_n', '؟')} پامپ تاریخی): " +
+                     "، ".join(f"{f['symbol'].replace('USDT','')} "
+                               f"{f['k_after']}از{f['N']} ({round(f['prob']*100)}٪)"
+                               for f in evf[:3]))
         L.append(f"ورود <code>{p['entry']:.10g}</code> · استاپ <code>{p['sl']:.10g}</code>"
                  f" · ریسک {p['risk_pct']}٪ · فاصله {p['dist_pct']}٪")
         L.append("")
@@ -979,6 +1005,29 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
                          "reason": lagcorr.reason_fa(g["symbol"], f)})
         except Exception as e:                       # noqa: BLE001 - آمار، رادار را نمی‌کشد
             print(f"  لگ-کورولیشن {g['symbol']}: {type(e).__name__}")
+        # مطالعهٔ رویدادی کامل — مدل دقیق حمید (۱۴ اوت): تاریخچهٔ لیدر از
+        # روز لانچ، هر پامپ ±۲۴س، شمارش k از N برای هر کاندیدا؛ ازقاعده‌گذشته
+        # (k≥۳ و ≥۳۰٪) کاندیدای «ارز با احتمال پامپ» می‌شود.
+        try:
+            from hamid import pump_study
+            es = pump_study.run_for_leader(g["symbol"], kc, uni)
+            if es:
+                b["event_study"] = {"pumps_n": es["pumps_n"],
+                                    "coverage_from": es["coverage_from"]}
+                for sym2, row in es["followers"].items():
+                    if not row["qualified"]:
+                        continue
+                    b.setdefault("event_followers", []).append(
+                        {"symbol": sym2, **row})
+                    b2 = add(sym2, 2, via=g["symbol"])
+                    if b2 is None:
+                        b2 = next((x for x in blocks if x["symbol"] == sym2), None)
+                    if b2 is not None:
+                        b2.setdefault("event_leaders", []).append(
+                            {"symbol": g["symbol"], **row,
+                             "reason": pump_study.reason_fa(g["symbol"], sym2, row)})
+        except Exception as e:                       # noqa: BLE001
+            print(f"  مطالعهٔ رویدادی {g['symbol']}: {type(e).__name__}")
 
     # دفتر ماندگار تاریخچهٔ پامپ‌ها — هر رخداد یک بار ثبت و برای همیشه نگه
     # داشته می‌شود («پاک نشود»)؛ خلاصهٔ خوانا هم روی بلوک می‌نشیند

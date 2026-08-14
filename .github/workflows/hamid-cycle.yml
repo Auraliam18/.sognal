@@ -57,6 +57,11 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
 
+      # وابستگی‌ها قبل از خودآزمایی — test_learning به pyyaml نیاز دارد و
+      # چارت به matplotlib؛ pip بعد از تست یعنی تست سرخ الکی روی رانر.
+      - name: وابستگی‌های پایتون
+        run: pip -q install matplotlib pyyaml
+
       - name: Method self-check
         # The method's own tests run before it is allowed to produce a signal.
         # These are cheap and they catch the failure mode that matters here: a
@@ -68,11 +73,17 @@ jobs:
           python3 -m hamid.test_patterns
           python3 -m hamid.test_orderblocks
           python3 -m hamid.test_ob_intel
+          python3 -m hamid.test_deep
+          python3 -m hamid.test_mirror
+          python3 -m hamid.test_learning
+          python3 -m hamid.test_fixit
+          python3 -m hamid.test_trainer
+          python3 -m hamid.test_pump_study
 
       # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
       # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.
       - name: matplotlib برای چارت سیگنال
-        run: pip -q install matplotlib
+        run: pip -q install matplotlib pyyaml
 
       - name: Run the cycle
         working-directory: claude-liam-signal/python
@@ -84,6 +95,8 @@ jobs:
           # have changed nothing, silently.
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
@@ -189,4 +202,6 @@ jobs:
           WATCHDOG_AFTER_PUBLISH: "1"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: python3 -m hamid.watchdog --alert

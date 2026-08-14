@@ -1,7 +1,35 @@
 #!/usr/bin/env python3
-"""ایجنت نگهبان — هر ۱۵ دقیقه پنل را از همان جایی که حمید می‌بیند معاینه می‌کند،
-و اگر ضربان خوابیده باشد خودش بیدارش می‌کند.
+"""ایجنت «عیب‌یاب و تعمیرکار» — نام قبلی: پزشک/نگهبان (تغییر نام: دستور حمید ۱۴ اوت).
 
+مأموریت، به زبان خود حمید: «فقط دنبال این باشد که در پنل و روند کار دنبال
+ایراد گرفتن و سؤال پرسیدن باشد؛ و البته خودش سریعاً بعد از اینکه به جوابی
+نرسید سریعاً عیب را پیدا و عیب‌یابی انجام دهد و به‌عنوان تجربه در حافظهٔ
+دائمی ذخیره کند.»
+
+چرخه: هر ۱۵ دقیقه سؤال‌های بدبینانه می‌پرسد (معاینه‌ها)؛ هر سؤال بی‌جواب
+یک عیب است؛ عیبِ تعمیرشدنی همان لحظه تعمیر می‌شود (بیدار کردن ورک‌فلوی
+خوابیده)؛ و هر عیب/تعمیر با memory.remember به حافظهٔ دائمی می‌رود تا
+دفعهٔ بعد سریع‌تر تشخیص داده شود.
+
+چرا از بیرون معاینه می‌کند: تجربهٔ این مخزن بارها نشان داد سرور می‌تواند سبز
+باشد و پنل کهنه — چرخه فقط به main منتشر می‌شد و gh-pages دو روز عقب بود.
+پس ملاک، فایل‌هایی است که مرورگر حمید واقعاً می‌خواند، نه لاگ سرور.
+
+معاینه‌ها:
+  ۱. hamid-latest.json روی gh-pages تازه است (<۴۵ دقیقه) و شکل درست دارد
+     (setups و paper و reads>0) — یعنی خط تولید سیگنال زنده است.
+  ۲. latest.json (اسکن استراتژی‌های قبلی) تازه است (<۶۰ دقیقه).
+  ۳. خود صفحهٔ پنل با HTTP 200 می‌آید.
+  ۴. تلگرام آماده هست یا نه (فقط گزارش — راهش ثبت دو Secret است).
+
+درمان: اگر خط تولید کهنه بود و REVIVE=1 و GITHUB_TOKEN موجود، ورک‌فلوی
+Heartbeat را dispatch می‌کند. این همان کاری است که تا امروز دست آدم می‌خواست.
+
+خروجی: brain/medic.json — فقط وقتی وضعیت «عوض شود» نوشته می‌شود (سالم→خراب یا
+برعکس، یا متن یافته‌ها تغییر کند)، که تاریخچهٔ گیت پر از کامیت تکراری نشود.
+کد خروج: 0 سالم، 1 خراب — تا ورک‌فلو بتواند روی خرابی رفتار متفاوت کند.
+
+اجرای دستی:  python3 claude-liam-signal/python/medic.py
 چرا از بیرون معاینه می‌کند: تجربهٔ این مخزن بارها نشان داد سرور می‌تواند سبز
 باشد و پنل کهنه — چرخه فقط به main منتشر می‌شد و gh-pages دو روز عقب بود.
 پس ملاک، فایل‌هایی است که مرورگر حمید واقعاً می‌خواند، نه لاگ سرور.
@@ -138,7 +166,73 @@ def examine():
     else:
         finds.append("تلگرام وصل نیست — دو Secret هنوز ثبت نشده (سیگنال فقط روی پنل می‌ماند)")
 
-    return sick, finds, wake
+    # ── گشت میان کل ایجنت‌ها (دستور حمید، ۱۴ اوت): «با گردش میان مجموعهٔ
+    # ایجنت‌ها و با سؤال پرسیدن در مورد هر چیز خودش دنبال جواب برود» ──────
+    # هر اتاق در brain/rooms یک ایجنت است و _saved آخرین ضربانش. سؤال از
+    # هرکدام: «آخرین بار کی کار کردی؟» — جوابِ کهنه‌تر از ۶ ساعت یعنی آن
+    # ایجنت خوابیده؛ سؤال و جوابش در دفتر پرسش‌ها ثبت می‌شود.
+    try:
+        rooms_dir = Path(__file__).resolve().parent.parent.parent.parent / "brain" / "rooms"
+        questions = []
+        stale_rooms = []
+        for d in sorted(rooms_dir.iterdir() if rooms_dir.is_dir() else []):
+            if not d.is_dir():
+                continue
+            q = {"q": f"اتاق {d.name}: آخرین بار کی کار کردی؟", "room": d.name}
+            try:
+                stj = json.loads((d / "state.json").read_text())
+                saved = stj.get("_saved") or stj.get("at") or 0
+                age_h = (time.time() * 1000 - saved) / 3600000 if saved else None
+                q["a"] = f"{age_h:.1f} ساعت پیش" if age_h is not None else "هرگز"
+                if age_h is None or age_h > 6:
+                    stale_rooms.append(d.name)
+                    q["fault"] = True
+            except Exception as e:                    # noqa: BLE001
+                q["a"] = f"جواب نداد ({type(e).__name__})"
+                q["fault"] = True
+                stale_rooms.append(d.name)
+            questions.append(q)
+        if stale_rooms:
+            finds.append("گشت ایجنت‌ها: این اتاق‌ها ۶+ ساعت است کار نکرده‌اند یا "
+                         "جواب نمی‌دهند: " + "، ".join(stale_rooms[:6]))
+            # اتاق خوابیده معمولاً یعنی چرخهٔ مادرش خوابیده — همان درمان
+            if len(stale_rooms) >= 3 and "heartbeat.yml" not in wake:
+                wake.append("heartbeat.yml")
+                sick = True
+        elif questions:
+            finds.append(f"گشت ایجنت‌ها: هر {len(questions)} اتاق در ۶ ساعت اخیر کار کرده‌اند")
+        # دفتر پرسش‌های عیب‌یاب — append، برای بازخوانی خودش و حمید
+        qp = Path(__file__).resolve().parent.parent.parent.parent / "brain" / "medic-questions.jsonl"
+        with open(qp, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"at": int(time.time() * 1000),
+                                "questions": questions}, ensure_ascii=False) + "\n")
+    except Exception:                                 # noqa: BLE001 - گشت نباید معاینه را بکشد
+        pass
+
+    # ── سؤال جدید عیب‌یاب (ترس حمید، ۱۴ اوت): «حافظه کوچک نشده؟» ──────────
+    # جمع کل معاملات بسته فقط باید بالا برود. اگر نسبت به آخرین معاینه
+    # پایین آمد، یعنی دفتر واقعاً از دست رفته — همان اتفاقی که حمید فکر
+    # کرد افتاده. آن روز نمایش گمراه بود نه داده؛ این سؤال فرقشان را
+    # از این به بعد خودکار می‌گیرد.
+    total = None
+    try:
+        st, body = fetch(f"{PAGES}/signals/hamid-latest.json")
+        total = ((json.loads(body).get("paper") or {}).get("total_closed"))
+        prev_total = None
+        if OUT.exists():
+            prev_total = (json.loads(OUT.read_text()) or {}).get("total_closed")
+        if total is not None:
+            if prev_total is not None and total < prev_total:
+                sick = True
+                finds.append(f"⚠️ حافظهٔ انباشته کوچک شد: {prev_total} → {total} — "
+                             "این دیگر خطای نمایش نیست، دفتر واقعاً از دست رفته")
+            else:
+                finds.append(f"حافظهٔ انباشته سالم: {total} معاملهٔ بسته"
+                             + (f" (قبلی {prev_total})" if prev_total else ""))
+    except Exception:                                 # noqa: BLE001 - قبل از استقرار فیلد، ساکت
+        pass
+
+    return sick, finds, wake, total
 
 
 def _runs(workflow, tok, status):
@@ -182,11 +276,12 @@ def revive(workflow):
 
 
 def main():
-    sick, finds, wake = examine()
+    sick, finds, wake, total = examine()
     treated = "؛ ".join(revive(w) for w in dict.fromkeys(wake)) or None
     state = {"at": int(time.time() * 1000),
              "atText": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
-             "sick": sick, "findings": finds, "treated": treated}
+             "sick": sick, "findings": finds, "treated": treated,
+             "total_closed": total}
 
     prev = {}
     if OUT.exists():
@@ -194,15 +289,38 @@ def main():
             prev = json.loads(OUT.read_text())
         except Exception:                             # noqa: BLE001
             prev = {}
-    changed = prev.get("sick") != sick or prev.get("findings") != finds
+    if total is None:
+        state["total_closed"] = prev.get("total_closed")
+    changed = prev.get("sick") != sick or prev.get("findings") != finds \
+        or prev.get("total_closed") != state["total_closed"]
     if changed:
         OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT.write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
+    # ── درس به حافظهٔ دائمی (دستور حمید ۱۴ اوت) — عیب و تعمیر، هر دو ─────
+    # فقط سرِ «تغییر وضعیت»، نه هر ۱۵ دقیقه: remember خودش تکراری ۱۲ساعته
+    # را شمارنده می‌کند، ولی سالمِ پایدار اصلاً درس نیست.
+    try:
+        sys.path.insert(0, str(HERE))
+        from hamid import memory as _mem
+        faults = [f for f in finds if any(k in f for k in ("کهنه", "در دسترس نیست",
+                                                           "شکل درست ندارد", "کوچک شد"))]
+        if sick and not prev.get("sick") and faults:
+            _mem.remember("عیب", "SYSTEM",
+                          "عیب‌یاب: " + "؛ ".join(faults[:3])
+                          + (f" — تعمیر: {treated}" if treated else " — تعمیر خودکار نداشت"),
+                          data={"treated": treated})
+        elif prev.get("sick") and not sick:
+            _mem.remember("عیب", "SYSTEM",
+                          "عیب‌یاب: خرابی قبلی رفع شد — "
+                          + "؛ ".join((prev.get("findings") or [])[:2]))
+    except Exception as e:                            # noqa: BLE001 - حافظه نباید معاینه را بکشد
+        print(f"(حافظه ثبت نشد: {type(e).__name__})")
+
     for f in finds:
         print(("⛔ " if sick else "✓ ") + f)
     if treated:
-        print("⚕ " + treated)
+        print("🔧 " + treated)
     print("state changed" if changed else "state unchanged")
     sys.exit(1 if sick else 0)
 

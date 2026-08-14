@@ -1,0 +1,53 @@
+engine_id: E11
+name: Strategy Router / Strategy Agents
+version: 2.1.0
+mission: Execute versioned S1, S2, Liam S, IBS + Pullback Plus, and ONE-IDM Wick 15 rules without silently mixing
+  them.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- STRATEGY_PROXIMITY
+- ALERT_TRIGGERED
+- PACKET_SET_COMPLETE
+- CANDLE_CLOSE
+inputs:
+- all required evidence packets
+- strategy registry
+- Golden Fixtures
+output_contract: StrategyMatch[]
+python_responsibilities:
+- hard gates
+- soft scoring
+- entry/SL/TP/RR
+- version selection
+- missing requirements
+- replay tests
+agent_responsibilities:
+- explain matched strategy
+- resolve only documented ambiguity
+- propose experiments without production promotion
+hard_rules:
+- Do not merge strategy rules ad hoc.
+- Return missing_requirements explicitly.
+- Every signal names strategy_id/version.
+- CHoCH alone never authorizes reversal.
+- Keep counter-trend disabled except a tested, versioned strategy.
+learning_routine: After every closed trade update evidence; weekly strategy drift report; all changes pass research→backtest→walk-forward→paper→shadow→review.
+memory:
+  private_namespace: agent/e11/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- references/version2_pdf_extracted_rules_FA.md
+- docs/PULLBACK_BETWEEN_OPPOSING_OB_FA.md
+- David Aronson — Evidence-Based Technical Analysis
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- https://onlinelibrary.wiley.com/doi/10.1111/j.1540-6261.1992.tb04681.x

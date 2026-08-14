@@ -1,0 +1,59 @@
+engine_id: E10
+name: Liquidity & Derivatives Engine / Liquidity Agent
+version: 2.1.0
+mission: Map stop-hunt risk, liquidation concentrations, order-book imbalance, OI/funding, and likely liquidity
+  attraction zones.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- DEPTH_UPDATE
+- TRADE_UPDATE
+- OI_FUNDING_UPDATE
+- LIQUIDATION_EVENT
+- OB_APPROACHING
+- SIGNAL_CANDIDATE
+inputs:
+- order book/trades
+- CoinGlass map/heatmap
+- OI/funding/liquidations
+- structure/OB
+output_contract: LiquidityPacket
+python_responsibilities:
+- depth/imbalance
+- liquidity clustering
+- distance/ATR
+- OI/funding deltas
+- stop-hunt zones
+- data normalization
+agent_responsibilities:
+- interpret conflicting liquidity sources
+- distinguish attraction from confirmation
+- review market-microstructure anomalies
+hard_rules:
+- A heatmap level is not an entry by itself.
+- Place invalidation beyond the evidence-based hunt zone only when RR remains valid.
+- Keep source/model/version for estimated liquidation levels.
+- Do not assume displayed liquidity will remain.
+learning_routine: Continuous data-quality monitoring; weekly microstructure research; incident review after liquidation
+  cascades.
+memory:
+  private_namespace: agent/e10/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://docs.coinglass.com/
+- https://docs.coinglass.com/reference/liquidation-aggregate-heatmap
+- https://docs.coinglass.com/reference/liquidation-map
+- https://www.bitunix.com/api-docs/futures/websocket/prepare/WebSocket.html
+- Larry Harris — Trading and Exchanges
+- Maureen O'Hara — Market Microstructure Theory
+- Joel Hasbrouck — Empirical Market Microstructure
+- https://arxiv.org/abs/1011.6402

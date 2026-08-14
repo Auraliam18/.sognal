@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionCase",
+  "type": "object",
+  "required": [
+    "case_id",
+    "symbol",
+    "created_at",
+    "state",
+    "required_packets",
+    "received_packets",
+    "missing_requirements"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "enum": [
+        "WATCHING",
+        "APPROACHING",
+        "ANALYZING",
+        "VALID_ENTRY",
+        "NO_TRADE",
+        "EXPIRED"
+      ]
+    },
+    "required_packets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "received_packets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicts": {
+      "type": "array"
+    },
+    "strategy_matches": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

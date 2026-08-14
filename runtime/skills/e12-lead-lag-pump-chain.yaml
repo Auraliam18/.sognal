@@ -1,0 +1,54 @@
+engine_id: E12
+name: Lead-Lag Engine / Relationship Agent
+version: 2.1.0
+mission: 'Detect historical and live pump chains: when a leader moves, identify repeat follower assets and their
+  lag distribution up to 24 hours.'
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- PUMP_EVENT_15M
+- VOLUME_SPIKE
+- LEADER_EVENT_UPDATED
+- FOLLOWER_VOLUME_ENTERED
+inputs:
+- all historical 15M events
+- volume/RSI/USDT.D/BTC/news/sector features
+- current market state
+output_contract: LeadLagPacket
+python_responsibilities:
+- event study
+- conditional/baseline probability
+- lift
+- lag median/IQR
+- MFE/MAE
+- multiple-testing control
+- incremental follower clocks
+agent_responsibilities:
+- research common narrative/network causes
+- interpret regime differences
+- explain candidate follower
+hard_rules:
+- Analyze all available leader pumps, not only the latest two.
+- Two repeated followers create RESEARCH_WATCH, not an automatic signal.
+- A follower signal still requires live volume plus Hamid strategy gates.
+- Never answer that the cycle was missed; maintain the clock continuously.
+learning_routine: Run immediately on every qualifying pump event; nightly incremental recomputation; weekly false-discovery
+  and regime stability audit.
+memory:
+  private_namespace: agent/e12/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- Ruey S. Tsay — Analysis of Financial Time Series
+- https://www.statsmodels.org/stable/index.html
+- https://docs.scipy.org/doc/scipy/
+- https://www.jstor.org/stable/2529269
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253

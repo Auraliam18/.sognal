@@ -1,0 +1,116 @@
+تو مسئول پیاده‌سازی سیستم یادگیری دائمی LIAM برای Engineهای E00 تا E25 هستی.
+
+ابتدا این دو فایل را کامل بخوان:
+1. AuraLiam369_Engine_Learning_Curriculum_FA.md
+2. AuraLiam369_engine_learning_registry.yaml
+
+هدف:
+برای هر Engine سه کتاب مرجع، Source Monitor تخصصی، حافظه خصوصی، چرخه تحقیق، Backtest/Paper/Shadow و Promotion کنترل‌شده بساز؛ بدون آسیب به Strategy، Panel، Telegram، Paper State یا حافظه فعلی.
+
+قوانین غیرقابل‌مذاکره:
+
+1. کتاب‌ها فقط با نسخه قانونی که حمید فراهم کرده خوانده شوند. دانلود غیرمجاز، دورزدن Paywall، یا ذخیره متن کامل کتاب ممنوع است.
+2. از کتاب‌ها فقط Note، Claim، Formula، Assumption، Failure Mode، Citation و Research Question ذخیره کن.
+3. هیچ Claim از کتاب، مقاله، X، GitHub، CMC یا CoinGecko مستقیم Production Rule نمی‌شود.
+4. مسیر اجباری:
+   DISCOVERED → SOURCE_VERIFIED → CLAIM_EXTRACTED → HYPOTHESIS
+   → BACKTESTED → WALK_FORWARD_VALIDATED → PAPER_VALIDATED
+   → SHADOW_VALIDATED → PRODUCTION_VALIDATED
+5. فقط E21 Memory Curator حق Promotion به Canonical Memory دارد.
+6. Python مسئول Fetch، API/RSS/GitHub Release polling، Hash، Diff، Dedup، Parsing، Indicator، Statistics، Backtest و Paper Test است.
+7. LLM روی Tick یا چرخه 30 ثانیه‌ای 200 ارز فراخوانی نشود. LLM فقط روی آیتم جدید و مرتبط، ابهام، اختلاف و Postmortem کار کند.
+8. Operational Loop و Knowledge Loop کاملاً جدا باشند.
+9. یک تغییر کنترل‌شده در هر Experiment؛ چند Rule هم‌زمان تغییر نکند.
+10. No Look-ahead، Survivorship Bias، Fee، Slippage، Funding، Historical Universe، Regime Split و Multiple-testing کنترل شوند.
+11. Win Rate به‌تنهایی معیار نیست. Expectancy، MFE/MAE، Effect Size، Bootstrap CI، Drawdown و OOS گزارش شوند.
+12. نتیجه ردشده هم ذخیره شود تا دوباره تکرار نشود.
+13. Paper، Shadow و Live Namespace جدا بمانند.
+14. LIVE_EXECUTION=false.
+15. هیچ Secret در Prompt، Log، Git یا Panel نوشته نشود.
+
+ساختار پیشنهادی:
+
+brain/
+  knowledge/
+    books/{book_id}/
+      index.yaml
+      chapter-notes/
+      claims.jsonl
+      citations.jsonl
+  research/{engine_id}/
+    source-index.yaml
+    last-seen.json
+    questions.jsonl
+    findings.jsonl
+    rejected.jsonl
+  memory/private/{engine_id}/
+  memory/canonical/
+  experiments/
+    hypotheses/
+    results/
+
+config/
+  engine_learning_registry.yaml
+  research_schedule.yaml
+  source_policy.yaml
+
+python/
+  research/
+    source_monitor.py
+    fetchers/
+    dedupe.py
+    claim_registry.py
+    experiment_router.py
+    memory_promotion.py
+
+برای هر Source Monitor ذخیره کن:
+- engine_id
+- URL
+- source tier
+- query/topic filters
+- cadence
+- ETag/Last-Modified/last_seen_id
+- content hash
+- retrieval timestamp
+- license/access status
+- parser version
+- failure count
+- next retry
+
+Source hierarchy:
+Tier 1 = Official API, official docs, official project release, regulator/central bank/exchange
+Tier 2 = Peer-reviewed journal, established professional research
+Tier 3 = Moderated preprint such as arXiv/SSRN/NBER
+Tier 4 = Reputable aggregator such as CMC/CoinGecko/Messari for discovery
+Tier 5 = GitHub/community/X only as lead; never fact without verification
+
+Workflow هر آیتم جدید:
+1. Python تغییر واقعی را تشخیص دهد.
+2. اگر Duplicate یا نامرتبط است رد کند.
+3. Research Agent Claimهای قابل‌آزمون را استخراج کند.
+4. Engine Agent ارتباط با مسئولیت خودش را بررسی کند.
+5. E22 فرضیه، Baseline، Metric و Kill Criteria تعیین کند.
+6. E18 Backtest/Walk-forward/Paper اجرا کند.
+7. E20 علت Outcome را بررسی کند.
+8. E21 فقط با Evidence کافی Lesson را Promote کند.
+9. E23 سلامت، Latency و خطا را Audit کند.
+
+معیار Canonical Memory:
+- Source و Citation مشخص
+- کد و Snapshot داده قابل بازتولید
+- OOS و Regime Split
+- CI و Effect Size
+- تعارض‌ها مشخص
+- Strategy Version مشخص
+- Expiry/Recheck مشخص
+- نتیجه حدسی یا تک‌نمونه‌ای نباشد
+
+اولین مأموریت:
+A) Repository فعلی را Audit کن.
+B) فایل‌های Learning/Research/Memory موجود را پیدا کن.
+C) Gap Matrix نسبت به Registry بساز.
+D) هیچ فایل Production را تغییر نده.
+E) برنامه Phase‌بندی‌شده برای اضافه‌کردن Source Monitor و Book Curriculum ارائه بده.
+F) ابتدا فقط E00، E02، E18، E21 و E23 را به‌عنوان زیرساخت یادگیری پیاده‌سازی و تست کن.
+G) بعد Engineها را مرحله‌ای اضافه کن.
+H) پایان هر Phase: فایل‌های تغییرکرده، تست‌ها، Metrics، ریسک‌ها و Rollback را گزارش کن.

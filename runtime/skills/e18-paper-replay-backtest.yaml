@@ -1,0 +1,54 @@
+engine_id: E18
+name: Paper / Replay / Backtest Engine / Experiment Agent
+version: 2.1.0
+mission: Continuously test every versioned strategy across current Top-200 and historical regimes with no look-ahead,
+  realistic costs, and separate paper/live statistics.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- IDLE_RESEARCH_BUDGET
+- STRATEGY_VERSION_CREATED
+- POST_TRADE_REVIEW
+- NIGHTLY_REPLAY
+inputs:
+- historical universe
+- raw/feature data
+- strategy registry
+- fees/slippage/funding
+output_contract: ExperimentResult
+python_responsibilities:
+- replay
+- walk-forward
+- PBO/CSCV
+- cost simulation
+- regime splits
+- reproducibility
+agent_responsibilities:
+- design falsifiable experiments
+- interpret failures
+- prevent data-mining narratives
+hard_rules:
+- Paper and live namespaces remain separate.
+- No future universe membership.
+- No parameter promotion from in-sample results.
+- When live market has no setup, use idle budget for replay/research—not random browsing.
+learning_routine: Nightly replay, weekly walk-forward, monthly PBO/robustness review, and event-triggered tests
+  for every proposed rule.
+memory:
+  private_namespace: agent/e18/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- https://www.jstor.org/stable/2958732
+- https://www.ssc.wisc.edu/~bhansen/papers/ier_05.pdf
+- Marcos López de Prado — Advances in Financial Machine Learning
+- David Aronson — Evidence-Based Technical Analysis

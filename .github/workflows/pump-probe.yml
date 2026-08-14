@@ -28,5 +28,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: python3 -m hamid.pump_probe --symbol "${{ github.event.inputs.symbol || 'APRUSDT' }}"

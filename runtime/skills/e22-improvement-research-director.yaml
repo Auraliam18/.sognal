@@ -1,0 +1,54 @@
+engine_id: E22
+name: Improvement Engine / Research Director
+version: 2.1.0
+mission: Turn repeated anomalies and performance gaps into precise research questions, controlled experiments, and
+  versioned improvement proposals.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- PERFORMANCE_DRIFT
+- REPEATED_FAILURE
+- NEW_RESEARCH_FOUND
+- SYSTEM_GAP
+- IDLE_RESEARCH_BUDGET
+inputs:
+- post-trade clusters
+- system health
+- research index
+- strategy metrics
+output_contract: ImprovementProposal
+python_responsibilities:
+- drift detection
+- priority score
+- experiment queue
+- duplicate hypothesis check
+agent_responsibilities:
+- literature review
+- hypothesis formulation
+- evidence synthesis
+- reject weak ideas
+hard_rules:
+- No random endless browsing.
+- Research begins with a specific question.
+- No unverified claim enters production.
+- Preserve core architecture; proposals are additive/versioned until validated.
+learning_routine: Continuous prioritized queue; weekly literature sweep; monthly roadmap and rejected-idea review.
+memory:
+  private_namespace: agent/e22/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://www.nber.org/papers/w7613
+- https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- https://arxiv.org/abs/1011.6402
+- https://scholar.google.com/
+- https://www.ssrn.com/
+- https://arxiv.org/

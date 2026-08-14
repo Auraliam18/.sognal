@@ -396,9 +396,14 @@ def main():
             print(f"  {a['sym']:<12} {a['tf']:<4} {a['dir']:<5} at {a['price']:<12.6g} ({d} away) — {a['why']}")
     for s in signals[:20]:
         room = f"{s['room']['r']}×" if s.get("room") else "—"
+        # عیب‌یابی ۱۴ اوت: ev=None این print را می‌کشت و کل main هر دور
+        # با TypeError تمام می‌شد — گزارش لاگ ناقص و کد خروج غلط. هیچ
+        # فیلدی اینجا حق کشتن اسکن را ندارد؛ None صادقانه «—» می‌شود.
+        ev = f"{s['ev']:.2f}R" if s.get("ev") is not None else "—"
+        conf = f"{s['conf']}%" if s.get("conf") is not None else "—"
         print(f"  🚨 {s['sym']:<12} {s['tf']:<4} {s['dir']:<5} "
               f"entry {s['entry']:<12.6g} sl {s['sl']:<12.6g} tp1 {s['tp1']:<12.6g} "
-              f"rr {s['rr']}  conf {s['conf']}%  ev {s['ev']:.2f}R  room {room}")
+              f"rr {s.get('rr', '—')}  conf {conf}  ev {ev}  room {room}")
     if not signals:
         print("  no setup passed every gate this pass — that is a normal result, not a fault")
     print(f"\nwritten to signals/latest.json in {time.time()-t0:.0f}s")

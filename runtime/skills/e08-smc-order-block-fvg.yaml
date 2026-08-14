@@ -1,0 +1,57 @@
+engine_id: E08
+name: SMC Engine / SMC Agent
+version: 2.1.0
+mission: Detect, validate, score, track, invalidate, and learn high-quality OB/FVG/liquidity structures rather than
+  labeling every opposite candle.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- DISPLACEMENT
+- BOS_MSS
+- OB_APPROACHING
+- OB_TOUCHED
+- FVG_STATE_CHANGED
+- LIQUIDITY_SWEEP
+inputs:
+- structure packet
+- OHLCV/ATR/volume
+- liquidity packet
+- HTF location
+output_contract: SMCPacket
+python_responsibilities:
+- candidate detection
+- state machine
+- mitigation depth
+- freshness
+- nested OB/FVG overlap
+- score features
+agent_responsibilities:
+- validate structural meaning
+- research unusual OB behavior
+- explain liquidity and invalidation
+hard_rules:
+- Last opposite candle alone is never sufficient.
+- Require displacement plus meaningful BOS/MSS and contextual evidence.
+- Track CANDIDATE/FRESH/TOUCHED/PARTIAL/MITIGATED/WEAKENED/CONSUMED/BREAKER/INVALIDATED.
+- Repeated tests weaken a zone.
+- HTF location outweighs isolated 5M appearance.
+learning_routine: Targeted research only after repeated model error or new concept; every conceptual SMC claim remains
+  experimental until tested on LIAM data.
+memory:
+  private_namespace: agent/e08/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- Larry Harris — Trading and Exchanges
+- Maureen O'Hara — Market Microstructure Theory
+- Joel Hasbrouck — Empirical Market Microstructure
+- https://arxiv.org/abs/1011.6402
+- https://www.youtube.com/@InnerCircleTrader

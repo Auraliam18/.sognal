@@ -1,0 +1,82 @@
+# تحلیل عمیق تک‌نماد — دستور حمید (۱۴ اوت): «در تحلیل تک نماد هم باید تمام
+# انجین‌ها و ایجنت‌ها همان مدل پایشی اسکن ۳۰ثانیه‌ای را با دقت بیشتر انجام
+# دهند و دیتاهای زنده بدهند و همه چیز در چارت نشان داده شود.»
+#
+# چرا روی Actions و نه لپ‌تاپ: قانون خود حمید — «تمام محاسبهٔ سنگین روی
+# GitHub Actions، هرگز لپ‌تاپ». عمق اینجا ۱۲۰۰ کندل ۱س + ۸۰۰ کندل ۱۵د +
+# ۶۰۰ کندل ۵د است، به‌علاوهٔ ۹ انجین — چند برابر یک چرخهٔ اسکن برای یک نماد.
+name: Deep single-symbol analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "نماد (مثلاً BTCUSDT یا فقط BTC)"
+        required: true
+        default: "BTCUSDT"
+      telegram:
+        description: "ارسال به تلگرام"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# دو تحلیل هم‌زمان روی یک نماد ننویسند — فایل خروجی یکتای هر نماد است ولی
+# کامیت مشترک است.
+concurrency:
+  group: deep-symbol
+  cancel-in-progress: false
+
+jobs:
+  deep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: matplotlib برای چارت
+        run: pip -q install matplotlib
+
+      - name: خودآزمایی — انجین قبل از اجرا باید سبز باشد
+        working-directory: claude-liam-signal/python
+        run: python3 hamid/test_deep.py
+
+      - name: تحلیل عمیق + چارت + تلگرام
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
+          SYMBOL: ${{ inputs.symbol }}
+        run: |
+          if [ "${{ inputs.telegram }}" = "true" ]; then
+            python3 deep_run.py "$SYMBOL"
+          else
+            python3 deep_run.py "$SYMBOL" --no-tg
+          fi
+
+      - name: انتشار خروجی روی پنل
+        run: |
+          git config user.name "Hamid Signal Agent"
+          git config user.email "noreply@anthropic.com"
+          git add -A signals/ || true
+          if git diff --cached --quiet; then
+            echo "چیزی برای کامیت نبود"
+            exit 0
+          fi
+          git commit -m "تحلیل عمیق ${{ inputs.symbol }} — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          # ضدتصادم: چرخه هم روی همین شاخه می‌نویسد
+          for i in 1 2 3 4 5; do
+            git fetch origin main --quiet
+            git rebase origin/main --quiet && git push origin HEAD:main --quiet && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 3))
+          done
+          echo "پوش نشد — تحلیل ساخته شد ولی منتشر نشد"
+          exit 1

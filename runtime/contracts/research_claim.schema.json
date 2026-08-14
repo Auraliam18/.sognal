@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ResearchClaim",
+  "type": "object",
+  "required": [
+    "claim_id",
+    "question",
+    "claim",
+    "sources",
+    "retrieved_at",
+    "confidence",
+    "validation_status"
+  ],
+  "properties": {
+    "claim_id": {
+      "type": "string"
+    },
+    "question": {
+      "type": "string"
+    },
+    "claim": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "validation_status": {
+      "enum": [
+        "UNVERIFIED",
+        "RESEARCHED",
+        "BACKTESTED",
+        "PAPER_VALIDATED",
+        "SHADOW_VALIDATED",
+        "PRODUCTION_VALIDATED",
+        "REJECTED"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

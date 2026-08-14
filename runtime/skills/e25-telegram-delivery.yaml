@@ -1,0 +1,54 @@
+engine_id: E25
+name: Telegram Delivery Engine / Notification Agent
+version: 2.1.0
+mission: Send every qualified signal immediately as an individual chart message, persist its Telegram message_id,
+  and reply to that exact message with updates/results.
+runtime_mode: deterministic_python_plus_event_triggered_agent
+triggers:
+- SIGNAL_READY
+- SIGNAL_UPDATE
+- SIGNAL_RESULT
+- DELIVERY_RETRY
+inputs:
+- SignalDecision
+- rendered chart
+- outbox row
+- chat configuration
+output_contract: DeliveryReceipt
+python_responsibilities:
+- signal ID
+- chart send
+- outbox
+- dedupe
+- retry
+- message_id mapping
+- reply_parameters
+agent_responsibilities:
+- compose concise Persian caption
+- ensure rationale and invalidation are clear
+- review delivery anomalies
+hard_rules:
+- No batch wait.
+- One delivery writer only.
+- Secrets remain backend-only.
+- Every result uses the stored original message_id.
+- Chart watermark Trade_osuli must be unobtrusive and not cover evidence.
+learning_routine: Continuous delivery metrics; immediate review after late/duplicate/failed reply; monthly API changelog
+  audit.
+memory:
+  private_namespace: agent/e25/{symbol}/{timeframe}
+  canonical_promotion_owner: E21
+  required_provenance:
+  - source
+  - retrieved_at
+  - claim
+  - evidence
+  - sample_size
+  - regime
+  - confidence
+  - validation_status
+  - strategy_version
+sources:
+- https://core.telegram.org/bots/api
+- Gregor Hohpe & Bobby Woolf — Enterprise Integration Patterns
+- Martin Kleppmann — Designing Data-Intensive Applications

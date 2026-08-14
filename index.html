@@ -217,7 +217,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.22 · خوددرمانی کش + تب‌های تأییدشده</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.24 · لگ-کورولیشن روی رادار پامپ</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -253,6 +253,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x.dataset.t===t);});
     ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
       .forEach(function(k){var el=document.getElementById("view-"+k);if(el)el.style.display=k===t?"":"none";});
+    document.querySelectorAll("[data-tab]").forEach(function(el){el.style.display=el.dataset.tab===t?"":"none";});
   });
   </script>
   <div style="display:none">
@@ -261,14 +262,19 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 
 <main>
   <div class="progress" id="prog" style="display:none"><span></span></div>
-  <div id="statusLine" class="hint" style="margin-bottom:14px">
+  <!-- دستور حمید (۱۴ اوت): «هر تبی که کلیک می‌کنی باید فقط اطلاعات مربوط
+       به همون تب درش قرار بگیره.» این بلوک‌ها قبلاً بیرون از تب‌ها بودند و
+       روی هر تبی تکرار می‌شدند. رندررهایشان innerHTML خود section را
+       بازنویسی می‌کنند، پس جابه‌جایی به داخل section ممکن نبود — به‌جایش
+       هر بلوک data-tab گرفته و سوییچر تب فقط در تب خودش نشانش می‌دهد. -->
+  <div id="statusLine" class="hint" data-tab="ops" style="margin-bottom:14px;display:none">
     آماده. دکمهٔ «اسکن بازار» را بزن تا کل یونیورس پرحجم اسکن شود، یا برو به «تحلیل تک‌نماد + الگو»؛ آنجا بعد از تحلیل کامل،
     چارت ۱۵دقیقه‌ای با ۲۰۰ کندل اخیر باز می‌شود و الگوهای کلاسیک روی همان چارت علامت‌گذاری و هدف الگو ترسیم می‌شود.
     داده‌ها مستقیم از Binance Futures خوانده می‌شوند و همهٔ محاسبه روی همین دستگاه انجام می‌شود.
   </div>
 
-  <div id="tgBanner"></div>
-  <div id="alarmBox"></div>
+  <div id="tgBanner" data-tab="signals"></div>
+  <div id="alarmBox" data-tab="watch" style="display:none"></div>
   <section id="view-ops" style="display:none">
     <div class="section-title"><span class="eyebrow">live operations</span><h2>اتاق کنترل</h2></div>
     <p class="muted" style="margin-top:-6px;max-width:760px">هر اتاق یک بخش از موتور است که مستقل کار می‌کند. اینجا لحظه‌به‌لحظه می‌بینی هرکدام الان مشغول چه کاری‌ست و چند ارز را پایش می‌کند.</p>
@@ -277,7 +283,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
     <div class="box" style="margin-top:12px"><h3>گزارش تعمیرها <span class="dim" style="font-size:11px;font-weight:400">هر خرابی و اینکه چطور برطرف شد</span></h3><div id="opsRepairs"></div></div>
     <div class="box" style="margin-top:12px"><h3>جریان زندهٔ رویدادها <span class="dim" style="font-size:11px;font-weight:400" id="opsRate"></span></h3><div id="opsFeed" style="max-height:420px;overflow:auto"></div></div>
   </section>
-  <div id="whyBox"></div>
+  <div id="whyBox" data-tab="signals"></div>
   <section id="view-signals"></section>
   <section id="view-real" style="display:none"></section>
   <section id="view-net" style="display:none"></section>
@@ -3737,6 +3743,16 @@ function renderPumpCloud(){
       <td style="font-size:11px">${(c.pumps||[]).length?`${c.pumps.length} پامپ<div class="dim" style="font-size:9.5px">بزرگ‌ترین +${Math.max(...c.pumps.map(p=>p.ret_4h_pct))}٪</div>`:"—"}</td>
       <td><span class="chip" style="${c.role==="سردسته"?"border-color:#8a6d1e;color:#f0d24e":c.role==="دنباله‌رو"?"border-color:#2f7d5b;color:#8fe3bd":""}">${c.role}</span>
         ${c.leaders&&c.leaders.length?`<div class="dim" style="font-size:9.5px">سردسته: ${c.leaders[0].symbol.replace("USDT","")}</div>`:""}</td>
+      <td style="font-size:10.5px">${
+        (c.event_leaders&&c.event_leaders.length)?
+          c.event_leaders.slice(0,2).map(l=>`<div class="mono" style="color:#9ff59f">🧾 ${l.symbol.replace("USDT","")} <span class="dim">${l.k_after}از${l.N} (${Math.round(l.prob*100)}٪)</span></div>`).join("")
+        :(c.event_followers&&c.event_followers.length)?
+          c.event_followers.slice(0,2).map(f=>`<div class="mono" style="color:#9ff59f">🧾→ ${f.symbol.replace("USDT","")} <span class="dim">${f.k_after}از${f.N} (${Math.round(f.prob*100)}٪)</span></div>`).join("")
+        :(c.lag_corr_followers&&c.lag_corr_followers.length)?
+          c.lag_corr_followers.slice(0,2).map(f=>`<div class="mono" style="color:#8fc7f5">→ ${f.symbol.replace("USDT","")} <span class="dim">r=${(f.best.r>0?"+":"")+f.best.r}@${f.best.lag_h}س${f.both_tf?" ·۲TF":""}</span></div>`).join("")
+        :(c.lag_corr_leaders&&c.lag_corr_leaders.length)?
+          c.lag_corr_leaders.slice(0,2).map(l=>`<div class="mono" style="color:#f5d98f">← ${l.symbol.replace("USDT","")} <span class="dim">r=${(l.best.r>0?"+":"")+l.best.r}@${l.best.lag_h}س${l.both_tf?" ·۲TF":""}</span></div>`).join("")
+        :`<span class="dim">—</span>`}</td>
       <td style="font-size:11px">${c.now.trend_4h==="up"?"↑":c.now.trend_4h==="down"?"↓":"→"} / ${c.now.trend_1h==="up"?"↑":c.now.trend_1h==="down"?"↓":"→"}</td>
       <td class="mono" style="font-size:11px;color:${c.now.rsi_1h>=75?"#e74c3c":c.now.rsi_1h<=35?"#2ecc71":"inherit"}">${c.now.rsi_1h??"—"} / ${c.now.rsi_15m??"—"}</td>
       <td style="font-size:11px">${m?`${m.corr_pct}٪<div class="dim" style="font-size:9.5px">بعدش ${m.then_24h_pct>0?"+":""}${m.then_24h_pct}٪</div>`:"—"}</td>
@@ -3749,8 +3765,9 @@ function renderPumpCloud(){
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="text-align:right" class="dim">
         <th style="padding:4px 6px">ارز</th><th>قیمت</th><th>پامپ‌ها</th><th>نقش</th>
+        <th title="لگ-کورولیشن کل تاریخچه: → دنباله‌روهایش · ← سردسته‌هایش (r و تأخیر)">لگ-کورولیشن</th>
         <th>روند 4h/1h</th><th>RSI 1h/15m</th><th>شباهت به قبلِ پامپ</th><th>⏰ ورود / استاپ</th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="8" class="dim" style="padding:8px">در این چرخه گینری بالای آستانه نبود</td></tr>`}</tbody>
+      <tbody>${rows||`<tr><td colspan="9" class="dim" style="padding:8px">در این چرخه گینری بالای آستانه نبود</td></tr>`}</tbody>
     </table></div>
     <div class="dim" style="font-size:10.5px;margin-top:6px">${j.note||""}</div>
   </div>`;
@@ -3822,6 +3839,15 @@ function hamidHTML(){
         <span>باز <b>${j.paper.open||0}</b></span>
         <span>بیشترین افت <b>${j.paper.max_drawdown_pct||0}٪</b></span>
       </div>
+      ${!j.paper.total_closed?"":`
+      <div style="font-size:12px;margin-top:6px;padding:6px 8px;border-radius:8px;background:rgba(46,204,113,.07);border:1px solid rgba(46,204,113,.25)">
+        🧠 <b>حافظهٔ انباشته: ${j.paper.total_closed.toLocaleString("fa-IR")} معاملهٔ بسته</b>
+        <span class="dim">— هرگز ریست نمی‌شود؛ هر معامله درس می‌شود.</span>
+        ${!j.paper.books_breakdown?"":`<div class="dim" style="font-size:11px;margin-top:3px">
+          سیگنال‌شده ${j.paper.books_breakdown.signalled} · میز تمرین ${j.paper.books_breakdown.practice} ·
+          پولبک اول ${j.paper.books_breakdown.first_pullback} · ایندوسمنت ${j.paper.books_breakdown.inducement} ·
+          آلارم ${j.paper.books_breakdown.alarm} · ارسالی اسکن ${j.paper.books_breakdown.sent_scan}</div>`}
+      </div>`}
       ${!j.paper.experiments_first_pullback||!j.paper.experiments_first_pullback.trades?"":`
       <div class="dim" style="font-size:11.5px;margin-top:4px">
         آزمایش پولبک اول (سیگنال نشده): ${j.paper.experiments_first_pullback.trades} معامله ·
@@ -4078,7 +4104,7 @@ const GRAPH_NODES=[
   desc:"اتاق مستقل: هر ~۵ دقیقه USDT.D و BTC.D را می‌خواند، به سری زمانی خودش می‌چسباند و با تغییر ۱س/۴س + رویدادهای کلان (تورم/بیکاری/فدرال) نظر می‌دهد."},
  {id:"news",x:540,y:14,w:190,h:46,label:"📰 شکار خبر",sub:"هر ۳ ساعت + TV",fresh:()=>NEWSJ.data&&NEWSJ.data.generated||(HAMID.data&&HAMID.data.world&&HAMID.data.world.news?HAMID.data.generated:null),
   desc:"هر ۳ ساعت: جستجوی عمیق وب + RSSها + تیترهای تریدینگ‌ویو + تقویم رویدادها؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
- {id:"medic",x:780,y:14,w:160,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
+ {id:"medic",x:780,y:14,w:160,h:46,label:"🔧 عیب‌یاب و تعمیرکار",sub:"هر ۱۵ دقیقه",fresh:null,
   desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی به تلگرام هشدار می‌رود."},
  // ── ردیف موتورهای تحلیل ──
  {id:"scan",x:60,y:118,w:190,h:50,label:"📡 اسکن زنده",sub:"IBS + کانال/OB",fresh:()=>RELAY.data&&RELAY.data.generated,
@@ -4112,7 +4138,7 @@ const GRAPH_NODES=[
   desc:"ارسال لحظه‌ای با چارت ۵د و واترمارک Trade_Osuli؛ نتیجهٔ تارگت/استاپ هم می‌آید."},
  {id:"panel",x:540,y:436,w:190,h:48,label:"🖥 پنل",sub:"خروجی نهایی",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0)||null,
   desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."}];
-/* نقطه‌چین کهربایی = پایش پزشک؛ نقطه‌چین آبی = دست ایجنت روی انجین‌ها.
+/* نقطه‌چین کهربایی = پایش عیب‌یاب؛ نقطه‌چین آبی = دست ایجنت روی انجین‌ها.
    tg→panel وجود ندارد — پنل از فایل‌های سرور می‌خواند (نقد طراح). */
 const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],["src","dom"],["src","newl"],
  ["dom","cycle"],["news","cycle"],["news","learn"],
@@ -4216,8 +4242,8 @@ function renderGraph(){
       <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.6)"/></marker></defs>
     ${edges}${nodes}</svg>
     <div class="dim" style="font-size:10.5px;margin-top:4px">
-      🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
-      نقطه‌چین کهربایی = پایش پزشک · نقطه‌چین آبی = دست ایجنت · رنگ هر خط از تازگیِ مبدأش — هر ۵ ثانیه به‌روز</div></div>`;
+      🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (عیب‌یاب بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
+      نقطه‌چین کهربایی = پایش عیب‌یاب · نقطه‌چین آبی = دست ایجنت · رنگ هر خط از تازگیِ مبدأش — هر ۵ ثانیه به‌روز</div></div>`;
   const bx=el.querySelector("div.box");if(bx)bx.scrollLeft=0;
   el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
     const n=P(g.dataset.id);const info=$("#graphInfo");
@@ -5048,6 +5074,8 @@ function selectTab(t){
   $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.t===t));
   ["ops","signals","real","net","watch","single","agent","radar","graph","bub","paper","calib","playbook"]
     .forEach(k=>{const el=$("#view-"+k);if(el)el.style.display=k===t?"":"none";});
+  /* بلوک‌های خارج از section فقط در تب خودشان — دستور حمید ۱۴ اوت */
+  $$("[data-tab]").forEach(el=>{el.style.display=el.dataset.tab===t?"":"none";});
   const R={ops:"renderOps",paper:"renderReview",real:"renderReal",net:"renderNet",
            agent:"renderAgent",radar:"renderPumpCloud",graph:"renderGraph",bub:"renderBubbles"};
   if(R[t])try{window[R[t]]&&window[R[t]]();}catch(err){console.error("render",t,err);}
