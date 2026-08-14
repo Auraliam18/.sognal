@@ -70,7 +70,7 @@ jobs:
         run: |
           {
             echo '```'
-            tail -n 60 backtest-output.txt
+            tail -n 60 backtest-output.txt 2>/dev/null || echo "خروجی‌ای تولید نشد"
             echo '```'
           } >> $GITHUB_STEP_SUMMARY
 
