@@ -106,10 +106,15 @@ jobs:
             --telegram \
             | tee scan-output.txt
 
+      # always() لازم است تا خلاصهٔ اسکنِ **شکست‌خورده** هم نوشته شود — ولی
+      # وقتی گاردِ تازگی کل اسکن را رد کرده، فایلی وجود ندارد و tail خودش
+      # کل job را قرمز می‌کرد. هر دو شرط با هم، و tail هم بی‌خطر شد.
       - name: Summary
-        if: always()
+        if: always() && steps.fresh.outputs.skip != '1'
         run: |
-          { echo '```'; tail -n 40 scan-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+          { echo '```'
+            tail -n 40 scan-output.txt 2>/dev/null || echo "خروجی‌ای تولید نشد"
+            echo '```'; } >> $GITHUB_STEP_SUMMARY
 
       # Only a run that came from main writes to main. Pushing a change to the
       # working branch triggers this workflow, and without this guard that run
