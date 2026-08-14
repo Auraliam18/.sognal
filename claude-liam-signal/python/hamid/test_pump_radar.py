@@ -121,8 +121,12 @@ check("بدون نقطهٔ ورود پیشنهاد نمی‌شود", all(p["symb
 check("دنباله‌روی نزدیک‌به‌ورود بالاتر از ارزِ اشباع", picks[0]["symbol"] == "AUSDT")
 check("هر امتیاز دلیل نوشته دارد", all(p["reasons"] for p in picks))
 check("ارز اشباع‌خرید امتیاز منفی خورد", next(p for p in picks if p["symbol"] == "HOTUSDT")["score"] < picks[0]["score"])
+# متن رد ۱۴ اوت عوض شد (مطالعهٔ رویدادی k/N راه سومِ اثبات رابطه شد) —
+# آزمون به‌جای متن دقیق، خودِ رفتار را می‌سنجد.
 check("بی‌رابطهٔ خوشه‌ای پیشنهاد نمی‌شود (قانون سخت)",
-      all(p["symbol"] != "LONEUSDT" for p in picks) and "رابطهٔ خوشه‌ای" in blocks[2].get("skipped", ""))
+      all(p["symbol"] != "LONEUSDT" for p in picks)
+      and "رابطهٔ" in blocks[2].get("skipped", "")
+      and "پیشنهاد نمی‌شود" in blocks[2].get("skipped", ""))
 
 # ── قانون حمید: پامپ‌خورده سیگنال نیست ────────────────────────────────────
 late30 = {"symbol": "L30USDT", "price": 1.0, "role": "دنباله‌رو",
