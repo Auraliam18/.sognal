@@ -68,7 +68,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          { echo '```'; tail -n 80 mine-output.txt; echo '```'; } >> $GITHUB_STEP_SUMMARY
+          { echo '```'; tail -n 80 mine-output.txt 2>/dev/null || echo "خروجی‌ای تولید نشد"; echo '```'; } >> $GITHUB_STEP_SUMMARY
 
       # Its own step because more than one later step commits, and tying the
       # identity to one of them meant a skipped step left the next one unable to
