@@ -133,8 +133,14 @@ def regime(btc_15m):
 
 # ── the active day ─────────────────────────────────────────────────────────
 
-def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
-    """The full stack, in Hamid's order: market first, then each coin."""
+def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None):
+    """The full stack, in Hamid's order: market first, then each coin.
+
+    `on_ready(sym, read)` — دستور صریح حمید (۱۴ اوت): «به محض اینکه در
+    تحلیل‌ها سیگنالی پیدا شد و شرایطش اوکی بود منتظر نمان که چرخهٔ پایش
+    بقیهٔ ارزها تمام شود؛ سیگنال را ارسال کن و بقیهٔ پایش را انجام بده.»
+    این قلاب همان‌جا در حلقهٔ ارزها صدا می‌شود — نه بعد از پایان اسکن.
+    """
     brain.room_log("market", "شروع چرخهٔ فعال", "cycle")
 
     def candles(sym, tf, n):
@@ -210,6 +216,12 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300):
             except Exception:                        # noqa: BLE001 - نقشه اختیاری است
                 pass
             setups.append((sym, r))
+            # ارسال فوری همین ارز — بدون انتظار برای پایان اسکن (دستور حمید)
+            if on_ready is not None:
+                try:
+                    on_ready(sym, r)
+                except Exception as e:               # noqa: BLE001 - ارسال نباید اسکن را بکشد
+                    print(f"ارسال فوری {sym}: {type(e).__name__}: {e}")
         try:
             ind = inducement.find(c15)
             if ind:
@@ -1028,7 +1040,53 @@ def main():
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
         act(f"در حال خواندن {len(syms)} ارز برتر از صرافی‌های جهانی")
-        first, reads, setups, flows, inds = run_active(syms)
+
+        # ── ارسال فوریِ per-symbol (دستور صریح حمید، ۱۴ اوت) ───────────────
+        # «به محض اینکه سیگنالی پیدا شد و شرایطش اوکی بود منتظر نمان که
+        # چرخهٔ پایش بقیهٔ ارزها تمام شود؛ ارسال کن و بقیهٔ پایش را انجام
+        # بده. اگر چندتا بود، هرکدام را به محض گرفتن تأییدیه بفرست.»
+        #
+        # همان دروازه‌ها، فقط زودتر: وتوی تجربه و مشورت حافظه اینجا هم
+        # اجرا می‌شوند، و send_signals خودش بازجویی/هم‌زمانی/ضدتکرار را
+        # دارد. ارسال پایان چرخه تور ایمنی می‌ماند و ضدتکرارِ telegram
+        # جلوی دوباره‌فرستادن را می‌گیرد.
+        _live = {"sent": 0, "syms": set()}
+        try:
+            from hamid import paper as _p_live
+            _exp_live = _p_live.experience_index()
+        except Exception:                            # noqa: BLE001
+            _exp_live = {}
+
+        def _send_now(sym, r):
+            if mode != "active" or r.setup.get("waiting"):
+                return
+            if st["signals"] + _live["sent"] >= DAILY_TARGET:
+                return                               # سهمیهٔ روز پر است
+            x = {"symbol": sym, **r.setup, "trend_4h": r.trend_4h,
+                 "channel": r.channel_note}
+            e = _exp_live.get((sym, x.get("dir")))
+            if e and not e["thin"] and e["mean_r"] < 0 and e["win_pct"] < 45:
+                return                               # وتوی تجربه — مثل مسیر عادی
+            try:
+                from hamid import memory as _m_live
+                m = _m_live.consult(sym, x["dir"])
+                if m.get("note"):
+                    x["memory"] = m["note"]
+            except Exception:                        # noqa: BLE001
+                pass
+            import telegram as _tg_live
+            one = _for_telegram(x)
+            one["analyzed_at"] = int(time.time() * 1000)
+            n = _tg_live.send_signals([one], _tg_chart)
+            if n:
+                _live["sent"] += n
+                _live["syms"].add(sym)
+                act(f"⚡ {sym} همان لحظه فرستاده شد — بدون انتظار برای بقیهٔ اسکن")
+
+        first, reads, setups, flows, inds = run_active(syms, on_ready=_send_now)
+        if _live["sent"]:
+            st["signals"] += _live["sent"]
+            report["sent_live"] = sorted(_live["syms"])
         report["market"] = first
         report["reads"] = len(reads)
         report["money_flow"] = flows
