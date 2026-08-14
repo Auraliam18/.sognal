@@ -90,7 +90,7 @@ cycle.ROOT = tmp2
     {"mode": "quiet", "why": "بازار آرام", "reads": 31, "setups": []}))
 import telegram as tg                                           # noqa: E402
 tg.creds = lambda: (None, None)
-memory.STORE = tmp2 / "lessons.json"
+memory.LESSONS = tmp2 / "lessons.json"
 
 cycle.review_cycle()
 v = saved["history"][0]["verdict"]
