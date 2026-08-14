@@ -146,8 +146,17 @@ lessons = json.loads(memory.LESSONS.read_text()).get("lessons", [])
 check(f"درس در حافظه نشست ({len(lessons)})", len(lessons) > 0)
 
 # ── ۸. مغز واقعی دست نخورد ─────────────────────────────────────────────────
+# عیب‌یابی ۱۴ اوت: نسخهٔ اول این آزمون شرط می‌کرد فایل واقعی «وجود نداشته
+# باشد» — ولی وقتی ورک‌فلوی ساعتی trainer یک بار واقعاً اجرا شود، همان
+# فایل درست و به‌جا ساخته و کامیت می‌شود؛ آن‌وقت این آزمون سرخ می‌شد و
+# **کل چرخهٔ حمید را می‌کشت** (خودآزمایی قبل از تولید سیگنال است). شرط
+# درست این است: آزمون به مسیر واقعی ننوشته باشد، نه اینکه تولید ننویسد.
 real = Path(__file__).resolve().parents[3] / "brain" / "paper" / "trainer-state.json"
-check("state تمرین در مغز واقعی ساخته نشد", not real.exists())
+check("مسیر state آزمون از مغز واقعی جداست", trainer.STATE != real)
+check("آزمون در پوشهٔ موقت نوشت", trainer.STATE.exists()
+      and str(trainer.STATE).startswith(str(TMP)))
+check("دفتر آزمون هم جدا بود", paper.CLOSED != (
+    Path(__file__).resolve().parents[3] / "brain" / "paper" / "closed.jsonl"))
 
 print()
 if fail:
