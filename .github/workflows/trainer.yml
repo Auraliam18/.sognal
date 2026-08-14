@@ -46,12 +46,24 @@ jobs:
             echo "دادهٔ تازه‌ای نبود"
             exit 0
           fi
-          git commit -m "میز تمرین $(date -u '+%Y-%m-%d %H:%M UTC')"
-          for i in 1 2 3 4 5; do
-            git fetch origin main --quiet
-            git rebase origin/main --quiet && git push origin HEAD:main --quiet && exit 0
-            git rebase --abort 2>/dev/null || true
-            sleep $((i * 3))
+          git commit -q -m "میز تمرین $(date -u '+%Y-%m-%d %H:%M UTC')"
+          # ریبیس روی فایل‌های تولیدشده تعارض بی‌دلیل می‌سازد (چرخه و رادار
+          # هم‌زمان به همین مسیرها می‌نویسند) و آن‌وقت rebase --abort یعنی
+          # کل کار دور ریخته می‌شود. الگوی خودِ مخزن: merge با «مال خودمان»
+          # برای دفتر تولیدشده، و رد کردن هر فایل دارای مارکر تعارض.
+          for attempt in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main || true
+            if ! git merge --no-edit origin/main; then
+              git checkout --ours -- brain 2>/dev/null || true
+              git add -A brain 2>/dev/null || true
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- brain; then
+              echo "پوش نشد: مارکر تعارض در brain باقی مانده"
+              exit 1
+            fi
+            sleep $((attempt * 3))
           done
-          echo "پوش نشد — اجرای بعدی جبران می‌کند"
+          echo "پوش نشد — اجرای بعدی جبران می‌کند (دفتر محلی سالم است)"
           exit 1

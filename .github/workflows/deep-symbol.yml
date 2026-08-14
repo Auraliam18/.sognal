@@ -72,11 +72,19 @@ jobs:
           fi
           git commit -m "تحلیل عمیق ${{ inputs.symbol }} — $(date -u '+%Y-%m-%d %H:%M UTC')"
           # ضدتصادم: چرخه هم روی همین شاخه می‌نویسد
-          for i in 1 2 3 4 5; do
-            git fetch origin main --quiet
-            git rebase origin/main --quiet && git push origin HEAD:main --quiet && exit 0
-            git rebase --abort 2>/dev/null || true
-            sleep $((i * 3))
+          for attempt in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main || true
+            if ! git merge --no-edit origin/main; then
+              git checkout --ours -- signals 2>/dev/null || true
+              git add -A signals 2>/dev/null || true
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            if git grep -qE "^(<<<<<<< |>>>>>>> )" -- signals; then
+              echo "پوش نشد: مارکر تعارض باقی مانده"
+              exit 1
+            fi
+            sleep $((attempt * 3))
           done
           echo "پوش نشد — تحلیل ساخته شد ولی منتشر نشد"
           exit 1
