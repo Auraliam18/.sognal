@@ -4093,7 +4093,7 @@ const GRAPH_NODES=[
   desc:"اتاق مستقل: هر ~۵ دقیقه USDT.D و BTC.D را می‌خواند، به سری زمانی خودش می‌چسباند و با تغییر ۱س/۴س + رویدادهای کلان (تورم/بیکاری/فدرال) نظر می‌دهد."},
  {id:"news",x:540,y:14,w:190,h:46,label:"📰 شکار خبر",sub:"هر ۳ ساعت + TV",fresh:()=>NEWSJ.data&&NEWSJ.data.generated||(HAMID.data&&HAMID.data.world&&HAMID.data.world.news?HAMID.data.generated:null),
   desc:"هر ۳ ساعت: جستجوی عمیق وب + RSSها + تیترهای تریدینگ‌ویو + تقویم رویدادها؛ هر خبر دسته می‌گیرد (لیست‌شدن/هک/قانون/نهنگ/کلان) و به اتاق آمار یا یادگیری مسیردهی می‌شود."},
- {id:"medic",x:780,y:14,w:160,h:46,label:"🩺 پزشک",sub:"هر ۱۵ دقیقه",fresh:null,
+ {id:"medic",x:780,y:14,w:160,h:46,label:"🔧 عیب‌یاب و تعمیرکار",sub:"هر ۱۵ دقیقه",fresh:null,
   desc:"تازگی همهٔ خطوط را می‌پاید و خط خوابیده را خودش بیدار می‌کند؛ خرابی به تلگرام هشدار می‌رود."},
  // ── ردیف موتورهای تحلیل ──
  {id:"scan",x:60,y:118,w:190,h:50,label:"📡 اسکن زنده",sub:"IBS + کانال/OB",fresh:()=>RELAY.data&&RELAY.data.generated,
@@ -4127,7 +4127,7 @@ const GRAPH_NODES=[
   desc:"ارسال لحظه‌ای با چارت ۵د و واترمارک Trade_Osuli؛ نتیجهٔ تارگت/استاپ هم می‌آید."},
  {id:"panel",x:540,y:436,w:190,h:48,label:"🖥 پنل",sub:"خروجی نهایی",fresh:()=>Math.max((HAMID.data&&HAMID.data.generated)||0,(RELAY.data&&RELAY.data.generated)||0)||null,
   desc:"پنجرهٔ همه‌چیز — از فایل‌های منتشرشدهٔ سرور؛ بسته بودنش هیچ انجینی را متوقف نمی‌کند."}];
-/* نقطه‌چین کهربایی = پایش پزشک؛ نقطه‌چین آبی = دست ایجنت روی انجین‌ها.
+/* نقطه‌چین کهربایی = پایش عیب‌یاب؛ نقطه‌چین آبی = دست ایجنت روی انجین‌ها.
    tg→panel وجود ندارد — پنل از فایل‌های سرور می‌خواند (نقد طراح). */
 const GRAPH_EDGES=[["src","scan"],["src","cycle"],["src","radar"],["src","dom"],["src","newl"],
  ["dom","cycle"],["news","cycle"],["news","learn"],
@@ -4231,8 +4231,8 @@ function renderGraph(){
       <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(140,160,190,.6)"/></marker></defs>
     ${edges}${nodes}</svg>
     <div class="dim" style="font-size:10.5px;margin-top:4px">
-      🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (پزشک بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
-      نقطه‌چین کهربایی = پایش پزشک · نقطه‌چین آبی = دست ایجنت · رنگ هر خط از تازگیِ مبدأش — هر ۵ ثانیه به‌روز</div></div>`;
+      🟢 تازه (≤۴۵د) · 🟡 دیر شده (≤۲س) · 🔴 خوابیده (عیب‌یاب بیدارش می‌کند) · خاکستری = بدون سنجهٔ مستقیم ·
+      نقطه‌چین کهربایی = پایش عیب‌یاب · نقطه‌چین آبی = دست ایجنت · رنگ هر خط از تازگیِ مبدأش — هر ۵ ثانیه به‌روز</div></div>`;
   const bx=el.querySelector("div.box");if(bx)bx.scrollLeft=0;
   el.querySelectorAll(".gfNode").forEach(g=>g.onclick=()=>{
     const n=P(g.dataset.id);const info=$("#graphInfo");

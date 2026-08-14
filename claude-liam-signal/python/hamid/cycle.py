@@ -698,7 +698,57 @@ def review_cycle():
                     f"{len(intern)} بسته، میانگین {mr:+.2f}R")
     verdict = sent_line + int_line
     if not closed:
+        # دستور حمید (۱۴ اوت): «چندین بار شده هیچ موردی نبوده — ایجنت
+        # مربوطه باید علت‌یابی کنه که چرا نتیجه حاصل نشده بعد از ۲ ساعت.»
+        # پس بازهٔ خالی دیگر یک جمله نیست؛ همان لحظه با دادهٔ همین چرخه
+        # جواب می‌دهد: قیف کجا بسته شد؟
         verdict = "در این بازه معامله‌ای بسته نشد — نتیجه‌گیری ممنوع"
+        try:
+            why = []
+            # ۱) چند معامله باز است؟ (باز بودن یعنی کار می‌کند، فقط نتیجه نرسیده)
+            n_open = len(_p._read(_p.OPEN))
+            if n_open:
+                why.append(f"{n_open} معاملهٔ کاغذی باز است — نتیجه هنوز نرسیده، خط تولید زنده است")
+            # ۲) آخرین گزارش منتشرشدهٔ خود چرخه: رژیم و شمارش‌ها از همان‌جا
+            last_rep = {}
+            try:
+                last_rep = json.loads(
+                    (ROOT / "signals" / "hamid-latest.json").read_text())
+            except Exception:                         # noqa: BLE001
+                pass
+            if last_rep.get("mode") == "quiet":
+                why.append("بازار در حالت سکوت بود — چرخه عمداً ستاپ نمی‌سازد"
+                           + (f" ({last_rep.get('why')})" if last_rep.get("why") else ""))
+            reads_n = last_rep.get("reads")
+            setups = last_rep.get("setups")
+            if reads_n:
+                why.append(f"آخرین چرخه {reads_n} ارز خواند"
+                           + (f"، {len(setups)} ستاپ دید" if isinstance(setups, list) else "")
+                           + " — ستاپ بود ولی به معاملهٔ بسته نرسید"
+                           if isinstance(setups, list) and setups else
+                           f"آخرین چرخه {reads_n} ارز خواند و هیچ ستاپی از دروازه‌ها نگذشت")
+            # ۳) قیف دروازه‌ها از دفتر ارسال: چند رد
+            led = {}
+            try:
+                import telegram as _tg2
+                led = _tg2._load_sent()
+            except Exception:                         # noqa: BLE001
+                pass
+            n_skip = len([k for k in led if str(k).startswith("skip|")])
+            if n_skip:
+                why.append(f"دروازه‌ها {n_skip} کاندیدا را رد کردند (ضدتکرار/هم‌زمانی/بازجویی)")
+            if not why:
+                why.append("هیچ نشانهٔ فعالیتی در بازه نیست — اگر تکرار شد، خودِ چرخه مشکوک است")
+            verdict += "\n🔎 علت‌یابی خودکار: " + "؛ ".join(why)
+            # تکرار سه‌بارهٔ بازهٔ خالی → درس دائمی، تا الگو گم نشود
+            empty_streak = sum(1 for h in (rv.get("history") or [])[:2]
+                               if h.get("closed") == 0) + 1
+            if empty_streak >= 3:
+                from hamid import memory as _mem2
+                _mem2.remember("عیب", "SYSTEM",
+                               f"سه مرور دوساعتهٔ پیاپی خالی — علت‌یابی آخر: {'؛ '.join(why[:2])}")
+        except Exception:                             # noqa: BLE001 - علت‌یابی نباید مرور را بکشد
+            pass
     entry = {"at": now_ms, "closed": len(closed), "verdict": verdict,
              "books": {k: {"n": len(v), "mean_r": round(sum(v) / len(v), 3)}
                        for k, v in books.items()}}
