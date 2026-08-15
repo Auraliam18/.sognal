@@ -854,10 +854,29 @@ def _tg_chart(s, path):
         _obv = (s.get("premortem") or {}).get("ob_ctx") or {}
         _obox = ({"low": _obv["low"], "high": _obv["high"]}
                  if _obv.get("low") is not None else s.get("ob"))
+        # خط روند ۱ساعته و ۴ساعته (دستور حمید، ۱۵ اوت). روی کندل تایم
+        # بالا محاسبه و با timestamp روی همین چارت ۵دقیقه نگاشت می‌شود.
+        # اگر خط معتبری نبود، هیچ کشیده نمی‌شود — خط تزئینی ممنوع.
+        _htf = []
+        try:
+            from hamid import structure as _stl
+            for _lbl, _tf, _n, _col in (("4H", "4h", 200, "#f0a92e"),
+                                        ("1H", "1h", 240, "#5d8ecb")):
+                _rows = sources.klines(s["sym"], _tf, _n)
+                _hcd = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3],
+                         "c": k[4], "v": k[5]} for k in _rows]
+                if len(_hcd) < 40:
+                    continue
+                _tl = _stl.trendline(_hcd)
+                if _tl:
+                    _htf.append((_lbl, _tl, _hcd, _col))
+        except Exception as _e:                      # noqa: BLE001 - خط اختیاری است
+            print(f"خط روند تایم بالا: {type(_e).__name__}")
         buf = _c(s["sym"], cd, s["entry"], s["sl"], s.get("tp1"), s.get("tp2"),
                  s["dir"], ob=_obox,
                  pat={"key": bp.get("key"),
-                      "label": bp["name"].upper().replace("_", " ")} if bp else None)
+                      "label": bp["name"].upper().replace("_", " ")} if bp else None,
+                 htf=_htf)
         with open(path, "wb") as f:
             f.write(buf.read())
         return path
@@ -1089,6 +1108,18 @@ def main():
                 x["venues"] = _vn2.where(sym, idx=_vidx)
             except Exception:                        # noqa: BLE001
                 pass
+            # دروازهٔ بیت‌یونیکس (دستور حمید، ۱۵ اوت): سیگنالی که حمید
+            # نتواند بگیرد، سیگنال نیست. تحلیل روی کل جهان ادامه دارد؛
+            # فقط ارسال محدود می‌شود.
+            try:
+                from hamid import venues as _vg
+                okv, whyv = _vg.tradable(sym, _vidx)
+                if not okv:
+                    act(f"⛔ {sym} ارسال نشد — {whyv}")
+                    return
+            except Exception as e_:                  # noqa: BLE001
+                print(f"دروازهٔ صرافی {sym}: {type(e_).__name__}")
+                return                               # ندانستن = نفرستادن
             e = _exp_live.get((sym, x.get("dir")))
             if e and not e["thin"] and e["mean_r"] < 0 and e["win_pct"] < 45:
                 return                               # وتوی تجربه — مثل مسیر عادی

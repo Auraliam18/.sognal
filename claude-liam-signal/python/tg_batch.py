@@ -51,7 +51,7 @@ def watermark(ax):
             rotation=15, fontweight="bold", zorder=0)
 
 
-def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
+def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None, htf=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -62,12 +62,23 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
         sp.set_color("#2a2e39")
     ax.tick_params(colors="#b2b5be", labelsize=8.5)
     watermark(ax)
+    # کندل‌ها واضح‌تر (دستور حمید، ۱۵ اوت). چهار چیز عوض شد و هر کدام
+    # دلیل دارد: بدنه پهن‌تر (۰.۶۶ → ۰.۸۰) تا از دور خوانده شود؛ ویک
+    # هم‌رنگ خودِ کندل و ضخیم‌تر به‌جای خاکستریِ محو، چون رنگِ ویک همان
+    # اطلاعاتی است که رد شدن یا نشدن را نشان می‌دهد؛ لبهٔ تیره دور بدنه
+    # تا کندل‌های چسبیده از هم جدا دیده شوند؛ و کفِ ارتفاع برای دوجی تا
+    # کندلِ بی‌بدنه به‌جای یک خط نامرئی، یک نوار نازکِ دیدنی باشد.
+    span = max(k["h"] for k in cd) - min(k["l"] for k in cd) if cd else 0
+    floor_h = (span or 1) * 0.0016
     for i, k in enumerate(cd):
         up = k["c"] >= k["o"]
-        ax.plot([i, i], [k["l"], k["h"]], color="#4c525e", lw=0.7, zorder=1)
-        ax.add_patch(plt.Rectangle((i - 0.33, min(k["o"], k["c"])), 0.66,
-                     max(abs(k["c"] - k["o"]), 1e-12),
-                     color="#26a69a" if up else "#ef5350", zorder=2))
+        col = "#26a69a" if up else "#ef5350"
+        ax.plot([i, i], [k["l"], k["h"]], color=col, lw=1.1, zorder=2,
+                solid_capstyle="round")
+        ax.add_patch(plt.Rectangle((i - 0.40, min(k["o"], k["c"])), 0.80,
+                     max(abs(k["c"] - k["o"]), floor_h),
+                     facecolor=col, edgecolor="#0d1017", linewidth=0.35,
+                     zorder=3))
     # دستور حمید (۱۲ اوت): «سیگنال با خط روندهای معتبر در چارت باشد و اردر
     # بلاک هم مشخص باشد.» سطوح معتبر (همان قاعدهٔ ≥۲ واکنش + کف نویز خودش)
     # و کانالِ فیت‌شده روی سوینگ‌ها، از همین پنجرهٔ کندل کشیده می‌شوند —
@@ -87,6 +98,41 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
                     color="#5d8ecb", lw=1.0, ls="-", alpha=0.8, zorder=1)
     except Exception:                                  # noqa: BLE001 - تحلیل روی چارت اختیاری است
         pass
+    # ── خط روند ۱ساعته و ۴ساعته (دستور حمید، ۱۵ اوت) ──────────────────────
+    #
+    # خط روی کندل تایم بالا محاسبه می‌شود ولی روی همین محور ۵دقیقه کشیده
+    # می‌شود — نگاشت با **timestamp** انجام می‌گیرد نه با ایندکس، وگرنه خط
+    # ۴ساعته چند برابر جابه‌جا می‌افتد و عددی نشان می‌دهد که هیچ‌جا نیست.
+    #
+    # خطِ شکسته‌شده پاک نمی‌شود، نقطه‌چین می‌شود: قانون «خط معتبر حذف
+    # نمی‌شود؛ وضعیتش عوض می‌شود» در سند شخصی‌سازی حمید.
+    _lo = min(k["l"] for k in cd)
+    _hi = max(k["h"] for k in cd)
+    for _v in (entry, sl, tp1, tp2):
+        if _v:
+            _lo, _hi = min(_lo, _v), max(_hi, _v)
+    if ob and ob.get("low") is not None:
+        _lo, _hi = min(_lo, ob["low"]), max(_hi, ob["high"])
+    _pad = (_hi - _lo) * 0.06 or _hi * 0.01
+    _lo, _hi = _lo - _pad, _hi + _pad
+    for lbl, tl, hcd, col in (htf or []):
+        try:
+            xs = [0, len(cd) - 1]
+            ys = [tl.at_t(cd[0]["t"], hcd), tl.at_t(cd[-1]["t"], hcd)]
+            if None in ys:
+                continue
+            # خطی که تمامش بیرون کادر است هیچ اطلاعاتی نمی‌دهد و فقط
+            # برچسبش بیرون چارت شناور می‌شود. کشیده نمی‌شود.
+            if (max(ys) < _lo) or (min(ys) > _hi):
+                continue
+            ax.plot(xs, ys, color=col, lw=1.6 if not tl.broken else 1.1,
+                    ls="-" if not tl.broken else (0, (5, 3)), alpha=0.95, zorder=4)
+            ax.text(1, min(max(ys[0], _lo), _hi),
+                    f"{lbl} {'TL' if not tl.broken else 'TL✕'} ·{tl.touches}",
+                    color=col, fontsize=7.5, va="bottom", ha="left",
+                    fontweight="bold")
+        except Exception:                              # noqa: BLE001 - یک خط نباید چارت را ببرد
+            continue
     if ob and ob.get("low") is not None and ob.get("high") is not None:
         ax.axhspan(ob["low"], ob["high"], color="#f0a92e", alpha=0.14, zorder=0)
         ax.text(len(cd) + 1, (ob["low"] + ob["high"]) / 2, "OB",
@@ -116,6 +162,13 @@ def chart(sym, cd, entry, sl, tp1, tp2, dir_, ob=None, pat=None):
     if len(path_x) > 1:
         ax.plot(path_x, path_y, color="#ab47bc", lw=1.4, ls="--",
                 marker=">", markersize=5, alpha=0.9, zorder=4)
+    # ── محور عمودی را کندل‌ها تعیین می‌کنند، نه خط‌ها ─────────────────────
+    #
+    # بدون این، یک خط روند تایم بالا که دور از قیمت است محور را می‌کشد و
+    # کندل‌ها ریز می‌شوند — دقیقاً برعکس چیزی که حمید خواست. حالا بازه از
+    # کندل‌ها و سطوح معامله (ورود/استاپ/تارگت) گرفته می‌شود و هر خطی که
+    # بیرون بیفتد صرفاً بریده می‌شود، نه اینکه چارت را خراب کند.
+    ax.set_ylim(_lo, _hi)
     ax.grid(alpha=0.18, color="#2a2e39")
     fig.tight_layout()
     buf = io.BytesIO()
