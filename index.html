@@ -227,7 +227,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr" data-active="signals">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.28 · «چقدر مانده تا حکم» + پرکردن دفتر از تاریخ</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.29 · «چقدر مانده تا حکم» + پرکردن دفتر از تاریخ</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -4747,9 +4747,26 @@ function renderOps(){
     roomCard("radar",wsOk?true:(nz?"ready":"ready"),
       `<b>${nz}</b> ناحیهٔ ورود زیر نظر · <b class="num">${rate}</b> قیمت در ثانیه`,
       wsOk?`وب‌سوکت متصل — هر ارز هر ثانیه چک می‌شود که وارد ناحیه‌اش شده یا نه`:"در انتظار اسکن یا اتصال مجدد…"),
-    (()=>{const p=paperStats();return roomCard("paper",p.open>0?true:"ready",
-      `<b>${p.open}</b> تمرین باز · <b>${p.closed}</b> بسته${p.closed?` · برد <b>${p.hit}%</b> · خالص <b style="color:${p.net>=0?"#2ecc71":"#e74c3c"}">${p.net>0?"+":""}${p.net}R</b>`:""}`,
-      "روی کندل زنده و قیمت واقعی، بدون پول و بدون سیگنال — شرط‌ها شل‌اند تا اتاق یادگیری تجربهٔ کافی جمع کند");})(),
+    /* میز تمرین: عددِ ابر، نه شمارندهٔ مرورگر.
+       این کارت صفر نشان می‌داد در حالی که ۶۵۴ معاملهٔ تمرینی روی سرور بسته
+       شده بود — چون فقط PAPER محلی را می‌خواند، و آن فقط وقتی پر می‌شود که
+       پنل باز باشد. حالا کار در ابر انجام می‌شود و بی‌وقفه ادامه دارد، پس
+       منبع درست همان است؛ محلی فقط وقتی می‌آید که ابر در دسترس نباشد. */
+    (()=>{const p=paperStats();
+      const sp=(HAMID.data&&HAMID.data.paper)||null;
+      const pb=(sp&&sp.books_breakdown&&sp.books_breakdown.practice)||null;
+      const pd=(sp&&sp.practice_desk)||null;
+      const cloud=!!(pb&&pb.n);
+      const openN=cloud?(sp.open||0):p.open, closedN=cloud?pb.n:p.closed;
+      const hit=cloud?(pb.n?Math.round(pb.wins/pb.n*100):0):p.hit;
+      return roomCard("paper",(closedN>0||openN>0)?true:"ready",
+      `<b>${openN}</b> تمرین باز · <b>${closedN.toLocaleString("fa-IR")}</b> بسته`
+      +(closedN?` · برد <b>${hit}٪</b>`:"")
+      +(cloud&&pd?` · موجودی <b style="color:${(pd.return_pct||0)>=0?"#2ecc71":"#e74c3c"}">$${pd.balance}</b>`
+        :(p.closed?` · خالص <b style="color:${p.net>=0?"#2ecc71":"#e74c3c"}">${p.net>0?"+":""}${p.net}R</b>`:"")),
+      cloud?`در ابر و بی‌وقفه — چه پنل باز باشد چه نباشد. روی کندل زنده و قیمت واقعی،
+             بدون پول و بدون سیگنال؛ شرط‌ها شل‌اند تا اتاق یادگیری تجربهٔ کافی جمع کند.`
+           :"روی کندل زنده و قیمت واقعی، بدون پول و بدون سیگنال — شرط‌ها شل‌اند تا اتاق یادگیری تجربهٔ کافی جمع کند");})(),
     roomCard("trade",open.length>0?true:"ready",
       `<b>${open.length}</b> معاملهٔ باز · ${closed.length} بسته${closed.length?` · خالص <b style="color:${net>=0?"#2ecc71":"#e74c3c"}">${net>0?"+":""}${Math.round(net*10)/10}R</b>`:""}`,
       open.length?open.slice(0,4).map(t=>`${t.asset} ${t.dir} @ ${fmt(t.entry)} ${t.t1?"· TP1 خورد":""}`).join(" · "):"با اولین سیگنال، پیگیری خودکار شروع می‌شود"),
