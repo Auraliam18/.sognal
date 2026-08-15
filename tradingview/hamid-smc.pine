@@ -1,0 +1,457 @@
+//@version=5
+// ═══════════════════════════════════════════════════════════════════════
+//  حمید — IBS + Pullback SMC Engine
+//  Port of the Signal Room engine to TradingView Pine v5.
+//  Runs natively on ANY symbol / ANY timeframe you open on the chart.
+//
+//  Pipeline:  Swing → BOS → Order Block → Choch → Pullback → Entry
+//  Plus the multi-timeframe indicator engine (EMA/RSI/MACD/ADX/BB/Vol).
+// ═══════════════════════════════════════════════════════════════════════
+indicator("حمید — IBS+Pullback SMC", "حمید SMC", overlay = true,
+     max_boxes_count = 100, max_lines_count = 300, max_labels_count = 200)
+
+// ═══ LOCKED ENGINE CONSTANTS — DO NOT CHANGE ═══
+MIN_SIGNAL_SCORE = 74.0
+WATCH_SCORE      = 62.0
+READY_SCORE      = 70.0
+MIN_CONFIRM      = 65.0
+STRONG_SIGNAL    = 82.0
+STRONG_FLIP      = 86.0
+MIN_RR           = 1.8
+
+// ═══════════════════════ INPUTS ═══════════════════════
+gS = "ساختار بازار / Structure"
+k       = input.int(4,  "حساسیت سوئینگ (k)",        minval = 2, maxval = 12, group = gS)
+obLook  = input.int(25, "عمق جستجوی Order Block",   minval = 5, maxval = 60, group = gS)
+bosLife = input.int(60, "اعتبار BOS (کندل)",        minval = 10, maxval = 200, group = gS)
+minQual = input.int(55, "حداقل کیفیت IBS برای بوست", minval = 0, maxval = 100, group = gS)
+
+gT = "تایم‌فریم بالاتر / HTF"
+mult1 = input.int(4,  "ضریب HTF اول (×TF چارت)",  minval = 2, maxval = 12, group = gT)
+mult2 = input.int(16, "ضریب HTF دوم (×TF چارت)", minval = 4, maxval = 48, group = gT)
+
+gV = "نمایش / Display"
+showOB    = input.bool(true, "منطقه Order Block",     group = gV)
+showBOS   = input.bool(true, "خط BOS",                group = gV)
+showChoch = input.bool(true, "برچسب Choch",           group = gV)
+showLvl   = input.bool(true, "خطوط Entry / SL / TP",  group = gV)
+showTbl   = input.bool(true, "جدول تحلیل زنده",       group = gV)
+
+cLong  = input.color(color.rgb(38, 208, 164), "رنگ LONG",  group = gV)
+cShort = input.color(color.rgb(255, 93, 119), "رنگ SHORT", group = gV)
+
+// ═══════════════════ TIMEFRAME HELPERS ═══════════════════
+tfOf(mult) =>
+    baseMin = timeframe.in_seconds(timeframe.period) / 60
+    m = math.round(baseMin * mult)
+    m >= 1440 ? str.tostring(math.round(m / 1440)) + "D" : str.tostring(m)
+
+HTF1 = tfOf(mult1)
+HTF2 = tfOf(mult2)
+
+// ═══════════════ INDICATOR ENGINE (per timeframe) ═══════════════
+// Mirrors tfM() from the JS engine — identical weights.
+calcTF() =>
+    e9  = ta.ema(close, 9)
+    e21 = ta.ema(close, 21)
+    e50 = ta.ema(close, 50)
+    r   = ta.rsi(close, 14)
+    [_ml, _sl, mh]      = ta.macd(close, 12, 26, 9)
+    [_dp, _dm, adxv]    = ta.dmi(14, 14)
+    [_bm, bbU, bbL]     = ta.bb(close, 20, 2)
+    bbp   = bbU != bbL ? 100.0 * (close - bbL) / (bbU - bbL) : 50.0
+    vMean = ta.sma(volume, 20)
+    vSd   = ta.stdev(volume, 20)
+    vz    = vSd != 0 ? (volume - vMean) / vSd : 0.0
+
+    float ls = 0.0
+    float ss = 0.0
+    if close > e21
+        ls += 16
+    else
+        ss += 16
+    if e9 > e21
+        ls += 13
+    else
+        ss += 13
+    if e21 > e50
+        ls += 11
+    else
+        ss += 11
+    if mh > 0
+        ls += 20
+    else if mh < 0
+        ss += 20
+    if r >= 50 and r <= 72
+        ls += 14
+    else if r >= 28 and r < 50
+        ss += 14
+    if r > 72
+        ss += 5
+    if r < 28
+        ls += 5
+    vc = math.max(0.0, math.min(3.0, vz))
+    ls += vc * 6
+    ss += vc * 6
+    if bbp > 50
+        ls += 8
+    else
+        ss += 8
+    ls := math.max(0.0, math.min(100.0, ls))
+    ss := math.max(0.0, math.min(100.0, ss))
+    [ls, ss, r, adxv, mh, ta.atr(14)]
+
+[ls0, ss0, rsi0, adx0, mh0, atr0] = calcTF()
+[ls1, ss1, rsi1, adx1, mh1, atr1] = request.security(syminfo.tickerid, HTF1, calcTF(), lookahead = barmerge.lookahead_off)
+[ls2, ss2, rsi2, adx2, mh2, atr2] = request.security(syminfo.tickerid, HTF2, calcTF(), lookahead = barmerge.lookahead_off)
+
+// Blended score — chart TF is the primary weight
+LT = 0.45 * ls0 + 0.35 * ls1 + 0.20 * ls2
+ST = 0.45 * ss0 + 0.35 * ss1 + 0.20 * ss2
+
+dirOf(l, s) => l - s >= 8 ? "LONG" : s - l >= 8 ? "SHORT" : "NEUTRAL"
+d0 = dirOf(ls0, ss0)
+d1 = dirOf(ls1, ss1)
+d2 = dirOf(ls2, ss2)
+
+dir = LT - ST >= 6 ? "LONG" : ST - LT >= 6 ? "SHORT" : "NEUTRAL"
+tfa = (d0 == dir ? 1 : 0) + (d1 == dir ? 1 : 0) + (d2 == dir ? 1 : 0)
+
+// ═══════════════ STEP 1 — SWING DETECTION ═══════════════
+ph = ta.pivothigh(high, k, k)
+pl = ta.pivotlow(low, k, k)
+
+var float swHigh    = na
+var int   swHighBar = na
+var bool  swHighHit = false
+var float swLow     = na
+var int   swLowBar  = na
+var bool  swLowHit  = false
+
+if not na(ph)
+    swHigh    := ph
+    swHighBar := bar_index - k
+    swHighHit := false
+if not na(pl)
+    swLow    := pl
+    swLowBar := bar_index - k
+    swLowHit := false
+
+// ═══════════════ STEP 2 — BREAK OF STRUCTURE ═══════════════
+bullBOS = not na(swHigh) and not swHighHit and close > swHigh
+bearBOS = not na(swLow)  and not swLowHit  and close < swLow
+
+var float  bosLevel   = na
+var int    bosBar     = na
+var int    bosSwingBar = na
+var string bosType    = na
+
+if bullBOS
+    swHighHit   := true
+    bosLevel    := swHigh
+    bosBar      := bar_index
+    bosSwingBar := swHighBar
+    bosType     := "bull"
+if bearBOS
+    swLowHit    := true
+    bosLevel    := swLow
+    bosBar      := bar_index
+    bosSwingBar := swLowBar
+    bosType     := "bear"
+
+anyBOS = bullBOS or bearBOS
+
+// ═══════════════ STEP 3 — ORDER BLOCK ═══════════════
+// Demand OB (LONG):  last BEARISH candle before the bullish impulse
+// Supply OB (SHORT): last BULLISH candle before the bearish impulse
+// Zone = candle BODY side (cleaner than full wick).
+var float  obTop  = na
+var float  obBot  = na
+var int    obBar  = na
+var string obKind = na
+
+if anyBOS and not na(bosSwingBar)
+    sOff = bar_index - bosSwingBar
+    bool found = false
+    for i = 0 to obLook
+        off = sOff + i
+        if off >= bar_index or found
+            break
+        isBear = close[off] < open[off]
+        isBull = close[off] > open[off]
+        if bullBOS and isBear
+            obTop  := open[off]
+            obBot  := low[off]
+            obBar  := bar_index - off
+            obKind := "demand"
+            found  := true
+        else if bearBOS and isBull
+            obTop  := high[off]
+            obBot  := open[off]
+            obBar  := bar_index - off
+            obKind := "supply"
+            found  := true
+
+// ═══════════════ STEP 4 — CHOCH ═══════════════
+// First opposing swing after the BOS bar = pullback confirmed.
+var bool   awaitChoch = false
+var float  chochLevel = na
+var int    chochBar   = na
+var string chochType  = na
+
+if anyBOS
+    awaitChoch := true
+    chochLevel := na
+    chochType  := na
+
+if awaitChoch and not na(bosBar)
+    if bosType == "bull" and not na(pl) and (bar_index - k) > bosBar
+        chochLevel := pl
+        chochBar   := bar_index - k
+        chochType  := "bullish_choch"
+        awaitChoch := false
+    else if bosType == "bear" and not na(ph) and (bar_index - k) > bosBar
+        chochLevel := ph
+        chochBar   := bar_index - k
+        chochType  := "bearish_choch"
+        awaitChoch := false
+
+// ═══════════════ STEP 5 — PULLBACK INTO OB ═══════════════
+obMid   = na(obTop) or na(obBot) ? na : (obTop + obBot) / 2
+inOB    = not na(obTop) and close >= obBot and close <= obTop
+nearOB  = not inOB and not na(obMid) and math.abs(close - obMid) / obMid < 0.006
+ibsDir  = obKind == "demand" ? "LONG" : obKind == "supply" ? "SHORT" : "NEUTRAL"
+barsAgo = na(bosBar) ? 9999 : bar_index - bosBar
+bosLive = barsAgo <= bosLife
+
+// Rejection candle inside the zone
+rejCandle = inOB and ((ibsDir == "SHORT" and close < open) or (ibsDir == "LONG" and close > open))
+
+// ── Quality score 0-100 (same weights as the JS engine) ──
+float q = 0.0
+q += not na(bosBar) and bosLive ? 28 : 0
+q += not na(chochLevel)         ? 22 : 0
+q += not na(obTop)              ? 20 : 0
+q += inOB ? 20 : nearOB ? 8 : 0
+q += rejCandle ? 10 : 0
+q += barsAgo <= 20 ? 8 : barsAgo <= 40 ? 4 : 0
+ibsQ = math.min(100.0, q)
+
+// ═══════════════ SCORE + BOOST ═══════════════
+baseScore = dir == "LONG" ? LT : dir == "SHORT" ? ST : math.max(LT, ST)
+boost     = (ibsQ >= minQual and ibsDir == dir and bosLive) ? (inOB ? 12.0 : nearOB ? 7.0 : 4.0) : 0.0
+score     = math.min(100.0, baseScore + boost)
+
+// ═══════════════ LEVELS ═══════════════
+useIBS = ibsQ >= 70 and inOB and ibsDir == dir and bosLive
+clampV(v, lo, hi) => math.max(lo, math.min(hi, v))
+
+float entry = close
+float slv   = na
+float tp1   = na
+float tp2   = na
+float rr    = 0.0
+
+if dir == "LONG"
+    aSL = clampV(math.min(ta.lowest(low, 20), close - atr0 * 1.15), close * 0.972, close * 0.997)
+    if useIBS
+        entry := close
+        slv   := obBot * 0.997
+        d     = entry - slv
+        tp1   := entry + d * 1.5
+        tp2   := entry + d * 2.5
+    else
+        entry := close
+        slv   := aSL
+        d     = entry - slv
+        tp1   := entry + d * 1.15
+        tp2   := entry + d * 2.1
+    rr := 2.1
+else if dir == "SHORT"
+    aSL = clampV(math.max(ta.highest(high, 20), close + atr0 * 1.15), close * 1.003, close * 1.028)
+    if useIBS
+        entry := close
+        slv   := obTop * 1.003
+        d     = slv - entry
+        tp1   := entry - d * 1.5
+        tp2   := entry - d * 2.5
+    else
+        entry := close
+        slv   := aSL
+        d     = slv - entry
+        tp1   := entry - d * 1.15
+        tp2   := entry - d * 2.1
+    rr := 2.1
+
+// ═══════════════ STATUS ═══════════════
+trendOK = (adx0 >= 16 or adx1 >= 18) and adx0 >= 12
+enough  = tfa >= 3 or (tfa >= 2 and score >= STRONG_SIGNAL)
+
+string status = "NO_SETUP"
+if dir != "NEUTRAL"
+    if score >= MIN_SIGNAL_SCORE and enough and trendOK and rr >= MIN_RR
+        status := "SIGNAL"
+    else if score >= READY_SCORE and rr >= MIN_RR
+        status := "WAITING"
+    else if score >= WATCH_SCORE
+        status := "WATCHING"
+    else
+        status := "APPROACHING"
+    // IBS structural upgrades
+    if ibsQ >= 70 and inOB and ibsDir == dir and status == "APPROACHING"
+        status := "WATCHING"
+    if ibsQ >= 80 and inOB and rejCandle and ibsDir == dir and status == "WATCHING"
+        status := "WAITING"
+if adx0 < 14 and adx1 < 14
+    status := "RANGE"
+
+newSignal = status == "SIGNAL" and status[1] != "SIGNAL"
+longSig   = newSignal and dir == "LONG"
+shortSig  = newSignal and dir == "SHORT"
+
+// ═══════════════════════ DRAWING ═══════════════════════
+// ── Order Block zone ──
+var box obBox = na
+if showOB and anyBOS and not na(obTop) and not na(obBar)
+    if not na(obBox)
+        box.delete(obBox)
+    obBox := box.new(obBar, obTop, bar_index + 15, obBot,
+         border_color = obKind == "demand" ? color.new(cLong, 30) : color.new(cShort, 30),
+         bgcolor      = obKind == "demand" ? color.new(cLong, 88) : color.new(cShort, 88),
+         border_width = 1)
+if not na(obBox) and barstate.islast
+    box.set_right(obBox, bar_index + 15)
+
+// ── BOS line ──
+var line bosLine = na
+var label bosLbl = na
+if showBOS and anyBOS and not na(bosSwingBar)
+    if not na(bosLine)
+        line.delete(bosLine)
+    if not na(bosLbl)
+        label.delete(bosLbl)
+    bosCol = bullBOS ? cLong : cShort
+    bosLine := line.new(bosSwingBar, bosLevel, bar_index, bosLevel,
+         color = color.new(bosCol, 25), width = 1, style = line.style_dashed)
+    bosLbl := label.new(bar_index, bosLevel, "BOS",
+         style     = bullBOS ? label.style_label_down : label.style_label_up,
+         color     = color.new(bosCol, 20), textcolor = color.white, size = size.tiny)
+
+// ── Choch label ──
+var label chochLbl = na
+chochFired = not na(chochLevel) and na(chochLevel[1])
+if showChoch and chochFired
+    if not na(chochLbl)
+        label.delete(chochLbl)
+    cCol = chochType == "bullish_choch" ? cLong : cShort
+    chochLbl := label.new(chochBar, chochLevel, "Choch",
+         style     = chochType == "bullish_choch" ? label.style_label_up : label.style_label_down,
+         color     = color.new(cCol, 35), textcolor = color.white, size = size.tiny)
+
+// ── Entry / SL / TP lines on a fresh signal ──
+var line lnE = na
+var line lnS = na
+var line lnT1 = na
+var line lnT2 = na
+if showLvl and newSignal
+    if not na(lnE)
+        line.delete(lnE)
+        line.delete(lnS)
+        line.delete(lnT1)
+        line.delete(lnT2)
+    sCol = dir == "LONG" ? cLong : cShort
+    lnE  := line.new(bar_index, entry, bar_index + 30, entry, color = color.new(color.white, 20), width = 2)
+    lnS  := line.new(bar_index, slv,   bar_index + 30, slv,   color = color.new(cShort, 20), width = 1, style = line.style_dotted)
+    lnT1 := line.new(bar_index, tp1,   bar_index + 30, tp1,   color = color.new(sCol, 35), width = 1, style = line.style_dashed)
+    lnT2 := line.new(bar_index, tp2,   bar_index + 30, tp2,   color = color.new(sCol, 55), width = 1, style = line.style_dashed)
+
+// ── Signal markers ──
+plotshape(longSig,  "LONG",  shape.labelup,   location.belowbar, color.new(color.rgb(38,208,164), 0),  text = "LONG",  textcolor = color.white, size = size.small)
+plotshape(shortSig, "SHORT", shape.labeldown, location.abovebar, color.new(color.rgb(255,93,119), 0), text = "SHORT", textcolor = color.white, size = size.small)
+
+// ── Price-in-OB highlight ──
+bgcolor(inOB and ibsDir == dir and bosLive ? color.new(ibsDir == "LONG" ? cLong : cShort, 92) : na, title = "قیمت داخل OB")
+
+// ═══════════════════════ LIVE TABLE ═══════════════════════
+statusCol(s) =>
+    color c = color.new(color.gray, 60)
+    if s == "SIGNAL"
+        c := color.new(color.rgb(38, 208, 164), 20)
+    else if s == "WAITING"
+        c := color.new(color.rgb(245, 180, 60), 25)
+    else if s == "WATCHING"
+        c := color.new(color.rgb(63, 182, 245), 30)
+    else if s == "RANGE"
+        c := color.new(color.gray, 40)
+    c
+
+fmtP(p) => na(p) ? "—" : str.tostring(p, format.mintick)
+
+var table tbl = table.new(position.top_right, 2, 12,
+     border_width = 1, border_color = color.new(color.gray, 70),
+     frame_width = 1, frame_color = color.new(color.gray, 60))
+
+if showTbl and barstate.islast
+    bgD = color.new(color.rgb(16, 22, 31), 8)
+    txt = color.new(color.rgb(232, 239, 247), 0)
+    mut = color.new(color.rgb(120, 134, 153), 0)
+    dCol = dir == "LONG" ? cLong : dir == "SHORT" ? cShort : color.gray
+
+    table.cell(tbl, 0, 0, "حمید SMC", bgcolor = color.new(color.rgb(28, 38, 52), 5), text_color = txt, text_size = size.small)
+    table.cell(tbl, 1, 0, timeframe.period + " · " + syminfo.ticker, bgcolor = color.new(color.rgb(28, 38, 52), 5), text_color = mut, text_size = size.tiny)
+
+    table.cell(tbl, 0, 1, "جهت", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 1, dir, bgcolor = bgD, text_color = dCol, text_size = size.small)
+
+    table.cell(tbl, 0, 2, "امتیاز", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 2, str.tostring(score, "#.#") + (boost > 0 ? "  (+" + str.tostring(boost, "#") + ")" : ""), bgcolor = bgD, text_color = txt, text_size = size.small)
+
+    table.cell(tbl, 0, 3, "وضعیت", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 3, status, bgcolor = statusCol(status), text_color = color.white, text_size = size.tiny)
+
+    table.cell(tbl, 0, 4, "کیفیت IBS", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 4, str.tostring(ibsQ, "#") + "%" + (inOB ? "  🔵 داخل OB" : nearOB ? "  نزدیک" : ""), bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+    table.cell(tbl, 0, 5, "ساختار", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 5, (na(bosType) ? "—" : (bosType == "bull" ? "BOS ↑" : "BOS ↓")) + (na(chochLevel) ? "" : " → Choch") + (rejCandle ? " ✅" : ""), bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+    table.cell(tbl, 0, 6, "منطقه OB", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 6, na(obTop) ? "—" : fmtP(obBot) + " – " + fmtP(obTop), bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+    table.cell(tbl, 0, 7, "ورود", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 7, fmtP(entry), bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+    table.cell(tbl, 0, 8, "حد ضرر", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 8, fmtP(slv), bgcolor = bgD, text_color = cShort, text_size = size.tiny)
+
+    table.cell(tbl, 0, 9, "هدف ۱ / ۲", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 9, fmtP(tp1) + " / " + fmtP(tp2), bgcolor = bgD, text_color = cLong, text_size = size.tiny)
+
+    table.cell(tbl, 0, 10, "تایم‌فریم‌ها", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 10, str.tostring(tfa) + "/3 هم‌جهت  ·  " + timeframe.period + " " + HTF1 + " " + HTF2, bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+    table.cell(tbl, 0, 11, "RSI / ADX", bgcolor = bgD, text_color = mut, text_size = size.tiny)
+    table.cell(tbl, 1, 11, str.tostring(rsi0, "#.#") + "  /  " + str.tostring(adx0, "#.#"), bgcolor = bgD, text_color = txt, text_size = size.tiny)
+
+// ═══════════════════════ ALERTS ═══════════════════════
+alertcondition(longSig,  "حمید — سیگنال LONG",  "حمید LONG signal")
+alertcondition(shortSig, "حمید — سیگنال SHORT", "حمید SHORT signal")
+alertcondition(inOB and not inOB[1], "حمید — قیمت وارد OB شد", "Price entered Order Block")
+alertcondition(bullBOS, "حمید — BOS صعودی", "Bullish BOS")
+alertcondition(bearBOS, "حمید — BOS نزولی", "Bearish BOS")
+
+// Rich webhook payload (JSON) — usable by any receiving endpoint
+if newSignal
+    payload = '{"engine":"hamid-smc","symbol":"' + syminfo.ticker +
+       '","tf":"' + timeframe.period +
+       '","direction":"' + dir +
+       '","score":' + str.tostring(score, "#.#") +
+       ',"ibs_quality":' + str.tostring(ibsQ, "#") +
+       ',"in_ob":' + (inOB ? "true" : "false") +
+       ',"structure":"' + (na(bosType) ? "none" : bosType) + '"' +
+       ',"entry":' + str.tostring(entry) +
+       ',"sl":' + str.tostring(slv) +
+       ',"tp1":' + str.tostring(tp1) +
+       ',"tp2":' + str.tostring(tp2) +
+       ',"tf_agree":' + str.tostring(tfa) + '}'
+    alert(payload, alert.freq_once_per_bar_close)
