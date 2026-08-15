@@ -55,6 +55,7 @@ OUT = ROOT / "signals"
 STATE = ROOT / "brain" / "cycle-state.json"
 
 DAILY_TARGET = 15
+QUIET_LEARN_N = 40        # جهان روز آرام — فقط برای تمرین، نه سیگنال
 ROOMS = ["market", "radar", "scan", "deep", "trade", "paper",
          "chart", "watch", "learn", "calib", "intel", "sup"]
 
@@ -1002,6 +1003,7 @@ def main():
     except Exception as e:                           # noqa: BLE001 - چرخه را نمی‌کشد
         print(f"Universe: {type(e).__name__}: {e}")
 
+    reads, setups, inds = [], [], []   # هر دو مسیر ممکن است پرشان کنند
     if mode == "active":
         _vidx = {}                                   # صرافی‌های هدف؛ پر می‌شود پایین‌تر
         try:
@@ -1258,6 +1260,36 @@ def main():
         act("بازار آرام است — به‌جای اسکن کامل، تقویم اقتصادی و نامزدهای پامپ بررسی می‌شوند")
         report.update(run_quiet())
 
+        # ── یادگیری در روز آرام هم تعطیل نیست (ایراد حمید، ۱۵ اوت) ─────────
+        #
+        # «قرار بود بی‌وقفه ترید انجام شود و به صورت پیپرتریدینگ … و نتایج
+        # بررسی و علت را پیدا کند و به یادگیری اضافه کند.»
+        #
+        # قبلاً کل خواندن ساختار پشت `mode == "active"` بود، پس در روز آرام
+        # هیچ کندلی خوانده نمی‌شد و میز تمرین صفر معامله باز می‌کرد. حالت
+        # آرام برای این است که روی تیک مرده **سیگنال نفرستیم** — نه این‌که
+        # یاد نگیریم. اتفاقاً روز آرام همان‌جایی است که وقت آزاد داریم.
+        #
+        # پس ساختار خوانده می‌شود ولی `on_ready=None` است: هیچ سیگنالی
+        # نمی‌رود، فقط دفتر تمرین و کاغذی پر می‌شود. جهان کوچک‌تر است تا
+        # چرخهٔ نیم‌ساعته از بودجه‌اش رد نشود.
+        try:
+            q_syms = []
+            try:
+                q_tick = sources.tickers()
+                q_syms = [t["symbol"] for t in
+                          sorted(q_tick, key=lambda x: -float(x["quoteVolume"] or 0))
+                          if t["symbol"].endswith("USDT")][:QUIET_LEARN_N]
+            except Exception:                        # noqa: BLE001
+                q_syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+            act(f"یادگیری روز آرام: {len(q_syms)} ارز فقط برای تمرین خوانده می‌شود "
+                "— هیچ سیگنالی از این مسیر نمی‌رود")
+            _f, reads, setups, flows, inds = run_active(q_syms, on_ready=None)
+            print(f"روز آرام: {len(reads)} ارز خوانده شد، {len(setups)} ستاپ "
+                  "(فقط خوراک یادگیری)")
+        except Exception as e:                       # noqa: BLE001 - یادگیری چرخه را نمی‌کشد
+            print(f"یادگیری روز آرام: {type(e).__name__}: {e}")
+
     # Paper book. Every signal is placed as a limit order and tracked to its
     # stop or target, carrying the conditions that were true when it was opened.
     # Judging it later against a re-derived context would attribute the outcome
@@ -1320,16 +1352,18 @@ def main():
                      for s_, x in (inds if mode == "active" else [])]
         if ind_cands:
             opened += paper.open_from(ind_cands, ctx)
-        if mode == "active":
-            try:
-                pc = practice_candidates(reads)
-                if pc:
-                    n_pr = paper.open_from(pc, ctx)
-                    opened += n_pr
-                    act(f"میز تمرین: {n_pr} معاملهٔ تمرینی باز شد — "
-                        "فقط خوراک یادگیری، سیگنال نیست")
-            except Exception as e:                   # noqa: BLE001 - تمرین چرخه را نمی‌کشد
-                print(f"میز تمرین: {type(e).__name__}: {e}")
+        # میز تمرین به حالت بازار وابسته نیست — این دفتر «فقط خوراک یادگیری»
+        # است و هیچ‌وقت سیگنال نمی‌شود، پس دلیلی ندارد در روز آرام خاموش
+        # باشد. تا امروز پشت `mode == "active"` بود و شنبه‌ها صفر می‌ماند.
+        try:
+            pc = practice_candidates(reads)
+            if pc:
+                n_pr = paper.open_from(pc, ctx)
+                opened += n_pr
+                act(f"میز تمرین: {n_pr} معاملهٔ تمرینی باز شد — "
+                    "فقط خوراک یادگیری، سیگنال نیست")
+        except Exception as e:                       # noqa: BLE001 - تمرین چرخه را نمی‌کشد
+            print(f"میز تمرین: {type(e).__name__}: {e}")
         # تسویه اول چرخه انجام شده (settle_books) — اینجا فقط باز کردن و ترازو.
         eq = paper._equity()
         report["paper"] = {"opened": opened, "open": settled_open + opened,
