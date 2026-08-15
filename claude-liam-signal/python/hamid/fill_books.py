@@ -99,7 +99,7 @@ def to_paper(sym, tr, stage):
             "closed": tr["t"] + 96 * 900_000}
 
 
-def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL):
+def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL, deadline=None):
     """مثل backtest.walk ولی هر دو حالت را نگه می‌دارد.
 
     `walk` اصلی ستاپ waiting را رد می‌کند چون فقط سیگنال‌پذیرها را می‌سنجد.
@@ -116,7 +116,16 @@ def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL):
     busy_until = -1
     i = 140
     last_t = after_ms
+    checked = 0
     while i < len(c15) - FILL_WINDOW - 2 and len(out) < cap:
+        # مهلت باید **داخل** حلقه بررسی شود، نه فقط قبل از شروع ارز.
+        # نسخهٔ اول فقط قبل از شروع نگاه می‌کرد، پس ارزی که وارد شده بود تا
+        # آخر می‌رفت و کل job از timeout رد می‌شد — یعنی همان چیزی که
+        # بودجه قرار بود جلویش را بگیرد. هر ۲۰ گام یک بار کافی است؛
+        # time.time() در حلقهٔ داغ خودش هزینه دارد.
+        checked += 1
+        if deadline and checked % 20 == 0 and time.time() > deadline:
+            break
         if i <= busy_until:
             i += STEP
             continue
@@ -189,7 +198,8 @@ def run(symbols=None, bars=1400, budget_s=BUDGET_S, quiet=False, fetch=None):
         if len(c15) < 300 or len(c1h) < 120:
             return sym, [], None
         try:
-            rows, frontier = walk_both(sym, c15, c1h, after_ms=st.get(sym, 0))
+            rows, frontier = walk_both(sym, c15, c1h, after_ms=st.get(sym, 0),
+                                       deadline=deadline)
         except Exception as e:                        # noqa: BLE001
             print(f"بازپخش {sym}: {type(e).__name__}: {e}")
             return sym, [], None

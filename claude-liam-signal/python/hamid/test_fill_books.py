@@ -193,6 +193,35 @@ got3 = fb.run(symbols=["CUSDT"], quiet=True, budget_s=0,
               fetch=lambda s, n: (c15, c1h))
 check("بودجهٔ تمام‌شده کار تازه شروع نمی‌کند", got3 == [])
 
+# ── مهلت باید **داخل** ارز هم ببرد، نه فقط قبل از شروعش ───────────────────
+# نسخهٔ اول فقط قبل از شروع هر ارز نگاه می‌کرد؛ ارزی که وارد شده بود تا آخر
+# می‌رفت و کل job از timeout رد می‌شد — روی رانر واقعی دیده شد.
+import time as _t                                      # noqa: E402
+
+
+class _Slow:
+    def __init__(self):
+        self.n = 0
+
+    def __call__(self, *a):
+        self.n += 1
+        _t.sleep(0.004)
+        return type("R", (), {"setup": None, "trend_4h": "up"})()
+
+
+stack.read = _Slow()
+_t0 = _t.time()
+fb.walk_both("XUSDT", c15, c1h, deadline=_t.time() + 0.3)
+_bounded, _calls_b = _t.time() - _t0, stack.read.n
+stack.read = _Slow()
+_t1 = _t.time()
+fb.walk_both("XUSDT", c15, c1h)
+_free, _calls_f = _t.time() - _t1, stack.read.n
+check(f"مهلت وسط یک ارز هم می‌برد ({_bounded:.2f}s در برابر {_free:.2f}s)",
+      _bounded < _free / 1.5)
+check("کار کمتری انجام شد، نه فقط زودتر برگشت", _calls_b < _calls_f)
+stack.read = fake
+
 # گارد صریح: هیچ‌کدام از فایل‌های واقعی مغز نباید در این اجرا عوض شده باشند.
 # آزمونی که خودش تولید را آلوده کند بدتر از نبودنش است.
 import subprocess as _sp                              # noqa: E402
