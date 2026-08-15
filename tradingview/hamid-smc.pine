@@ -1,13 +1,30 @@
 //@version=5
 // ═══════════════════════════════════════════════════════════════════════
-//  حمید — IBS + Pullback SMC Engine
-//  Port of the Signal Room engine to TradingView Pine v5.
-//  Runs natively on ANY symbol / ANY timeframe you open on the chart.
-//
-//  Pipeline:  Swing → BOS → Order Block → Choch → Pullback → Entry
-//  Plus the multi-timeframe indicator engine (EMA/RSI/MACD/ADX/BB/Vol).
+//  ⚠️  هشدار — با این نسخه معامله نکن  /  DO NOT TRADE THIS VERSION
 // ═══════════════════════════════════════════════════════════════════════
-indicator("حمید — IBS+Pullback SMC", "حمید SMC", overlay = true,
+//  این فایل با .claude/rules/ibs-pullback-plus.md مطابقت ندارد.
+//  چهار مغایرت شناسایی‌شده:
+//
+//   ۱. IBS اصلاً محاسبه نمی‌شود. فرمول (close-low)/(high-low) در کل فایل
+//      وجود ندارد. نام فایل گمراه‌کننده است.
+//
+//   ۲. روی پولبک ۱ ورود می‌دهد — که قانون سخت آن را ممنوع کرده است
+//      («ورود خودکار در پولبک ۱ ممنوع — منتظر پولبک دومش می‌مانم»).
+//      توالی درست: BOS → پولبک۱ → ادامه → BOS۲ → پولبک۲ → ارزیابی ورود.
+//      این کد BOS دوم و پولبک دوم را اصلاً تشخیص نمی‌دهد.
+//
+//   ۳. CHoCH را +۲۲ امتیاز تأیید می‌دهد، در حالی که قانون می‌گوید CHoCH
+//      داخل پولبک می‌تواند ایندوسمنت/تله باشد نه برگشت. یعنی این کد
+//      دقیقاً تله را به عنوان تأیید امتیاز می‌دهد.
+//
+//   ۴. هیچ‌کدام از چک‌های پیش از ورود را ندارد: تازگی OB، مصرف‌شدن OB،
+//      اعتبار/پرشدن FVG، نقدینگی پشت ساختار، فلیپ سطح، displacement،
+//      سالم یا مخرب بودن پولبک، نشانهٔ ایندوسمنت.
+//
+//  وضعیت: پیش‌نویس ناقص — فقط برای مشاهدهٔ بصری ساختار (BOS/OB).
+//  مرجع معتبر: index.html (v21.29) و claude-liam-signal/python/hamid/.
+// ═══════════════════════════════════════════════════════════════════════
+indicator("حمید — ساختار (پیش‌نویس · معامله نکن)", "ساختار (DRAFT)", overlay = true,
      max_boxes_count = 100, max_lines_count = 300, max_labels_count = 200)
 
 // ═══ LOCKED ENGINE CONSTANTS — DO NOT CHANGE ═══
@@ -305,7 +322,13 @@ if dir != "NEUTRAL"
 if adx0 < 14 and adx1 < 14
     status := "RANGE"
 
-newSignal = status == "SIGNAL" and status[1] != "SIGNAL"
+// ── ورود غیرفعال است ──────────────────────────────────────────────
+// این کد پولبک دوم را تشخیص نمی‌دهد، پس هر ورودی که صادر کند روی
+// پولبک ۱ خواهد بود — که قانون سخت ممنوعش کرده. تا وقتی توالی
+// BOS۲ → پولبک۲ پیاده نشده، هیچ سیگنال ورودی صادر نمی‌شود.
+ENTRIES_ENABLED = false
+
+newSignal = ENTRIES_ENABLED and status == "SIGNAL" and status[1] != "SIGNAL"
 longSig   = newSignal and dir == "LONG"
 shortSig  = newSignal and dir == "SHORT"
 
@@ -434,24 +457,11 @@ if showTbl and barstate.islast
     table.cell(tbl, 1, 11, str.tostring(rsi0, "#.#") + "  /  " + str.tostring(adx0, "#.#"), bgcolor = bgD, text_color = txt, text_size = size.tiny)
 
 // ═══════════════════════ ALERTS ═══════════════════════
-alertcondition(longSig,  "حمید — سیگنال LONG",  "حمید LONG signal")
-alertcondition(shortSig, "حمید — سیگنال SHORT", "حمید SHORT signal")
-alertcondition(inOB and not inOB[1], "حمید — قیمت وارد OB شد", "Price entered Order Block")
+// آلارم‌های ورود حذف شده‌اند — این کد پولبک دوم را نمی‌شناسد.
+// فقط رویدادهای ساختاری (مشاهده، نه دستور معامله) باقی مانده‌اند.
+alertcondition(inOB and not inOB[1], "حمید — قیمت وارد OB شد (فقط اطلاع)", "Price entered Order Block — observation only, not an entry")
 alertcondition(bullBOS, "حمید — BOS صعودی", "Bullish BOS")
 alertcondition(bearBOS, "حمید — BOS نزولی", "Bearish BOS")
 
-// Rich webhook payload (JSON) — usable by any receiving endpoint
-if newSignal
-    payload = '{"engine":"hamid-smc","symbol":"' + syminfo.ticker +
-       '","tf":"' + timeframe.period +
-       '","direction":"' + dir +
-       '","score":' + str.tostring(score, "#.#") +
-       ',"ibs_quality":' + str.tostring(ibsQ, "#") +
-       ',"in_ob":' + (inOB ? "true" : "false") +
-       ',"structure":"' + (na(bosType) ? "none" : bosType) + '"' +
-       ',"entry":' + str.tostring(entry) +
-       ',"sl":' + str.tostring(slv) +
-       ',"tp1":' + str.tostring(tp1) +
-       ',"tp2":' + str.tostring(tp2) +
-       ',"tf_agree":' + str.tostring(tfa) + '}'
-    alert(payload, alert.freq_once_per_bar_close)
+// Webhook ورود حذف شد — تا پیاده‌سازی BOS۲/پولبک۲، این کد حق صدور
+// دستور معامله به هیچ مقصد بیرونی را ندارد.
