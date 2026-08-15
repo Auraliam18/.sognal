@@ -35,6 +35,7 @@ jobs:
           python3 -m hamid.test_trainer
           python3 -m hamid.test_classify
           python3 -m hamid.test_fill_books
+          python3 -m hamid.test_improve
 
       - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
@@ -59,11 +60,18 @@ jobs:
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.classify
 
+      # تصمیم از نتیجه‌ها (دستور حمید ۱۵ اوت): تاریخچهٔ هر ارز و نحوهٔ
+      # واکنشش → پیشنهادِ شرط برای بهبود انجین. خروجی **پیشنهاد** است؛
+      # قانون ۱۲ می‌گوید هیچ تغییر استراتژی مستقیم وارد تولید نمی‌شود.
+      - name: پروفایل رفتاری ارزها و پیشنهاد بهبود
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.improve || true
+
       - name: ثبت دفتر و درس‌ها
         run: |
           git config user.name "Hamid Signal Agent"
           git config user.email "noreply@anthropic.com"
-          git add brain/paper/ brain/memory/ brain/learning/ signals/classify.json || true
+          git add brain/paper/ brain/memory/ brain/learning/ brain/improve/ signals/classify.json signals/improve.json || true
           if git diff --cached --quiet; then
             echo "دادهٔ تازه‌ای نبود"
             exit 0
