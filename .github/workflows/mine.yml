@@ -101,8 +101,12 @@ jobs:
               # wholesale after a partial resolution once committed a file with
               # its conflict markers still in it, which left the recall index
               # unparseable and silently disabled learning.
-              git checkout --ours -- brain signals 2>/dev/null || true
-              git add -A brain signals 2>/dev/null || git add -A brain || true
+              # ۱۵ اوت: `--ours` اینجا ۳۹۰ ردیف دفتر معامله را پاک کرد — رانر
+              # نسخهٔ کهنهٔ خودش را «مال ما» دید. حالا هر فایل با معنای خودش
+              # حل می‌شود: دفتر append-only اجتماع، درس اجتماع، index بازسازی،
+              # و فقط عکس‌فوری signals نسخهٔ تازه را می‌گیرد.
+              python3 "$GITHUB_WORKSPACE/scripts/resolve_brain_conflicts.py" \
+                || { git merge --abort; exit 1; }
               git commit --no-edit || { git merge --abort; exit 1; }
             fi
             # Never publish a file carrying conflict markers.

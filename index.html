@@ -227,7 +227,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr" data-active="signals">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.27 · دسته‌بندی استراتژی×تایم‌فریم + اولویت صرافی</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.28 · «چقدر مانده تا حکم» + پرکردن دفتر از تاریخ</span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -3901,6 +3901,16 @@ function hamidHTML(){
         ${any?"":`<div class="dim" style="font-size:11px;margin-top:4px">
           هیچ خانه‌ای هنوز فاصلهٔ اطمینانش از صفر رد نکرده — جدول ساخته شد ولی
           حکمی ندارد. این خودش یک جواب است، نه شکست.</div>`}
+        ${!(C.closest_to_verdict||[]).length?"":`<div style="margin-top:5px;
+            border-top:1px solid rgba(140,160,190,.14);padding-top:4px">
+          <div class="dim" style="font-size:11px">⏳ نزدیک‌ترین به حکم — بازپخش تاریخی این‌ها را زودتر تمام می‌کند</div>
+          ${C.closest_to_verdict.slice(0,4).map(c=>`<div style="display:flex;gap:8px;
+              font-size:11.5px;padding:1.5px 0;align-items:baseline">
+            <span style="min-width:190px">${c.key}</span>
+            <span class="mono" style="min-width:44px">${c.n}</span>
+            <span class="mono" style="min-width:52px">${c.mean_r>=0?"+":""}${c.mean_r}R</span>
+            <span class="dim" style="font-size:11px">${c.short_by} معامله کم دارد
+              (~${c.need_n} لازم)</span></div>`).join("")}</div>`}
         <div class="dim" style="font-size:10.5px;margin-top:4px;border-top:1px solid rgba(140,160,190,.14);padding-top:3px">
           ${C.rule||""} ${C.source||""}</div>
       </div>`;})()}

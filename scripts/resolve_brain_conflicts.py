@@ -89,11 +89,31 @@ def rebuild_index(path):
             if isinstance(j, dict) else "بازساخته شد")
 
 
-HANDLERS = {
-    "brain/paper/closed.jsonl": merge_jsonl,
+def take_ours(path):
+    """برای عکس‌فوری‌های تولیدشده: نسخهٔ همین اجرا تازه‌تر است و برنده.
+
+    این فقط برای signals/ درست است — آن‌جا فایل یک **عکس کاملِ لحظه** است،
+    نه دفتر انباشته. اگر همین منطق روی brain/ اعمال شود، دفتر معاملهٔ اجرای
+    دیگر پاک می‌شود؛ دقیقاً همان اتفاقی که ۱۵ اوت افتاد و ۳۹۰ ردیف برد."""
+    subprocess.run(["git", "checkout", "--ours", "--", path], cwd=ROOT, check=False)
+    return "عکس‌فوری تازهٔ همین اجرا"
+
+
+EXACT = {
     "brain/memory/lessons.json": merge_lessons,
     "brain/learning/index.json": rebuild_index,
 }
+
+
+def handler_for(path):
+    """کدام معنا برای کدام مسیر — ترتیب مهم است."""
+    if path in EXACT:
+        return EXACT[path]
+    if path.startswith("brain/") and path.endswith(".jsonl"):
+        return merge_jsonl                            # هر دفتر append-only
+    if path.startswith("signals/"):
+        return take_ours
+    return None                                       # ناشناخته = دستی، نه حدس
 
 
 def main():
@@ -103,7 +123,7 @@ def main():
         return 0
     left = []
     for p in files:
-        fn = HANDLERS.get(p)
+        fn = handler_for(p)
         if fn is None:
             left.append(p)
             continue
@@ -119,12 +139,13 @@ def main():
         return 1
     # هرگز فایلی با مارکر تعارض ثبت نشود — یک بار index.json با مارکر
     # کامیت شد و یادگیری ساعت‌ها بی‌صدا خاموش ماند.
-    g = subprocess.run(["git", "grep", "-lE", "^(<<<<<<< |>>>>>>> )", "--", "brain"],
+    g = subprocess.run(["git", "grep", "-lE", "^(<<<<<<< |>>>>>>> )",
+                        "--", "brain", "signals"],
                        capture_output=True, text=True, cwd=ROOT)
     if g.stdout.strip():
         print(f"✗ مارکر تعارض باقی مانده: {g.stdout.split()}")
         return 1
-    print("همهٔ تعارض‌های brain حل شد")
+    print("همهٔ تعارض‌ها با معنای خودشان حل شد")
     return 0
 
 

@@ -46,6 +46,22 @@ def expect_raise(name, fn, contains=""):
 
 print("── حلقهٔ دانش (فاز ۱) ──")
 
+
+def _snapshot_research(root):
+    """اثر انگشت پوشهٔ تحقیقِ تولید — مسیر و اندازه و زمان هر فایل.
+
+    قبل از هر کاری گرفته می‌شود تا آخر کار معلوم شود این اجرا چیزی را عوض
+    کرده یا نه. «فایل نباید وجود داشته باشد» سؤال غلطی بود؛ فایل حق دارد
+    وجود داشته باشد، فقط این آزمون حق ندارد لمسش کند."""
+    if not root.exists():
+        return {}
+    return {str(p.relative_to(root)): (p.stat().st_size, p.stat().st_mtime_ns)
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+_prod_snapshot = _snapshot_research(
+    Path(__file__).resolve().parents[3] / "brain" / "research")
+
 # همهٔ نوشتن‌ها به مغز موقت — مغز واقعی دست نمی‌خورد
 TMP = Path(tempfile.mkdtemp())
 from research import claim_registry as cr                      # noqa: E402
@@ -187,9 +203,15 @@ rf2 = sm.check_source("E02", "https://example.com/broken", 1, fetch=fake_fetch)
 check("قبل از next_retry دوباره تلاش نمی‌کند (backoff)", rf2 == "skipped")
 
 # ── ۹. جدایی از تولید ──────────────────────────────────────────────────────
+# نسخهٔ اول شرط می‌گذاشت که brain/research/E02/last-seen.json **وجود نداشته
+# باشد**. این از روزی که ورک‌فلوی «حلقهٔ دانش» واقعاً اجرا شد غلط شد: فایل
+# را خودِ تولید ساخت و آزمون قرمز شد، در حالی که هیچ نشتی‌ای نبود.
+#
+# سؤال درست «آیا این فایل هست؟» نیست، «آیا **این اجرا** عوضش کرد؟» است.
+# پس محتوای واقعی قبل از آزمون گرفته می‌شود و با بعدش مقایسه می‌شود.
 real_research = Path(__file__).resolve().parents[3] / "brain" / "research"
 check("آزمون‌ها به مغز واقعی دست نزدند",
-      not (real_research / "E02" / "last-seen.json").exists())
+      _prod_snapshot == _snapshot_research(real_research))
 
 print()
 if fail:

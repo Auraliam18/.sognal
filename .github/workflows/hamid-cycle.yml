@@ -82,6 +82,8 @@ jobs:
           python3 -m hamid.test_pump_rules
           python3 -m hamid.test_venues
           python3 -m hamid.test_classify
+          python3 -m hamid.test_fill_books
+          python3 -m hamid.test_resolve
           python3 -m hamid.test_workflows
           python3 -m hamid.test_live_send
 
@@ -144,8 +146,12 @@ jobs:
             git push origin HEAD:main && exit 0
             git fetch origin main || true
             if ! git merge --no-edit origin/main; then
-              git checkout --ours -- brain signals 2>/dev/null || true
-              git add -A brain signals 2>/dev/null || git add -A brain || true
+              # ۱۵ اوت: `--ours` اینجا ۳۹۰ ردیف دفتر معامله را پاک کرد — رانر
+              # نسخهٔ کهنهٔ خودش را «مال ما» دید. حالا هر فایل با معنای خودش
+              # حل می‌شود: دفتر append-only اجتماع، درس اجتماع، index بازسازی،
+              # و فقط عکس‌فوری signals نسخهٔ تازه را می‌گیرد.
+              python3 "$GITHUB_WORKSPACE/scripts/resolve_brain_conflicts.py" \
+                || { git merge --abort; exit 1; }
               git commit --no-edit || { git merge --abort; exit 1; }
             fi
             # Never publish a file carrying conflict markers. This has happened:
