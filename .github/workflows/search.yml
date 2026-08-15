@@ -20,9 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
+      # بدون ref پین‌شده. این به شاخهٔ کاری پین بود، و آن شاخه بعد از هر
+      # ادغام PR خودکار پاک می‌شود — پس checkout شکست می‌خورد و امتیازدهی
+      # اتاق‌ها دو روز بی‌صدا از کار افتاده بود. اجراهای زمان‌بندی‌شده روی
+      # main هستند و همان را هم باید بخوانند.
       - uses: actions/checkout@v4
         with:
-          ref: claude/hamid-signal-agent-smc-dkot7v
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
@@ -31,6 +34,10 @@ jobs:
         env:
           FIT: "200"
           TEST: "200"
+          # زیر timeout-minutes بماند. اجرا خودش را متوقف می‌کند، کش را
+          # می‌نویسد و به مرحلهٔ commit می‌رسد — همان مرحله‌ای که ده شب
+          # متوالی به آن نرسید چون job دقیقاً روی ۵:۰۰ کنسل می‌شد.
+          BUDGET_MIN: "270"
         run: node tests/search.js
       - name: Commit findings
         run: |
