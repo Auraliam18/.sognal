@@ -1354,6 +1354,9 @@ def main():
             "headline": _cj["headline"], "rule": _cj["rule"],
             "source": _cj["source"],
             "alpha_note": _cj["strategy_by_tf"]["alpha_note"],
+            # «چقدر مانده تا حکم» — تا این روی پنل نباشد، سرعت یادگیری
+            # فقط یک حس است، نه عددی که بشود دنبالش کرد.
+            "closest_to_verdict": _cj.get("closest_to_verdict") or [],
         }
         for ln in _cls.fa_lines(_cj, limit=3):
             act("📊 " + ln)
