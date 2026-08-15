@@ -34,6 +34,10 @@ jobs:
         env:
           FIT: "200"
           TEST: "200"
+          # زیر timeout-minutes بماند. اجرا خودش را متوقف می‌کند، کش را
+          # می‌نویسد و به مرحلهٔ commit می‌رسد — همان مرحله‌ای که ده شب
+          # متوالی به آن نرسید چون job دقیقاً روی ۵:۰۰ کنسل می‌شد.
+          BUDGET_MIN: "270"
         run: node tests/search.js
       - name: Commit findings
         run: |
