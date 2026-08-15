@@ -137,8 +137,13 @@ def _fetch_tf(sym, tf, bars):
     return synth15(700, seed=hash((sym, tf)) % 1000)
 
 
-t_mtf = trainer.run(symbols=[f"M{i:02d}USDT" for i in range(12)],
-                    fetch=_fetch_tf, quiet=True, tfs=["5m", "15m", "1h"])
+# عمداً کوچک: این آزمون **برچسب‌خوردن** را می‌سنجد نه کیفیت بازپخش را،
+# و روی مسیر بحرانی خودآزمایی چرخه است. نسخهٔ ۱۲ ارز × ۷۰۰ کندل ۱۵ ثانیه
+# می‌گرفت و روی رانرِ شلوغ چند برابر — یعنی سیگنال حمید دیرتر ساخته
+# می‌شد. همان ادعاها با یک‌سوم هزینه ثابت می‌شوند.
+t_mtf = trainer.run(symbols=[f"M{i:02d}USDT" for i in range(4)],
+                    fetch=lambda s, tf, b: _fetch_tf(s, tf, b)[:420],
+                    quiet=True, tfs=["5m", "15m", "1h"])
 check("هر سه تایم‌فریم خوانده شدند", set(mtf) == {"5m", "15m", "1h"})
 check("هر معامله برچسب tf دارد",
       t_mtf and all(t.get("tf") in ("5m", "15m", "1h") for t in t_mtf))
