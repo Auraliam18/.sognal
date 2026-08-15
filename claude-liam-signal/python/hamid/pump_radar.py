@@ -1063,6 +1063,25 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
 
     kc = Kcache()
 
+    # دفتر انتظار — اول از همه: ورودی‌های اجراهای قبل را پایش کن و اگر
+    # حجم خورد همان لحظه سیگنال کن. این حلقه مستقل از ماشهٔ امروز است؛
+    # رهبرِ کهنه‌شده دیگر ماشه نیست ولی پنجرهٔ دنباله‌روهایش باز است.
+    watch_ignited, watch_notes = [], []
+    try:
+        from hamid import pump_watchlist
+        watch_ignited, watch_notes = pump_watchlist.sweep(kc)
+        if watch_ignited:
+            pump_watchlist.send_ignitions(watch_ignited, kc)
+        for wn in watch_notes:
+            print(f"  دفتر انتظار: {wn}")
+            try:
+                from hamid import memory as _m
+                _m.remember("درس", wn.split(" ")[0], "دفتر انتظار: " + wn)
+            except Exception:                        # noqa: BLE001
+                pass
+    except Exception as e:                           # noqa: BLE001
+        print(f"دفتر انتظار: {type(e).__name__}: {e}")
+
     # شعله‌گیری ۳۰ دقیقه‌ای — زودتر از جدول گینرهای روز می‌فهمیم
     ign = early_movers(kc, uni)
     if ign:
@@ -1284,13 +1303,31 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     expired_picks = [p for p in picks if p.get("expired_reason")]
     picks = timed[:2]
 
+    # ثبت در دفتر انتظار — کاندیدای رابطه‌دارِ هنوز-ساکت گمشدنی نیست؛
+    # اجراهای بعدی حجمش را پایش می‌کنند و لحظهٔ شروع حرکت سیگنال می‌شود.
+    try:
+        from hamid import pump_watchlist
+        _, wl_added = pump_watchlist.add_candidates(blocks, timed)
+        if wl_added:
+            print("  دفتر انتظار: ثبت " + "، ".join(wl_added))
+    except Exception as e:                           # noqa: BLE001
+        print(f"دفتر انتظار (ثبت): {type(e).__name__}: {e}")
+
     skipped = [{"symbol": b["symbol"], "why": b["skipped"]}
                for b in blocks if b.get("skipped")]
     verdict = None
     if (gs or ign) and not picks:
+        wl_n = 0
+        try:
+            from hamid import pump_watchlist
+            wl_n = len(pump_watchlist._load())
+        except Exception:                            # noqa: BLE001
+            pass
         verdict = ("خوشه قبل از رسیدن ما دویده — همهٔ اعضا ۱۰٪+ رفته‌اند یا نقطهٔ "
-                   "ورود ندارند. دیر است؛ سیگنالِ دیر صادر نمی‌کنیم و این یک ضعف "
-                   "ثبت‌شده است، نه یک فرصت.")
+                   "ورود ندارند. سیگنالِ دیر صادر نمی‌کنیم"
+                   + (f"؛ {wl_n} دنباله‌روی هنوز-ساکت در دفتر انتظار زیر پایش "
+                      "حجم است — لحظهٔ شروع حرکت سیگنال می‌شود." if wl_n
+                      else " و این یک ضعف ثبت‌شده است، نه یک فرصت."))
         print(verdict)
 
     # ذخیره در حافظه — قانون حمید: هر تحلیل، نتیجه و ضعفش را ثبت کند تا
@@ -1298,8 +1335,20 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     try:
         from hamid import memory as mem
         if verdict:
-            mem.remember("ضعف", gs[0]["symbol"] if gs else "-",
-                         "پامپ رادار دیر رسید: " + verdict[:120])
+            # ضدتکرار: همین ضعف برای همین رهبر امروز قبلاً ثبت شده؟ ۶۳ کپی
+            # از یک جمله در حافظه یادگیری نیست، نویز است.
+            _wk = ROOT / "brain" / "pump-weakness-seen.json"
+            _key = (gs[0]["symbol"] if gs else "-") + time.strftime("|%Y-%m-%d")
+            try:
+                _wd = json.loads(_wk.read_text()) if _wk.exists() else {}
+            except Exception:                        # noqa: BLE001
+                _wd = {}
+            if _key not in _wd:
+                mem.remember("ضعف", gs[0]["symbol"] if gs else "-",
+                             "پامپ رادار دیر رسید: " + verdict[:120])
+                _wd[_key] = int(time.time() * 1000)
+                _wd = dict(list(_wd.items())[-60:])
+                _wk.write_text(json.dumps(_wd, ensure_ascii=False, indent=1))
         for p in picks:
             mem.remember("تحلیل", p["symbol"],
                          f"رادار {p['symbol']} را پیشنهاد کرد (امتیاز {p['score']}): "
