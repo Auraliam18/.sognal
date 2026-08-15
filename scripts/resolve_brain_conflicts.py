@@ -89,6 +89,49 @@ def rebuild_index(path):
             if isinstance(j, dict) else "بازساخته شد")
 
 
+def merge_frontier(path):
+    """پرونده‌های «مرز پیشروی»: {نماد: زمان}. بزرگ‌ترین برنده است.
+
+    این فایل‌ها فقط جلو می‌روند — می‌گویند تا کجای تاریخ هر ارز بازپخش شده.
+    گرفتنِ max نه چیزی را از دست می‌دهد و نه تکراری می‌سازد؛ گرفتنِ min
+    باعث می‌شد همان بازه دوباره ترید شود و نمونهٔ متورمِ تکراری بسازد.
+
+    ۱۵ اوت: نبودِ همین handler کل job را قرمز کرد و ~۳۸ معاملهٔ تازه را
+    از بین برد. «دستی بماند» برای آدم درست است؛ داخل ورک‌فلو آدمی نیست."""
+    a, b = json.loads(_stage(2, path) or "{}"), json.loads(_stage(3, path) or "{}")
+    out = dict(a)
+    for k, v in b.items():
+        cur = out.get(k)
+        try:
+            out[k] = max(cur, v) if cur is not None else v
+        except TypeError:                             # نوع ناسازگار → تازه‌تر
+            out[k] = v
+    (ROOT / path).write_text(json.dumps(out, ensure_ascii=False, indent=1),
+                             encoding="utf-8")
+    return f"{len(out)} نماد، مرز جلوتر برنده"
+
+
+def merge_key_list(path):
+    """فهرست کلیدهای ضدتکرار (مثل brain/telegram-sent.json): اجتماع.
+
+    این عکس‌فوری **نیست** — دفترِ «چه چیزی قبلاً فرستاده شده» است. اگر
+    کلیدی از یک طرف بیفتد، همان سیگنال دوباره به تلگرام می‌رود و قانون
+    ضدتکرار حمید نقض می‌شود. پس اجتماع، با همان سقف ۵۰۰تایی که خودِ
+    tg_batch نگه می‌دارد و تازه‌ترین‌ها را می‌ماند."""
+    a = json.loads(_stage(2, path) or "[]")
+    b = json.loads(_stage(3, path) or "[]")
+    seen, out = set(), []
+    for k in list(a) + list(b):
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+    out = out[-500:]
+    (ROOT / path).write_text(json.dumps(out, ensure_ascii=False),
+                             encoding="utf-8")
+    return f"{len(out)} کلید ضدتکرار (اجتماع)"
+
+
 def take_ours(path):
     """برای عکس‌فوری‌های تولیدشده: نسخهٔ همین اجرا تازه‌تر است و برنده.
 
@@ -104,13 +147,47 @@ EXACT = {
     "brain/learning/index.json": rebuild_index,
 }
 
+# ── دفترِ انباشته در برابر عکس‌فوریِ مشتق‌شده ─────────────────────────────
+#
+# این تمایز، تمام ماجرای ۱۵ اوت است و باید دقیق بماند:
+#
+#   · **دفتر انباشته** (closed.jsonl، lessons) تاریخِ منحصربه‌فرد دارد. هر
+#     طرف می‌تواند ردیف‌هایی داشته باشد که طرف دیگر ندارد، پس `--ours`
+#     یعنی نابودیِ آن‌ها. این‌ها **اجتماع** می‌شوند.
+#
+#   · **عکس‌فوری مشتق‌شده** (سلامت، ترازو، دلایل، سری دامیننس) تاریخِ
+#     منحصربه‌فرد **ندارد** — تابعی از همان دفترهاست و اجرای بعدی از نو
+#     می‌سازدش. این‌جا تازه‌ترین محاسبه برنده است و چیزی از دست نمی‌رود.
+#
+# فهرست صریح است، نه قاعدهٔ فراگیر: قاعدهٔ فراگیرِ «هر json زیر brain مالِ
+# ماست» همان چیزی است که ۳۹۰ ردیف را برد. هر فایل تازه باید آگاهانه
+# این‌جا اضافه شود، وگرنه آزمونِ ساختاری صدایش را درمی‌آورد.
+DERIVED_SNAPSHOTS = {
+    "brain/analysis-btc.json",
+    "brain/dominance-series.json",
+    "brain/health.json",
+    "brain/history-stats.json",
+    "brain/medic.json",
+    "brain/paper/equity.json",       # از closed.jsonl ساخته می‌شود
+    "brain/paper/reasons.json",      # خروجی ماشین بونفرونی، از همان دفتر
+    "brain/sources-probe.json",      # نتیجهٔ کاوش منابع، هر اجرا از نو
+}
+
 
 def handler_for(path):
     """کدام معنا برای کدام مسیر — ترتیب مهم است."""
     if path in EXACT:
         return EXACT[path]
+    if path == "brain/telegram-sent.json":
+        return merge_key_list                         # دفتر ضدتکرار، نه عکس‌فوری
+    if path in DERIVED_SNAPSHOTS:
+        return take_ours                              # مشتق‌شده، تاریخ ندارد
     if path.startswith("brain/") and path.endswith(".jsonl"):
         return merge_jsonl                            # هر دفتر append-only
+    if path.startswith("brain/") and path.endswith("-state.json"):
+        return merge_frontier                         # مرز پیشروی هر انجین
+    if path.startswith("brain/research/") and path.endswith("last-seen.json"):
+        return merge_frontier                         # {url: وضعیت} — کلیدها جمع
     if path.startswith("signals/"):
         return take_ours
     return None                                       # ناشناخته = دستی، نه حدس
