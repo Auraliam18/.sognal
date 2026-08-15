@@ -168,6 +168,58 @@ check("مسیر ناشناخته حدس زده نمی‌شود",
       and rbc.handler_for("claude-liam-signal/python/x.py") is None)
 check("brain/*.json ناشناخته هم دستی می‌ماند — نه --ours",
       rbc.handler_for("brain/rooms/scan.json") is None)
+check("پروندهٔ مرز پیشروی handler دارد",
+      rbc.handler_for("brain/paper/fill-state.json") is rbc.merge_frontier
+      and rbc.handler_for("brain/paper/trainer-state.json") is rbc.merge_frontier)
+
+# مرز فقط جلو می‌رود — max برنده، و هیچ نمادی از هیچ طرف نمی‌افتد
+_fr = tmp / "frontier"
+(tmp / "brain" / "paper").mkdir(parents=True, exist_ok=True)
+git("checkout", "-q", "main", cwd=tmp)
+(tmp / "brain/paper/x-state.json").write_text(json.dumps({"A": 100, "B": 200}))
+git("add", "-A", cwd=tmp)
+git("commit", "-qm", "state base", cwd=tmp)
+git("checkout", "-q", "-b", "other2", cwd=tmp)
+(tmp / "brain/paper/x-state.json").write_text(json.dumps({"A": 50, "C": 300}))
+git("add", "-A", cwd=tmp)
+git("commit", "-qm", "state theirs", cwd=tmp)
+git("checkout", "-q", "main", cwd=tmp)
+(tmp / "brain/paper/x-state.json").write_text(json.dumps({"A": 900, "B": 150}))
+git("add", "-A", cwd=tmp)
+git("commit", "-qm", "state ours", cwd=tmp)
+git("merge", "--no-edit", "other2", cwd=tmp)
+r2 = subprocess.run([sys.executable, "scripts/resolve_brain_conflicts.py"],
+                    cwd=tmp, capture_output=True, text=True)
+check("تعارض مرز پیشروی خودکار حل می‌شود (نه «دستی بماند»)",
+      r2.returncode == 0)
+_st = json.loads((tmp / "brain/paper/x-state.json").read_text())
+check("مرز جلوتر برنده است", _st.get("A") == 900)
+check("نماد فقط-در-طرف-مقابل نمی‌افتد", _st.get("C") == 300)
+check("نماد فقط-در-خودمان هم نمی‌افتد", _st.get("B") == 150)
+
+# ── گاردِ ساختاری: هر مسیری که ورک‌فلوها کامیت می‌کنند باید handler داشته
+# باشد. نبودِ همین، ۱۵ اوت job را قرمز کرد و ۳۸ معاملهٔ تازه را برد.
+_wf = (REPO / ".github" / "workflows").glob("*.yml")
+_added = set()
+for _f in _wf:
+    for _ln in _f.read_text(encoding="utf-8").split("\n"):
+        _ln = _ln.strip()
+        if _ln.startswith("git add ") and "brain" in _ln:
+            for _tok in _ln.split():
+                if _tok.startswith(("brain/", "signals/")):
+                    _added.add(_tok.rstrip("/"))
+_real = []
+for _d in sorted(_added):
+    _p = REPO / _d
+    if _p.is_dir():
+        _real += [str(q.relative_to(REPO)) for q in _p.rglob("*.json*") if q.is_file()]
+    elif _p.is_file():
+        _real.append(_d)
+_unhandled = [p for p in _real if rbc.handler_for(p) is None]
+check(f"هر فایلی که ورک‌فلوها کامیت می‌کنند handler دارد ({len(_real)} فایل)",
+      not _unhandled)
+if _unhandled:
+    print(f"      ↳ بی‌handler: {_unhandled[:8]}")
 
 print()
 if fail:
