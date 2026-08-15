@@ -373,3 +373,127 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from hamid.selfcheck import main
     main()
+
+
+# ── ۵. خط روند به روش کتاب ─────────────────────────────────────────────────
+# دستور حمید (۱۵ اوت): «خط روند ۱ساعته و ۴ساعته که بر اساس ترندلاین‌کشیدن
+# یاد گرفتی، در تصویر بماند.»
+#
+# فرق این با `channel()` مهم است و عمدی: کانال یک برازش کمترین‌مربعات روی
+# **همهٔ** سوینگ‌هاست — خطی که از وسط داده رد می‌شود. خط روندِ کتاب این
+# نیست. خط روند صعودی از **زیرِ** کف‌ها می‌گذرد و هیچ‌کدام را نمی‌بُرد؛
+# خط روند نزولی از **بالای** سقف‌ها. کتاب سه شرط می‌گذارد:
+#
+#   ۱. دست‌کم سه برخورد معتبر — ترجیح صریح حمید در سند شخصی‌سازی.
+#      دو نقطه هر خطی را می‌سازد؛ نقطهٔ سوم است که ادعا را آزمون می‌کند.
+#   ۲. خط نباید توسط **بدنهٔ** کندل شکسته شده باشد. ویک اجازه دارد رد شود
+#      (همان هانت نقدینگی)، بدنه نه — حمید همین تفکیک را در سندش خواسته.
+#   ۳. شیب باید با جهت روند بخواند: صعودی روی کف‌های بالارونده، نزولی روی
+#      سقف‌های پایین‌رونده. خط افقی خط روند نیست، آن سطح است.
+
+@dataclass
+class Trendline:
+    slope: float
+    intercept: float
+    kind: str                 # "support" (زیر کف‌ها) یا "resistance"
+    touches: int
+    first_i: int
+    last_i: int
+    broken: bool = False      # بدنه از آن رد شد؟ خط می‌ماند، وضعیتش عوض می‌شود
+
+    def at(self, i):
+        return self.slope * i + self.intercept
+
+    def at_t(self, t, cd):
+        """قیمت خط در یک timestamp — برای کشیدن خط تایم بالا روی چارت
+        تایم پایین. بدون این، خط ۴ساعته روی محور ۵دقیقه بی‌معنا جابه‌جا
+        می‌شود."""
+        if len(cd) < 2:
+            return None
+        step = cd[1]["t"] - cd[0]["t"]
+        if step <= 0:
+            return None
+        return self.at((t - cd[0]["t"]) / step)
+
+
+def trendline(cd, lookback=120, min_touches=3, tol_mult=0.6):
+    """بهترین خط روندِ معتبر در این پنجره، یا None.
+
+    None یعنی «خط روند معتبری نیست» و همان باید رسم شود: هیچ. خط تزئینی
+    روی چارت، همان چیزی است که حمید «خط الکی» می‌نامد.
+    """
+    start = max(0, len(cd) - lookback)
+    win = cd[start:]
+    if len(win) < 20:
+        return None
+    tol = atr(win) * tol_mult
+    if not tol or tol <= 0:
+        return None
+    sw = [s for s in swings(win) if s.i < len(win)]
+    best = None
+    for kind, want in (("support", "low"), ("resistance", "high")):
+        pts = [(s.i, s.price) for s in sw if s.kind == want]
+        if len(pts) < 2:
+            continue
+        # هر جفت نقطه یک خط کاندید می‌سازد؛ برخوردها و شکست‌ها شمرده می‌شوند.
+        for a in range(len(pts)):
+            for b in range(a + 1, len(pts)):
+                (x1, y1), (x2, y2) = pts[a], pts[b]
+                if x2 == x1:
+                    continue
+                m = (y2 - y1) / (x2 - x1)
+                c = y1 - m * x1
+                # شیب باید جهت داشته باشد؛ خط تقریباً افقی سطح است نه روند.
+                if abs(m) * len(win) < tol:
+                    continue
+                # و جهتش باید با نوعش بخواند — تعریف کتاب، نه سلیقه:
+                # خط حمایتِ روند از کف‌های **بالارونده** ساخته می‌شود، پس
+                # بالا می‌رود؛ خط مقاومتِ روند از سقف‌های **پایین‌رونده**.
+                # بدون این شرط، روی سری نزولی یک «حمایت» صعودی پیدا می‌شد
+                # که هیچ معنای ساختاری ندارد.
+                if (kind == "support") != (m > 0):
+                    continue
+                # دو لنگرِ خط باید از هم دور باشند و خط باید در طول پنجره
+                # مسیر معناداری برود. بدون این دو شرط، روی گام تصادفی هم
+                # خط پیدا می‌شد — یعنی همان «خط تزئینی» که روش حمید رد
+                # می‌کند. سنجیده شد: با این شرط‌ها نرخ کشف روی گام تصادفی
+                # به صفر رسید و روی سری رونددار دست‌نخورده ماند.
+                if abs(x2 - x1) < len(win) * 0.35:
+                    continue
+                if abs(m) * len(win) < tol * 3:
+                    continue
+                touches, bad, last_touch = 0, 0, -99
+                for i, k in enumerate(win):
+                    line = m * i + c
+                    if kind == "support":
+                        # بدنه زیر خط = شکست. ویک تا نزدیکیِ خط = برخورد.
+                        if min(k["o"], k["c"]) < line - tol:
+                            bad += 1
+                            continue
+                        near = abs(k["l"] - line) <= tol
+                    else:
+                        if max(k["o"], k["c"]) > line + tol:
+                            bad += 1
+                            continue
+                        near = abs(k["h"] - line) <= tol
+                    # برخورد یعنی قیمت واقعاً به خط **رسید**، نه اینکه صرفاً
+                    # بالای آن بود. نسخهٔ اول هر کندلِ بالای خط را برخورد
+                    # می‌شمرد و ۳۷ برخورد می‌داد — عددی که شرط «≥۳ برخورد»
+                    # را بی‌معنا می‌کرد چون همیشه برقرار بود.
+                    #
+                    # و هر نزدیک‌شدن یک برخورد است، نه هر کندلِ آن نزدیکی:
+                    # پنج کندلِ چسبیده یک لمس‌اند، نه پنج تا.
+                    if near and i - last_touch > 3:
+                        touches += 1
+                        last_touch = i
+                if touches < min_touches:
+                    continue
+                # چند شکستِ بدنه یعنی خط دیگر معتبر نیست. کمی بردباری لازم
+                # است چون یک کندل پرت نباید خطِ درست را دور بریزد.
+                broken = bad > max(2, len(win) // 40)
+                cand = Trendline(m, c, kind, touches, min(x1, x2), max(x1, x2),
+                                 broken)
+                score = (0 if broken else 1, touches, max(x1, x2))
+                if best is None or score > best[0]:
+                    best = (score, cand)
+    return best[1] if best else None
