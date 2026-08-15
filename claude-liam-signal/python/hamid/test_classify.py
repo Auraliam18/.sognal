@@ -118,6 +118,34 @@ check("منبع صادقانه ذکر می‌شود (پیپر، نه اجرای 
 check("قانون حکم در خروجی نوشته شده", "فاصلهٔ اطمینان" in j["rule"])
 check("خط فارسی خواندنی ساخته می‌شود", cl.fa_lines(j))
 
+# ── «چقدر مانده تا حکم» — نقشهٔ راهِ سرعت‌بخشیدن ───────────────────────────
+# خانهٔ پرنوسان با میانگین کوچک باید نمونهٔ خیلی بیشتری بخواهد از خانهٔ
+# کم‌نوسان با میانگین بزرگ. اگر این وارونه باشد، وقت بازپخش جای غلط می‌رود.
+noisy = [tr(2.0 if i % 2 else -1.8) for i in range(60)]
+tight = [tr(0.6 if i % 5 else 0.4) for i in range(60)]
+n_noisy, n_tight = cl.needed_n([t["R"] for t in noisy]), cl.needed_n([t["R"] for t in tight])
+check("خانهٔ پرنوسان نمونهٔ بیشتری لازم دارد", n_noisy > n_tight)
+check("خانهٔ کم‌نوسانِ مثبت نمونهٔ کمی لازم دارد", n_tight <= 60)
+check("میانگین منفی یعنی هیچ نمونه‌ای نجاتش نمی‌دهد",
+      cl.needed_n([-1.0] * 40) is None)
+check("نمونهٔ خیلی کم عدد نمی‌دهد (حدس ممنوع)", cl.needed_n([1.0, 2.0]) is None)
+
+c_noisy = cl.cell(noisy)
+check("کمبود روی خانه نوشته می‌شود",
+      c_noisy["short_by"] == max(0, c_noisy["need_n"] - c_noisy["n"]))
+check("جملهٔ فارسی «چقدر مانده» ساخته می‌شود", "معامله لازم است" in c_noisy["eta"])
+c_neg = cl.cell([tr(-0.5) for _ in range(40)])
+check("خانهٔ زیان‌ده صریح می‌گوید با نمونهٔ بیشتر درست نمی‌شود",
+      "مثبت نمی‌شود" in c_neg["eta"])
+
+jj = cl.build(noisy + tight + [tr(0.5, tf="1h") for _ in range(40)])
+cw = jj["closest_to_verdict"]
+check("فهرست نزدیک‌ترین‌به‌حکم ساخته می‌شود", isinstance(cw, list))
+check("مرتب بر کمبود است (کم‌ترین کمبود اول)",
+      [c["short_by"] for c in cw] == sorted(c["short_by"] for c in cw))
+check("خانهٔ حکم‌گرفته در فهرست «مانده» نمی‌آید",
+      all(c["short_by"] > 0 for c in cw))
+
 empty = cl.build([])
 check("دفتر خالی کرش نمی‌کند", empty["n_trades"] == 0)
 check("بدون حکم، صادقانه می‌گوید حکمی نیست",

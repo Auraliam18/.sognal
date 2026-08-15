@@ -113,6 +113,28 @@ def _boot_ci(vals, alpha, rng):
     return round(lo, 3), round(hi, 3)
 
 
+def needed_n(rs):
+    """چند معامله لازم است تا CI این خانه از صفر رد کند؟
+
+    تقریب نرمال: n ≈ (۱.۹۶ × انحراف‌معیار ÷ میانگین)². دقیق نیست — CI واقعی
+    بوت‌استرپ است — ولی برای «چقدر مانده» کافی است و همان چیزی است که
+    مشخص می‌کند وقت را کجا بگذاریم.
+
+    میانگین ≤ ۰ یعنی هیچ مقدار نمونه‌ای این خانه را مثبت نمی‌کند؛ None
+    برمی‌گردد و صادقانه «با نمونهٔ بیشتر مثبت نمی‌شود» گفته می‌شود."""
+    n = len(rs)
+    if n < 5:
+        return None
+    m = sum(rs) / n
+    if m <= 0:
+        return None
+    var = sum((x - m) ** 2 for x in rs) / n
+    sd = var ** 0.5
+    if sd == 0:
+        return n
+    return int((1.96 * sd / m) ** 2) + 1
+
+
 def cell(rows, alpha=ALPHA, rng=None):
     """آمار یک خانه + حکم. حکم فقط وقتی که CI صفر را رد کرده باشد."""
     rng = rng or random.Random(20260814)
@@ -123,6 +145,17 @@ def cell(rows, alpha=ALPHA, rng=None):
     out = {"n": n, "wins": wins, "stops": n - wins,
            "win_pct": round(wins / n * 100, 1) if n else None,
            "mean_r": mean, "sum_r": round(sum(rs), 2) if n else 0}
+    # «چقدر مانده تا حکم» — دستور حمید: «دیتاهای پیپر سریع به نتیجه برسند.»
+    # بدون این عدد، سرعت‌بخشیدن حدس است؛ با آن معلوم است کدام دفتر ۱۰ معامله
+    # کم دارد و کدام ۴۰۰۰ (یعنی عملاً هرگز).
+    need = needed_n(rs)
+    out["need_n"] = need
+    out["short_by"] = (max(0, need - n) if need else None)
+    if need is None and n >= 5 and mean is not None and mean <= 0:
+        out["eta"] = "با نمونهٔ بیشتر مثبت نمی‌شود — میانگینش زیر صفر است"
+    elif need:
+        out["eta"] = (f"~{need} معامله لازم است؛ {max(0, need - n)} کم دارد"
+                      if need > n else "نمونه کافی است")
     if n < MIN_N:
         out["verdict"] = "نمونه کم"
         out["note"] = f"فقط {n} معامله — کمتر از کف {MIN_N}؛ حکمی صادر نمی‌شود"
@@ -195,6 +228,17 @@ def best(table, kind="مثبت", top=5):
     return got[:top]
 
 
+def closest(table, top=6):
+    """خانه‌های بی‌حکم، مرتب بر «چقدر کم دارد» — نقشهٔ راهِ رسیدن به نتیجه."""
+    got = [{"key": k, **v} for k, v in table["cells"].items()
+           if v.get("verdict") not in ("مثبت", "منفی")
+           and v.get("short_by") is not None and v["short_by"] > 0]
+    got.sort(key=lambda x: x["short_by"])
+    return [{"key": g["key"], "n": g["n"], "mean_r": g["mean_r"],
+             "need_n": g["need_n"], "short_by": g["short_by"]}
+            for g in got[:top]]
+
+
 def build(rows=None):
     rows = load() if rows is None else rows
     s_tf = strategy_by_tf(rows)
@@ -214,6 +258,10 @@ def build(rows=None):
             "ob_loses": best(o_tf, "منفی"),
             "ob_symbol_wins": best(o_sym, "مثبت"),
         },
+        # نزدیک‌ترین خانه‌ها به حکم — این فهرست می‌گوید وقتِ بازپخش کجا
+        # بیشترین بازده را دارد. خانه‌ای که ۱۰ معامله کم دارد ارزش یک اجرا
+        # را دارد؛ خانه‌ای که ۴۰۰۰ تا کم دارد، نه.
+        "closest_to_verdict": closest(s_tf),
         "source": "دفتر پیپر (کندل واقعی، بازپخش تاریخی) — نه اجرای واقعی؛ "
                   "بدون لغزش و عمق دفتر سفارش. «کدام بهتر است» می‌دهد، "
                   "نه «چقدر درمی‌آورد».",
@@ -235,6 +283,9 @@ def fa_lines(j, limit=6):
         L.append(f"✅ اردر بلاک: {c['key']} — {c['n']} معامله، {c['mean_r']}R")
     for c in (h.get("ob_symbol_wins") or [])[:2]:
         L.append(f"✅ OB روی ارز: {c['key']} — {c['n']} معامله، {c['mean_r']}R")
+    for c in (j.get("closest_to_verdict") or [])[:2]:
+        L.append(f"⏳ نزدیک‌ترین به حکم: {c['key']} — {c['n']} دارد، "
+                 f"~{c['need_n']} لازم است ({c['short_by']} کم دارد)")
     if not L:
         L.append("هیچ خانه‌ای هنوز فاصلهٔ اطمینانش از صفر رد نکرده — "
                  "دسته‌بندی ساخته شد ولی حکمی ندارد. این جواب است، نه شکست.")

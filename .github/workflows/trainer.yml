@@ -34,10 +34,20 @@ jobs:
         run: |
           python3 -m hamid.test_trainer
           python3 -m hamid.test_classify
+          python3 -m hamid.test_fill_books
 
       - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.trainer
+
+      # پرکردن دفترهای نازک — دستور حمید: «دیتاهای پیپر سریع به نتیجه
+      # برسند.» اندازه‌گیری شد که پولبک دوم ۴۱۳ معامله کم دارد و با نرخ
+      # زندهٔ ~۸ در روز، ۵۰ روز طول می‌کشد. همان بازپخشِ ثابت‌شدهٔ
+      # backtest.walk حالا خروجی‌اش به دفتر تجربه هم می‌رود، پس همان
+      # سؤال در چند اجرا جواب می‌گیرد نه چند ماه.
+      - name: پرکردن دفتر پولبک اول/دوم از تاریخ
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.fill_books --symbols 40 --bars 1400 || true
 
       # دسته‌بندی بلافاصله بعد از تمرین: «کدام استراتژی در کدام تایم‌فریم،
       # کدام اردر بلاک روی کدام ارز» — روی همان معامله‌هایی که همین الان
