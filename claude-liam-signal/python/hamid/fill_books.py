@@ -56,6 +56,7 @@ sys.path.insert(0, str(HERE.parent))
 
 ROOT = HERE.parent.parent.parent
 STATE = ROOT / "brain" / "paper" / "fill-state.json"
+STATUS = ROOT / "brain" / "paper" / "fill-status.json"
 
 BUDGET_S = 15 * 60        # مثل میز تمرین: تمام‌شدن تمیز، نه کشته‌شدن
 CAP_PER_SYMBOL = 60
@@ -221,12 +222,36 @@ def run(symbols=None, bars=1400, budget_s=BUDGET_S, quiet=False, fetch=None):
             print(f"⚠ digest نشد: {type(e).__name__}")
     _save_state(st)
 
+    n1 = sum(1 for t in got if t["why"]["stage"] == "first")
+    n2 = len(got) - n1
+    took = round(time.time() - started, 1)
+
+    # وضعیت هر اجرا ثبت می‌شود، چه موفق چه خالی. گام ورک‌فلو `|| true` دارد
+    # تا شکستش چرخه را نکشد — ولی بدون این پرونده، یک بازپخشِ همیشه-خالی
+    # می‌توانست هفته‌ها بی‌صدا هیچ کاری نکند و کسی نفهمد. سکوت نباید شبیه
+    # موفقیت باشد.
+    try:
+        STATUS.parent.mkdir(parents=True, exist_ok=True)
+        prev = []
+        if STATUS.exists():
+            prev = (json.loads(STATUS.read_text(encoding="utf-8"))
+                    .get("runs") or [])
+        prev.append({"at": int(time.time() * 1000), "rows": len(got),
+                     "first": n1, "second": n2, "symbols": len(symbols),
+                     "skipped": skipped["n"], "took_s": took})
+        STATUS.write_text(json.dumps({"runs": prev[-30:]},
+                                     ensure_ascii=False, indent=1),
+                          encoding="utf-8")
+    except Exception as e:                            # noqa: BLE001
+        print(f"ثبت وضعیت پرکردن: {type(e).__name__}: {e}")
+
     if not quiet:
-        n1 = sum(1 for t in got if t["why"]["stage"] == "first")
-        n2 = len(got) - n1
-        took = round(time.time() - started, 1)
         print(f"پرکردن دفتر: {len(got)} معاملهٔ بازپخش از {len(symbols)} ارز "
               f"در {took}s — پولبک اول {n1} · پولبک دوم {n2}")
+        if not got:
+            print("⚠ هیچ معامله‌ای ساخته نشد. اگر چند اجرای پیاپی صفر بماند "
+                  "یعنی یا تاریخ تمام شده (مرز پیشروی به ته رسیده) یا انجین "
+                  "روی این ارزها ستاپی نمی‌بیند — هر دو باید بررسی شوند.")
         if skipped["n"]:
             print(f"⏱ بودجه تمام شد — {skipped['n']} ارز شروع نشد؛ "
                   "مرز پیشروی ذخیره شد و اجرای بعد ادامه می‌دهد")

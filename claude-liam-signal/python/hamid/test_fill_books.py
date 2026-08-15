@@ -148,9 +148,10 @@ check("فاصلهٔ ورودها حداقل پنجرهٔ نگهداری است (
 from hamid import memory, paper                        # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="fill-"))
-real_closed, real_state = paper.CLOSED, fb.STATE
+real_closed, real_state, real_status = paper.CLOSED, fb.STATE, fb.STATUS
 paper.CLOSED = tmp / "closed.jsonl"
 fb.STATE = tmp / "fill-state.json"
+fb.STATUS = tmp / "fill-status.json"
 
 # run() علاوه بر دفتر، memory.digest_closed را هم صدا می‌زند. نسخهٔ اول این
 # آزمون فقط paper.CLOSED را جابه‌جا کرد و ۱۴ معاملهٔ ساختگی AUSDT/BUSDT
@@ -171,7 +172,8 @@ except Exception:                                     # noqa: BLE001
     pass
 
 check("مسیر آزمون از دفتر واقعی جداست",
-      paper.CLOSED != real_closed and fb.STATE != real_state)
+      paper.CLOSED != real_closed and fb.STATE != real_state
+      and fb.STATUS != real_status)
 check("مسیر حافظه هم منحرف شد (نه فقط دفتر)",
       all(getattr(memory, k) != v for k, v in real_mem.items()))
 
@@ -233,7 +235,7 @@ check("هیچ فایلی در مغز واقعی عوض نشد", not _dirty)
 if _dirty:
     print("      ↳ " + _dirty.replace("\n", "\n      ↳ "))
 
-paper.CLOSED, fb.STATE = real_closed, real_state
+paper.CLOSED, fb.STATE, fb.STATUS = real_closed, real_state, real_status
 for k, v in real_mem.items():
     setattr(memory, k, v)
 if real_brain_learning is not None:
