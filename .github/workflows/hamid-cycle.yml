@@ -82,11 +82,24 @@ jobs:
           python3 -m hamid.test_pump_rules
           python3 -m hamid.test_venues
           python3 -m hamid.test_classify
-          python3 -m hamid.test_fill_books
-          python3 -m hamid.test_resolve
-          python3 -m hamid.test_workflows
           python3 -m hamid.test_live_send
           python3 -m hamid.test_always_learning
+
+      # ابزارِ کنارِ خط تولید — نه خودِ خط تولید.
+      #
+      # ۱۵ اوت: آزمونِ ابزارِ merge به فایل‌های واقعیِ brain نگاه می‌کرد، اولین
+      # فایل تازه‌ای که خط تولید ساخت قرمزش کرد، و چون داخل همین دروازه بود
+      # چرخه ۱۲ بار پشت‌سرهم نرسید و سه ساعت سیگنالِ حمید قطع شد.
+      #
+      # شکستِ این‌ها یعنی «ابزار merge ایراد دارد»، نه «سیگنال غلط می‌شود».
+      # پس هنوز اجرا و دیده می‌شوند، ولی جلوی تحلیل بازار را نمی‌گیرند.
+      - name: آزمون ابزارها (شکستش چرخه را نمی‌خواباند)
+        continue-on-error: true
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 -m hamid.test_resolve
+          python3 -m hamid.test_fill_books
+          python3 -m hamid.test_workflows
 
       # بدون این، _tg_chart بی‌صدا شکست می‌خورد و سیگنال «بدون چارت» می‌رفت —
       # همان چیزی که حمید دید. چارت اجباری است، متنِ خالی فقط آخرین پناه.

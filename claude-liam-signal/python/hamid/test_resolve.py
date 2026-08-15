@@ -166,8 +166,12 @@ check("index.json بازساخته می‌شود نه merge",
 check("مسیر ناشناخته حدس زده نمی‌شود",
       rbc.handler_for("index.html") is None
       and rbc.handler_for("claude-liam-signal/python/x.py") is None)
-check("brain/*.json ناشناخته هم دستی می‌ماند — نه --ours",
-      rbc.handler_for("brain/rooms/scan.json") is None)
+# این شرط قبلاً برعکس بود: «brain/*.json ناشناخته باید دستی بماند». همان
+# قانون بود که چرخه را ۱۲ بار قرمز کرد؛ داخل ورک‌فلو «دستی» یعنی مرگ job.
+# حالا عکس‌فوری فرض می‌شود و بلند اعلام می‌شود — امن است چون هر نوع
+# انباشته handler صریح دارد و بالاتر گرفته می‌شود.
+check("brain/*.json ناشناخته job را نمی‌کشد (عکس‌فوری فرض می‌شود)",
+      rbc.handler_for("brain/rooms/scan.json") is rbc.take_ours)
 check("پروندهٔ مرز پیشروی handler دارد",
       rbc.handler_for("brain/paper/fill-state.json") is rbc.merge_frontier
       and rbc.handler_for("brain/paper/trainer-state.json") is rbc.merge_frontier)
@@ -197,29 +201,47 @@ check("مرز جلوتر برنده است", _st.get("A") == 900)
 check("نماد فقط-در-طرف-مقابل نمی‌افتد", _st.get("C") == 300)
 check("نماد فقط-در-خودمان هم نمی‌افتد", _st.get("B") == 150)
 
-# ── گاردِ ساختاری: هر مسیری که ورک‌فلوها کامیت می‌کنند باید handler داشته
-# باشد. نبودِ همین، ۱۵ اوت job را قرمز کرد و ۳۸ معاملهٔ تازه را برد.
-_wf = (REPO / ".github" / "workflows").glob("*.yml")
-_added = set()
-for _f in _wf:
-    for _ln in _f.read_text(encoding="utf-8").split("\n"):
-        _ln = _ln.strip()
-        if _ln.startswith("git add ") and "brain" in _ln:
-            for _tok in _ln.split():
-                if _tok.startswith(("brain/", "signals/")):
-                    _added.add(_tok.rstrip("/"))
-_real = []
-for _d in sorted(_added):
-    _p = REPO / _d
-    if _p.is_dir():
-        _real += [str(q.relative_to(REPO)) for q in _p.rglob("*.json*") if q.is_file()]
-    elif _p.is_file():
-        _real.append(_d)
-_unhandled = [p for p in _real if rbc.handler_for(p) is None]
-check(f"هر فایلی که ورک‌فلوها کامیت می‌کنند handler دارد ({len(_real)} فایل)",
-      not _unhandled)
-if _unhandled:
-    print(f"      ↳ بی‌handler: {_unhandled[:8]}")
+# ── گاردِ ساختاری — نسخهٔ دوم، قطعی ───────────────────────────────────────
+#
+# نسخهٔ اول فایل‌های **واقعیِ لحظه** را زیر brain/ می‌گشت. این یعنی آزمونی
+# که به وضعیت متغیرِ runtime وابسته است — و چون همین آزمون داخل دروازهٔ
+# self-check چرخه بود، اولین فایل تازه‌ای که خطِ تولید ساخت
+# (brain/paper/fill-status.json) کل چرخه را ۱۲ بار قرمز کرد و سه ساعت
+# سیگنالِ حمید را خواباند.
+#
+# درس: آزمونی که جلوی تولید را می‌گیرد باید قطعی باشد. حالا **قاعده‌ها**
+# سنجیده می‌شوند، نه محتویات دیسک — با فهرست ثابتِ نمونه‌های بحرانی.
+CRITICAL = {
+    "brain/paper/closed.jsonl": rbc.merge_jsonl,
+    "brain/paper/open.jsonl": rbc.merge_jsonl,
+    "brain/learning/experiences.jsonl": rbc.merge_jsonl,
+    "brain/memory/lessons.json": rbc.merge_lessons,
+    "brain/learning/index.json": rbc.rebuild_index,
+    "brain/paper/fill-state.json": rbc.merge_frontier,
+    "brain/paper/trainer-state.json": rbc.merge_frontier,
+    "brain/telegram-sent.json": rbc.merge_key_list,
+    "brain/health.json": rbc.take_ours,
+    "signals/latest.json": rbc.take_ours,
+}
+_wrong = {p: rbc.handler_for(p).__name__ for p, fn in CRITICAL.items()
+          if rbc.handler_for(p) is not fn}
+check(f"هر مسیر بحرانی handler درست دارد ({len(CRITICAL)} مسیر)", not _wrong)
+if _wrong:
+    print(f"      ↳ اشتباه: {_wrong}")
+
+# و مهم‌تر: هیچ json تولیدشده‌ای زیر brain/ نباید بی‌پاسخ بماند — چون
+# بی‌پاسخ یعنی job قرمز. فایل‌های خیالی، نه فایل‌های روی دیسک.
+for _fake in ("brain/paper/fill-status.json", "brain/something-new.json",
+              "brain/rooms/whatever.json", "brain/a/b/c/deep.json"):
+    check(f"فایل تولیدشدهٔ ناشناخته job را نمی‌کشد: {_fake.split('/')[-1]}",
+          rbc.handler_for(_fake) is not None)
+check("ولی بیرون از brain/ هنوز حدس زده نمی‌شود",
+      rbc.handler_for("index.html") is None
+      and rbc.handler_for("claude-liam-signal/python/x.py") is None)
+check("پناهِ ناشناخته عکس‌فوری است، نه اجتماعِ کورکورانه",
+      rbc.handler_for("brain/something-new.json") is rbc.take_ours)
+check("ولی دفتر jsonl هرگز به پناه نمی‌رسد (اجتماع مقدم است)",
+      rbc.handler_for("brain/whatever/new-book.jsonl") is rbc.merge_jsonl)
 
 print()
 if fail:
