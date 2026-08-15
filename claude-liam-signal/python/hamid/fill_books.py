@@ -56,6 +56,7 @@ sys.path.insert(0, str(HERE.parent))
 
 ROOT = HERE.parent.parent.parent
 STATE = ROOT / "brain" / "paper" / "fill-state.json"
+STATUS = ROOT / "brain" / "paper" / "fill-status.json"
 
 BUDGET_S = 15 * 60        # مثل میز تمرین: تمام‌شدن تمیز، نه کشته‌شدن
 CAP_PER_SYMBOL = 60
@@ -99,7 +100,7 @@ def to_paper(sym, tr, stage):
             "closed": tr["t"] + 96 * 900_000}
 
 
-def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL):
+def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL, deadline=None):
     """مثل backtest.walk ولی هر دو حالت را نگه می‌دارد.
 
     `walk` اصلی ستاپ waiting را رد می‌کند چون فقط سیگنال‌پذیرها را می‌سنجد.
@@ -116,7 +117,16 @@ def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL):
     busy_until = -1
     i = 140
     last_t = after_ms
+    checked = 0
     while i < len(c15) - FILL_WINDOW - 2 and len(out) < cap:
+        # مهلت باید **داخل** حلقه بررسی شود، نه فقط قبل از شروع ارز.
+        # نسخهٔ اول فقط قبل از شروع نگاه می‌کرد، پس ارزی که وارد شده بود تا
+        # آخر می‌رفت و کل job از timeout رد می‌شد — یعنی همان چیزی که
+        # بودجه قرار بود جلویش را بگیرد. هر ۲۰ گام یک بار کافی است؛
+        # time.time() در حلقهٔ داغ خودش هزینه دارد.
+        checked += 1
+        if deadline and checked % 20 == 0 and time.time() > deadline:
+            break
         if i <= busy_until:
             i += STEP
             continue
@@ -189,7 +199,8 @@ def run(symbols=None, bars=1400, budget_s=BUDGET_S, quiet=False, fetch=None):
         if len(c15) < 300 or len(c1h) < 120:
             return sym, [], None
         try:
-            rows, frontier = walk_both(sym, c15, c1h, after_ms=st.get(sym, 0))
+            rows, frontier = walk_both(sym, c15, c1h, after_ms=st.get(sym, 0),
+                                       deadline=deadline)
         except Exception as e:                        # noqa: BLE001
             print(f"بازپخش {sym}: {type(e).__name__}: {e}")
             return sym, [], None
@@ -211,12 +222,36 @@ def run(symbols=None, bars=1400, budget_s=BUDGET_S, quiet=False, fetch=None):
             print(f"⚠ digest نشد: {type(e).__name__}")
     _save_state(st)
 
+    n1 = sum(1 for t in got if t["why"]["stage"] == "first")
+    n2 = len(got) - n1
+    took = round(time.time() - started, 1)
+
+    # وضعیت هر اجرا ثبت می‌شود، چه موفق چه خالی. گام ورک‌فلو `|| true` دارد
+    # تا شکستش چرخه را نکشد — ولی بدون این پرونده، یک بازپخشِ همیشه-خالی
+    # می‌توانست هفته‌ها بی‌صدا هیچ کاری نکند و کسی نفهمد. سکوت نباید شبیه
+    # موفقیت باشد.
+    try:
+        STATUS.parent.mkdir(parents=True, exist_ok=True)
+        prev = []
+        if STATUS.exists():
+            prev = (json.loads(STATUS.read_text(encoding="utf-8"))
+                    .get("runs") or [])
+        prev.append({"at": int(time.time() * 1000), "rows": len(got),
+                     "first": n1, "second": n2, "symbols": len(symbols),
+                     "skipped": skipped["n"], "took_s": took})
+        STATUS.write_text(json.dumps({"runs": prev[-30:]},
+                                     ensure_ascii=False, indent=1),
+                          encoding="utf-8")
+    except Exception as e:                            # noqa: BLE001
+        print(f"ثبت وضعیت پرکردن: {type(e).__name__}: {e}")
+
     if not quiet:
-        n1 = sum(1 for t in got if t["why"]["stage"] == "first")
-        n2 = len(got) - n1
-        took = round(time.time() - started, 1)
         print(f"پرکردن دفتر: {len(got)} معاملهٔ بازپخش از {len(symbols)} ارز "
               f"در {took}s — پولبک اول {n1} · پولبک دوم {n2}")
+        if not got:
+            print("⚠ هیچ معامله‌ای ساخته نشد. اگر چند اجرای پیاپی صفر بماند "
+                  "یعنی یا تاریخ تمام شده (مرز پیشروی به ته رسیده) یا انجین "
+                  "روی این ارزها ستاپی نمی‌بیند — هر دو باید بررسی شوند.")
         if skipped["n"]:
             print(f"⏱ بودجه تمام شد — {skipped['n']} ارز شروع نشد؛ "
                   "مرز پیشروی ذخیره شد و اجرای بعد ادامه می‌دهد")
