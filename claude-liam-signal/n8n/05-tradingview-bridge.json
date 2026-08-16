@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// آلارم TradingView — بدنه یا JSON انجین Pine است یا متن سادهٔ آلارم.\n// خروجی: payload استاندارد برای repository_dispatch.\nconst raw = $input.first().json.body ?? $input.first().json;\nlet a;\ntry { a = typeof raw === 'string' ? JSON.parse(raw) : raw; }\ncatch { a = { text: String(raw) }; }\nreturn [{ json: {\n  event_type: 'tradingview_alert',\n  client_payload: {\n    received_at: Date.now(),\n    symbol: a.symbol ?? a.ticker ?? null,\n    tf: a.tf ?? a.interval ?? null,\n    engine: a.engine ?? 'tradingview',\\n    panel: a.panel ?? null,\n    direction: a.direction ?? null,\n    price: a.price ?? a.close ?? null,\n    structure: a.structure ?? null,\n    raw: a\n  }\n} }];"
+        "jsCode": "// آلارم TradingView — بدنه یا JSON انجین Pine است یا متن سادهٔ آلارم.\n// خروجی: payload استاندارد برای repository_dispatch.\n// فیلد panel = امضای پنل فرستنده (قرار حمید: هر پیام با اسم پنل خودش).\nconst raw = $input.first().json.body ?? $input.first().json;\nlet a;\ntry { a = typeof raw === 'string' ? JSON.parse(raw) : raw; }\ncatch { a = { text: String(raw) }; }\nreturn [{ json: {\n  event_type: 'tradingview_alert',\n  client_payload: {\n    received_at: Date.now(),\n    symbol: a.symbol ?? a.ticker ?? null,\n    tf: a.tf ?? a.interval ?? null,\n    engine: a.engine ?? 'tradingview',\n    panel: a.panel ?? null,\n    direction: a.direction ?? null,\n    price: a.price ?? a.close ?? null,\n    structure: a.structure ?? null,\n    raw: a\n  }\n} }];"
       },
       "name": "Normalize",
       "type": "n8n-nodes-base.code",
