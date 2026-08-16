@@ -67,7 +67,29 @@ jobs:
       - name: Publish
         if: github.ref == 'refs/heads/main'
         run: |
-          git add claude-liam-signal/backtests
+          # ۱۶ اوت — علتِ خالی‌ماندن دفتر بک‌تست روش حمید، پیدا شد این‌جا:
+          #
+          # `hamid.backtest` دو چیز می‌نویسد. گزارشِ هر اجرا در
+          # claude-liam-signal/backtests، و **دفتر انباشتهٔ معامله‌ها** در
+          # brain/backtest/hamid-trades.jsonl. این مرحله فقط اولی را کامیت
+          # می‌کرد، پس دفترِ انباشته هر بار روی رانر ساخته می‌شد و با پایان
+          # job دور ریخته می‌شد. یعنی `accumulate()` — که تمام هدفش رشد
+          # نمونه در طول زمان است — هر روز از صفر شروع می‌کرد.
+          #
+          # بدون این دفتر، روش حمید هرگز نمونهٔ کافی برای حکم جمع نمی‌کند و
+          # کانال «دانش پایدار → تصمیم» برایش ساکت می‌ماند.
+          git add brain/backtest claude-liam-signal/backtests
           git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git commit -q -m "Hamid method backtest $(date -u '+%Y-%m-%d %H:%M') UTC"
-          git push origin HEAD:main || true
+          for a in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main || true
+            if ! git merge --no-edit origin/main; then
+              python3 "$GITHUB_WORKSPACE/scripts/resolve_brain_conflicts.py" \
+                || { git merge --abort; exit 1; }
+              git commit --no-edit || { git merge --abort; exit 1; }
+            fi
+            sleep $((a * 3))
+          done
+          echo "پوش نشد — اجرای بعدی جبران می‌کند"
+          exit 1
