@@ -38,6 +38,7 @@ jobs:
           python3 -m hamid.test_improve
           python3 -m hamid.test_levels_db
           python3 -m hamid.test_coin_history
+          python3 -m hamid.test_bridge
 
       - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
@@ -68,6 +69,15 @@ jobs:
       - name: پروفایل رفتاری ارزها و پیشنهاد بهبود
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.improve || true
+
+      # پل تمرین→سیگنال (گزینهٔ ۲، دستور حمید ۱۶ اوت): کشف روی دفتر تمرین
+      # با بونفرونی کامل، بعد **تکرار** روی دفتر سیگنال واقعی. فقط چیزی که
+      # روی هر دو نمونهٔ مستقل با یک علامت زنده ماند به رتبه‌بندی می‌رسد؛
+      # اندازهٔ اثرش هم از دفتر واقعی برداشته می‌شود نه از تمرین.
+      # همین‌جا کارنامهٔ پله‌های دروازه (گزینهٔ ۳) هم چاپ می‌شود.
+      - name: پل تمرین→سیگنال و کارنامهٔ پله‌های دروازه
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.bridge || true
 
       # دانش انباشته: حکم امروزِ بک‌تست ثبت می‌شود و «پایدار» یعنی در چند
       # اندازه‌گیریِ مستقل با علامت ثابت تکرار شده — نه یک روز شانسی.

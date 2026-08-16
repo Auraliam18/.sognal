@@ -192,6 +192,20 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
         r = read(sym, c4h, c1h, c15)
         reads.append(r)
         if r.setup:
+            # جای قیمت در کانال ۱ساعته و جهش حجم لحظهٔ ورود.
+            #
+            # هر دو را میز تمرین از روز اول می‌نوشت و دفتر سیگنال واقعی
+            # هرگز — پس شرط‌هایی که به این دو ستون تکیه دارند روی دفتر
+            # واقعی همیشه «نمونهٔ کم» می‌خوردند و پل تمرین→سیگنال بی‌صدا
+            # بسته می‌ماند. این نبودِ شاهد نبود؛ نبودِ ستون بود.
+            # position_1h را stack.read از قبل حساب کرده؛ فقط حمل نمی‌شد.
+            if r.position_1h is not None:
+                r.setup["chan_pos"] = round(r.position_1h, 2)
+            try:
+                from hamid.ob_intel import vol_z_at
+                r.setup["vol_z"] = round(vol_z_at(c15, len(c15) - 1), 2)
+            except Exception:                        # noqa: BLE001 - بستر اختیاری است
+                pass
             # نقشهٔ نقدینگی — روی هر ستاپ ثبت می‌شود تا بک‌تست شبانه بسنجد
             # هم‌جهتی با آهن‌ربای نقدینگی واقعاً انتظار را بالا می‌برد یا نه.
             try:
@@ -1221,6 +1235,17 @@ def main():
                 raise FileNotFoundError("reasons از دفتر واقعی نیامده — نادیده گرفته شد")
             conds = {c[0]: c[1] for c in
                      [(x["condition"], x) for x in rj.get("confirmed") or []]}
+            # پل تمرین→سیگنال (گزینهٔ ۲، دستور حمید ۱۶ اوت): یافته‌ای که روی
+            # دفتر تمرین کشف و روی دفتر سیگنال واقعی **تکرار** شده. اندازهٔ
+            # اثرش از دفتر واقعی است، نه از تمرین. اگر همان شرط از راه
+            # مستقیم هم تأیید شده باشد، نسخهٔ مستقیم می‌ماند — پل فقط
+            # چیزی اضافه می‌کند که وگرنه هرگز به رتبه‌بندی نمی‌رسید.
+            try:
+                from hamid import bridge as _bridge
+                for b in _bridge.promoted():
+                    conds.setdefault(b["condition"], b)
+            except Exception as e:                   # noqa: BLE001 - پل اختیاری است
+                print(f"پل تمرین: {type(e).__name__}: {e}")
             if conds:
                 cond_fns = dict((n, f) for n, f in _paper.CONDITIONS)
                 def learn_score(x):
@@ -1238,7 +1263,9 @@ def main():
                 for x in ready:
                     x["learn_score"] = round(learn_score(x), 3)
                 learned = [{"rule": n, "diff": round(r["diff"], 3),
-                            "n": r["n_with"]} for n, r in conds.items()]
+                            "n": r["n_with"],
+                            "via": r.get("via") or "direct"}
+                           for n, r in conds.items()]
         except FileNotFoundError:
             pass
         except Exception as e:                       # noqa: BLE001 - یادگیری چرخه را نمی‌کشد

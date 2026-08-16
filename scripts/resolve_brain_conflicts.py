@@ -170,6 +170,8 @@ DERIVED_SNAPSHOTS = {
     "brain/medic.json",
     "brain/paper/equity.json",       # از closed.jsonl ساخته می‌شود
     "brain/paper/reasons.json",      # خروجی ماشین بونفرونی، از همان دفتر
+    "brain/paper/bridge.json",       # پل تمرین→سیگنال، هر اجرا از closed.jsonl
+                                     # از نو ساخته می‌شود — تاریخِ انباشته ندارد
     "brain/sources-probe.json",      # نتیجهٔ کاوش منابع، هر اجرا از نو
 }
 
