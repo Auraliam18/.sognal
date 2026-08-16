@@ -136,7 +136,7 @@ def run():
             if tok:
                 tg._post(tok, "sendMessage",
                          {"chat_id": chat, "parse_mode": "HTML",
-                          "text": (f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n"
+                          "text": (f"{tg.BRAND}\n"
                                    + "\n".join(fresh_msgs)
                                    + f"\n🕐 <code>{tg.tehran()}</code> به وقت ایران")})
                 print(f"اعلام {len(fresh_msgs)} الگوی تازهٔ BTC به تلگرام")

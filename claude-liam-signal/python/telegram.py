@@ -186,6 +186,36 @@ def _post_once(token, method, fields, files=None):
 # نشود.
 PANEL_NAME = os.getenv("PANEL_NAME") or "لیام تریدر ۹"
 
+# ۱۶ اوت — حمید دید: «هنوز با اسم کلود مکس سیگنال می‌فرستی؟» درست دیده بود.
+# دفعهٔ قبل فقط **نام پنل** متغیر شد، ولی یک برچسب دومِ هاردکد («کلود مکس»)
+# در نُه جای دیگر مانده بود و هر پیام دو اسم داشت:
+#   🏷 aura liam mAx · 🤖 سیگنال کلود مکس
+# «کلود مکس» نام سازنده بود نه نام پنل، و کنار نام پنل نشستنش یعنی حمید
+# نمی‌تواند از روی برچسب بفهمد سیگنال از کدام خط تولید آمده — دقیقاً همان
+# چیزی که خواسته بود حل شود.
+#
+# پس یک منبع حقیقت: هر پیامی که از هر فایلی بیرون می‌رود سرش را از این‌جا
+# می‌گیرد. اگر روزی برند عوض شود، یک جا عوض می‌شود.
+BRAND = f"🏷 <b>{PANEL_NAME}</b>"
+
+
+def _panel_code(name=None):
+    """کد کوتاه پنل برای شناسهٔ سیگنال — تا دو پنل شناسهٔ قابل تفکیک بدهند.
+
+    شناسه‌ها با `CM-` شروع می‌شدند («کلود مکس») و هر دو خط تولید یک پیشوند
+    داشتند؛ یعنی حتی از روی شناسه هم معلوم نبود سیگنال از کجاست. حروف اول
+    بخش‌های لاتینِ نام پنل برداشته می‌شود («aura liam mAx» → `ALM`). نام
+    تمام‌فارسی حرف لاتین ندارد، پس به `LIAM` برمی‌گردد — یک پیش‌فرضِ
+    آشکار، نه حدسِ خاموش.
+    """
+    parts = [w for w in (name or PANEL_NAME).split()
+             if w[:1].isascii() and w[:1].isalpha()]
+    code = "".join(w[0].upper() for w in parts)[:4]
+    return code or "LIAM"
+
+
+PANEL_CODE = os.getenv("PANEL_CODE") or _panel_code()
+
 
 def tehran(ms=None):
     """ساعت تهران (UTC+3:30) — حمید باید ببیند بین تحلیل و ارسال تأخیری نبوده."""
@@ -198,8 +228,9 @@ def caption(s):
     # نام پنل بالای هر پیام — چند هوش مصنوعی دیگر هم سیگنال می‌فرستند و حمید
     # باید بداند هر سیگنال از کدام است تا ضعیف‌ها را حذف کند.
     # شناسهٔ یکتای سیگنال (دستور حمید ۱۳ اوت) — قابل ارجاع در نتیجه/گفتگو
-    sid = time.strftime("CM-%m%d-%H%M", time.gmtime(time.time() + 3.5 * 3600))
-    L = [f"🏷 <b>{PANEL_NAME}</b> · 🤖 <b>سیگنال کلود مکس</b> · 🆔 <code>{sid}-{s['sym'].replace('USDT','')}</code>",
+    sid = time.strftime(f"{PANEL_CODE}-%m%d-%H%M",
+                        time.gmtime(time.time() + 3.5 * 3600))
+    L = [f"{BRAND} · 🆔 <code>{sid}-{s['sym'].replace('USDT','')}</code>",
          f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
     # Which strategy produced this. Two strategies run side by side and a signal
     # that does not say which one it came from cannot be judged or learned from.

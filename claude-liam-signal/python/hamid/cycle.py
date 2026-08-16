@@ -54,6 +54,17 @@ ROOT = HERE.parent.parent.parent
 OUT = ROOT / "signals"
 STATE = ROOT / "brain" / "cycle-state.json"
 
+def _tgname():
+    """نام پنل، از همان منبع حقیقتی که تلگرام دارد (telegram.PANEL_NAME)."""
+    import telegram as _t
+    return _t.PANEL_NAME
+
+
+def _tgcode():
+    import telegram as _t
+    return _t.PANEL_CODE
+
+
 DAILY_TARGET = 15
 QUIET_LEARN_N = 40        # جهان روز آرام — فقط برای تمرین، نه سیگنال
 ROOMS = ["market", "radar", "scan", "deep", "trade", "paper",
@@ -595,7 +606,7 @@ def settle_books(report):
                                  f"استاپِ تریل‌شده در سود بست — برگشتِ کامل دیگر ضرر نمی‌سازد</i>")
                     a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
                     if mid:
-                        cap = ("🤖 <b>کلود مکس</b> · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
+                        cap = (f"{_tg.BRAND} · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
                                + (f"\n🔎 <i>{a}</i>" if a else "")
                                + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")
                         # خواست حمید: ریپلای نتیجه حتماً با عکس چارت باشد —
@@ -650,7 +661,7 @@ def settle_books(report):
                                   {"chat_id": chat, "parse_mode": "HTML",
                                    "reply_to_message_id": t["why"]["tg_msg_id"],
                                    "allow_sending_without_reply": "true",
-                                   "text": (f"🤖 <b>کلود مکس</b> · ⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
+                                   "text": (f"{_tg.BRAND} · ⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
                                             f"قیمت در {hrs} ساعت هرگز به ناحیهٔ ورود "
                                             f"<code>{t['entry']:.10g}</code> نرسید؛ ستاپ کهنه "
                                             f"شده و شرایطی که صدورش را توجیه می‌کرد دیگر "
@@ -830,7 +841,7 @@ def review_cycle():
             opens = len(_p._read(_p.OPEN))
             _tg._post(tok, "sendMessage",
                       {"chat_id": chat, "parse_mode": "HTML",
-                       "text": (f"🏷 <b>{_tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n"
+                       "text": (f"{_tg.BRAND}\n"
                                 f"🧾 <b>اعلام کلی دوساعته</b>\n\n{verdict}\n"
                                 f"پوزیشن باز: {opens} · {veto_line}{root}\n"
                                 f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
@@ -989,7 +1000,11 @@ def main():
               "generatedText": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
               # شناسنامهٔ جفتِ ایجنت↔پنل — حمید چند هوش مصنوعی را با هم مقایسه
               # می‌کند؛ هر خروجی باید بگوید مال کدام جفت است تا هیچ‌وقت قاطی نشود.
-              "agent": {"name": "کلود — Claude Code", "panel": "لیام تریدر ۹"},
+              # نام پنل ثابت نوشته شده بود، پس گزارشِ **هر دو** خط تولید
+              # می‌گفت «لیام تریدر ۹» — یعنی همان شناسنامه‌ای که قرار بود
+              # جلوی قاطی‌شدن را بگیرد، خودش قاطی‌شان می‌کرد.
+              "agent": {"name": "کلود — Claude Code",
+                        "panel": _tgname(), "code": _tgcode()},
               "mode": mode, "why": why, "pacing": pace,
               "world": {k: world.get(k) for k in
                         ("verdict", "fear_greed", "dominance", "funding",

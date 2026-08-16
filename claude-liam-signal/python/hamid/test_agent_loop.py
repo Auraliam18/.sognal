@@ -13,8 +13,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from hamid import cycle                                       # noqa: E402
 from hamid import paper                                       # noqa: E402
+from hamid import memory as _memguard                         # noqa: E402
 import brain                                                  # noqa: E402
 import sources                                                # noqa: E402
+
+# ── حافظهٔ دائمی، از همان خط اول، برای کل فایل ─────────────────────────────
+#
+# ۱۶ اوت: این فایل یک درس واقعی («نرخ وتو بالا») را داخل
+# brain/memory/lessons.json تولید نوشت. مسیرش این بود: یک بلوک وسط فایل
+# `tg.creds` را استاب می‌کرد و بعد **برمی‌گرداند**؛ از آن‌جا به بعد
+# `mirror_review` با توکن واقعیِ محیط جلو می‌رفت، شاخهٔ «وتو زیاد است» را
+# می‌گرفت و `memory.remember` را صدا می‌زد. در CI توکن همیشه هست، پس این
+# در هر اجرای CI اتفاق می‌افتاد.
+#
+# ایزوله‌کردنِ بلوک‌به‌بلوک همین را ساخت: هر بلوکِ تازه‌ای که کسی اضافه کند
+# دوباره در معرض همان است. پس مسیر نوشتنِ حافظه از **اول فایل** منحرف
+# می‌شود و هرگز برنمی‌گردد — حمید صریح گفت «حافظه دایمی تحت هیچ شرایطی
+# آسیب نبیند»، و «تحت هیچ شرایطی» یعنی حتی وقتی کسی یادش رفت.
+_MEM_TMP = Path(tempfile.mkdtemp(prefix="agentloop-mem-"))
+_memguard.LESSONS = _MEM_TMP / "lessons.json"
+_memguard.HISTORY = _MEM_TMP / "history-stats.json"
+
+# عکس اولیه، برای نگهبان پایانی — تفاوت سنجیده می‌شود نه پاکیِ مطلق
+import subprocess as _spg                                     # noqa: E402
+
+_REPO = Path(__file__).resolve().parents[3]
+
+
+def _prod_status():
+    return _spg.run(["git", "status", "--porcelain", "--", "brain/", "signals/"],
+                    cwd=_REPO, capture_output=True, text=True).stdout
+
+
+_PROD_BEFORE = _prod_status()
 
 FAIL = 0
 
@@ -341,6 +372,11 @@ _n_st = tg.send_signals([{"sym": "RLUSDUSDT", "tf": "5m", "dir": "LONG",
                           "strategy": "ibs"}], lambda s, p: None)
 check("سیگنال استیبل‌کوین ارسال نمی‌شود و سهمیه نمی‌خورد",
       _n_st == 0 and not _calls, str(_calls)[:120])
+
+# ── نگهبان: این فایل حق ندارد حافظهٔ دائمی یا دفتر تولید را عوض کند ──────
+_leaked = sorted(set(_prod_status().splitlines()) - set(_PROD_BEFORE.splitlines()))
+check("هیچ فایل تولیدی (brain/ و signals/) عوض نشد", not _leaked,
+      " | ".join(_leaked)[:300])
 
 print()
 if FAIL:
