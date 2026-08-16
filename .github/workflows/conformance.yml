@@ -1,0 +1,51 @@
+# پاسبان نتیجه‌گیری‌ها — دستور حمید (۱۶ اوت): روتین تایمرداری که مرتب
+# آخرین نتیجه‌گیری‌ها را با رفتار واقعی انجین‌ها می‌سنجد. فقط تخلف را
+# گزارش می‌کند؛ سکوت یعنی همخوان.
+name: Conclusions conformance
+
+on:
+  schedule:
+    - cron: "29 */2 * * *"       # هر ۲ ساعت — هم‌قدم با آهنگ بازبینی دوساعته
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: conformance
+  cancel-in-progress: false
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: خودآزمایی
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.test_conformance
+
+      - name: سنجش همخوانی
+        working-directory: claude-liam-signal/python
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 -m hamid.conformance
+
+      - name: کامیت گزارش
+        run: |
+          git config user.name "Conformance"
+          git config user.email "conformance@liam9.ai"
+          git add signals/conformance.json
+          git diff --cached --quiet && exit 0
+          git commit -m "پاسبان نتیجه‌گیری‌ها $(date -u +'%H:%M UTC')"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            sleep $((2*i)); git fetch origin main; git rebase origin/main || exit 1
+          done
+          exit 1
