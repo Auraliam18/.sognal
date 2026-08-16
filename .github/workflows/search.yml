@@ -51,7 +51,17 @@ jobs:
 
           Ranked on out-of-sample expectancy only; a candidate has to clear zero
           on markets it never saw before it counts as a finding."
-            git push origin HEAD:claude/hamid-signal-agent-smc-dkot7v
+            # به main پوش می‌شود — همان‌جایی که اجرای زمان‌بندی‌شده از آن
+            # می‌خواند. dkot7v واگرا شده بود و پوش rejected می‌شد: شب اول
+            # موفقیتِ گام Search، ۴.۵ ساعت اندازه‌گیری در همین گام سوخت.
+            # ریس با رادار/چرخه (هر ۳ دقیقه کامیت) با fetch+rebase حل می‌شود.
+            for i in 1 2 3 4 5; do
+              git push origin HEAD:main && exit 0
+              sleep $((2*i))
+              git fetch origin main
+              git rebase origin/main || { git rebase --abort; exit 1; }
+            done
+            exit 1
           fi
       - name: Summary
         run: cat claude-liam-signal/cycles/search-latest.md >> $GITHUB_STEP_SUMMARY
