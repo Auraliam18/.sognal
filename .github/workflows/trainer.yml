@@ -36,6 +36,7 @@ jobs:
           python3 -m hamid.test_classify
           python3 -m hamid.test_fill_books
           python3 -m hamid.test_improve
+          python3 -m hamid.test_levels_db
 
       - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
@@ -67,11 +68,23 @@ jobs:
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.improve || true
 
+      # دانش انباشته: حکم امروزِ بک‌تست ثبت می‌شود و «پایدار» یعنی در چند
+      # اندازه‌گیریِ مستقل با علامت ثابت تکرار شده — نه یک روز شانسی.
+      - name: دفتر پایداری قانون‌ها
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.rule_ledger || true
+
+      # دیتابیس خطوط: خط روند و سطح، چندتایم‌فریمی، با اعتبار انباشته و
+      # چرخهٔ عمر ACTIVE/BROKEN/FLIPPED/HISTORICAL — خط پاک نمی‌شود.
+      - name: دیتابیس خط روند و حمایت/مقاومت
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.levels_db --symbols 40 || true
+
       - name: ثبت دفتر و درس‌ها
         run: |
           git config user.name "Hamid Signal Agent"
           git config user.email "noreply@anthropic.com"
-          git add brain/paper/ brain/memory/ brain/learning/ brain/improve/ signals/classify.json signals/improve.json || true
+          git add brain/paper/ brain/memory/ brain/learning/ brain/improve/ brain/levels/ signals/classify.json signals/improve.json || true
           if git diff --cached --quiet; then
             echo "دادهٔ تازه‌ای نبود"
             exit 0

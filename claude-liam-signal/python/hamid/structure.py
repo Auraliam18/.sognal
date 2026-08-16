@@ -400,20 +400,26 @@ class Trendline:
     first_i: int
     last_i: int
     broken: bool = False      # بدنه از آن رد شد؟ خط می‌ماند، وضعیتش عوض می‌شود
+    t0: int = 0               # timestamp کندلِ **صفرِ پنجرهٔ برازش**
+    step_ms: int = 0          # فاصلهٔ کندل‌ها، برای نگاشت زمانی
 
     def at(self, i):
         return self.slope * i + self.intercept
 
-    def at_t(self, t, cd):
-        """قیمت خط در یک timestamp — برای کشیدن خط تایم بالا روی چارت
-        تایم پایین. بدون این، خط ۴ساعته روی محور ۵دقیقه بی‌معنا جابه‌جا
-        می‌شود."""
-        if len(cd) < 2:
+    def at_t(self, t, cd=None):
+        """قیمت خط در یک timestamp.
+
+        مبدأ **پنجرهٔ برازش** است، نه کندل اولِ سری. این تمایز یک باگ
+        واقعی بود: `trendline` فقط روی ۱۲۰ کندل آخر برازش می‌کند، ولی
+        نسخهٔ اول ایندکس صفر را کندل اولِ سری فرض می‌کرد. روی سری
+        ۲۴۰تایی یعنی خط ۱۲۰ کندل جابه‌جا کشیده می‌شد — و همان خط روی
+        چارت سیگنال حمید می‌رفت.
+        """
+        step = self.step_ms or ((cd[1]["t"] - cd[0]["t"])
+                                if cd and len(cd) > 1 else 0)
+        if not step:
             return None
-        step = cd[1]["t"] - cd[0]["t"]
-        if step <= 0:
-            return None
-        return self.at((t - cd[0]["t"]) / step)
+        return self.at((t - self.t0) / step)
 
 
 def trendline(cd, lookback=120, min_touches=3, tol_mult=0.6):
@@ -492,7 +498,9 @@ def trendline(cd, lookback=120, min_touches=3, tol_mult=0.6):
                 # است چون یک کندل پرت نباید خطِ درست را دور بریزد.
                 broken = bad > max(2, len(win) // 40)
                 cand = Trendline(m, c, kind, touches, min(x1, x2), max(x1, x2),
-                                 broken)
+                                 broken, t0=win[0]["t"],
+                                 step_ms=(win[1]["t"] - win[0]["t"]
+                                          if len(win) > 1 else 0))
                 score = (0 if broken else 1, touches, max(x1, x2))
                 if best is None or score > best[0]:
                     best = (score, cand)
