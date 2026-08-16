@@ -227,7 +227,7 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 <body dir="ltr" data-active="signals">
 <header>
   <div class="bar">
-    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.29 · «چقدر مانده تا حکم» + پرکردن دفتر از تاریخ</span></div>
+    <div class="brand"><b>حمید کلود مکس پنل</b><span class="v" id="ver">cycle v21.30 · فضای جدا برای هر پنل</span><span class="v" id="nsChip" style="display:none"></span></div>
     <div class="regime" id="regime"><span class="dot"></span><span id="regimeTxt">رژیم بازار: نامشخص</span></div>
     <span class="mono" id="syncPill" style="font-size:11px;color:var(--dim)">ابری: خاموش</span>
     <label class="switch" id="autoSw"><span>اسکن خودکار</span><i></i></label>
@@ -457,13 +457,59 @@ input.f{background:var(--panel2);border:1px solid var(--line2);border-radius:9px
 /* =========================================================================
    STORAGE — localStorage with safe in-memory fallback (works on iPad & here)
    ========================================================================= */
+/* فضای ذخیره‌سازیِ جدا برای هر پنل — دستور حمید، ۱۶ اوت:
+   «فضاها را جدا کن، ولی تا همین لحظه هیچ چیزی تغییر نکند؛ می‌خواهم از این
+    لحظه به بعد اطلاعات جدید را برای هر کدام جدا انجام دهم.»
+
+   دو پنل روی یک دامنه، یک localStorage مشترک دارند — پس پنلِ چت و پنلِ
+   پین‌شده روی هم می‌نوشتند. با `?panel=<نام>` هرکدام فضای خودش را می‌گیرد.
+
+   قرارداد، دقیقاً همان چیزی که خواسته شد:
+     · **نوشتن** فقط به فضای همین پنل می‌رود (`p:<نام>:کلید`).
+     · **خواندن** اول فضای خودش، و اگر خالی بود از فضای مشترکِ قدیمی.
+     · فضای قدیمی از این لحظه **نه نوشته می‌شود نه پاک** — یعنی هرچه تا
+       امروز جمع شده دست‌نخورده می‌ماند و هر دو پنل هنوز می‌بینندش.
+
+   بدون پارامتر، رفتار دقیقاً مثل قبل است — پنلِ باز شده بدون `?panel=`
+   هیچ تفاوتی حس نمی‌کند. */
+const PANEL_NS=(()=>{try{
+  const q=new URLSearchParams(location.search).get("panel");
+  const n=(q||"").trim().replace(/[^a-zA-Z0-9_-]/g,"").slice(0,24);
+  return n?`p:${n}:`:"";
+}catch(e){return "";}})();
 const DB=(()=>{const mem={};
   const ok=(()=>{try{localStorage.setItem("__t","1");localStorage.removeItem("__t");return true;}catch(e){return false;}})();
   return{
-    get(k){if(ok){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){}}return (k in mem)?mem[k]:null;},
-    set(k,v){if(ok){try{localStorage.setItem(k,JSON.stringify(v));return;}catch(e){}}mem[k]=v;}
+    ns:PANEL_NS,
+    get(k){
+      if(ok){
+        try{
+          if(PANEL_NS){const v=localStorage.getItem(PANEL_NS+k);if(v!==null)return JSON.parse(v);}
+          const v0=localStorage.getItem(k);            // میراثِ مشترک — فقط خواندنی
+          if(v0!==null)return JSON.parse(v0);
+        }catch(e){}
+      }
+      const kk=PANEL_NS+k;
+      return (kk in mem)?mem[kk]:((k in mem)?mem[k]:null);
+    },
+    set(k,v){if(ok){try{localStorage.setItem(PANEL_NS+k,JSON.stringify(v));return;}catch(e){}}mem[PANEL_NS+k]=v;}
   };
 })();
+
+/* نشانگر فضا: تا معلوم باشد این پنل روی کدام حافظه می‌نویسد. بدون این،
+   دو پنلِ ظاهراً یکسان بی‌صدا دو وضعیت جدا می‌سازند و آدم گیج می‌شود. */
+try{
+  const _c=document.getElementById("nsChip");
+  if(_c){
+    if(PANEL_NS){
+      _c.textContent="فضای «"+PANEL_NS.slice(2,-1)+"» — جدا";
+      _c.style.cssText="display:inline;border-color:#3fb6f555;color:#3fb6f5";
+    }else{
+      _c.textContent="فضای مشترک (قدیمی)";
+      _c.style.cssText="display:inline;opacity:.65";
+    }
+  }
+}catch(e){}
 
 /* =========================================================================
    PERSISTENCE (Path A) — کل وضعیت پنل در localStorage سیو می‌شود تا بعد از
