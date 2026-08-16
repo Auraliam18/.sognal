@@ -37,6 +37,7 @@ jobs:
           python3 -m hamid.test_fill_books
           python3 -m hamid.test_improve
           python3 -m hamid.test_levels_db
+          python3 -m hamid.test_coin_history
 
       - name: تمرین — ۱۰۰ ارز برتر × سه تایم‌فریم، بازپخش بدون look-ahead
         working-directory: claude-liam-signal/python
@@ -80,11 +81,18 @@ jobs:
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.levels_db --symbols 40 || true
 
+      # جدول تاریخچهٔ هر ارز (دستور حمید ۱۶ اوت): کِی پامپ/دامپ کرده، و
+      # آن لحظه بیت‌کوین و دامیننس تتر کجا بودند. انباشته است — اجرای اول
+      # کل تاریخِ دردسترس، بعدها فقط ارز تازه و کندل تازه.
+      - name: جدول تاریخچهٔ نوسان ارزها
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.coin_history --symbols 200 --bars 1000 || true
+
       - name: ثبت دفتر و درس‌ها
         run: |
           git config user.name "Hamid Signal Agent"
           git config user.email "noreply@anthropic.com"
-          git add brain/paper/ brain/memory/ brain/learning/ brain/improve/ brain/levels/ signals/classify.json signals/improve.json || true
+          git add brain/paper/ brain/memory/ brain/learning/ brain/improve/ brain/levels/ brain/coins/ signals/classify.json signals/improve.json || true
           if git diff --cached --quiet; then
             echo "دادهٔ تازه‌ای نبود"
             exit 0
