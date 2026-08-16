@@ -230,7 +230,7 @@ def main():
     new.sort(key=lambda s: (not s["elite"],))
     delivered = 0
     for s in new[:CAP]:
-        cap = ("🏷 حمید کلود مکس پنل\n"
+        cap = ("🏷 لیام تریدر ۹\n"
                f"{'🏆 ' if s['elite'] else ''}🚨 {s['sym']} — "
                f"{'خرید' if s['dir'] == 'LONG' else 'فروش'} ({s['tf']})\n"
                f"استراتژی: {s['name']}\n"

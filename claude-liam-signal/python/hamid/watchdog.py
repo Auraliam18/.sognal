@@ -57,7 +57,7 @@ def c_panel_loads():
     html = _get(f"{PAGES}/index.html", as_json=False)
     # نشانهٔ قدیمی «Hamid Signal Agent» با تغییر نام پنل حذف شد و همین چک
     # هر چرخه به دروغ «پنل خراب» می‌فرستاد — نشانه‌های واقعی امروز:
-    if ("حمید کلود مکس پنل" not in html) and ("cycle v" not in html):
+    if ("لیام تریدر ۹" not in html) and ("حمید کلود مکس پنل" not in html) and ("cycle v" not in html):
         return "down", "صفحه بالا آمد ولی محتوایش پنل نیست"
     ver = ""
     i = html.find("cycle v")

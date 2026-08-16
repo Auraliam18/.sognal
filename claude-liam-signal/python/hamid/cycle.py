@@ -975,7 +975,7 @@ def main():
               "generatedText": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
               # شناسنامهٔ جفتِ ایجنت↔پنل — حمید چند هوش مصنوعی را با هم مقایسه
               # می‌کند؛ هر خروجی باید بگوید مال کدام جفت است تا هیچ‌وقت قاطی نشود.
-              "agent": {"name": "کلود — Claude Code", "panel": "حمید کلود مکس پنل"},
+              "agent": {"name": "کلود — Claude Code", "panel": "لیام تریدر ۹"},
               "mode": mode, "why": why, "pacing": pace,
               "world": {k: world.get(k) for k in
                         ("verdict", "fear_greed", "dominance", "funding",
