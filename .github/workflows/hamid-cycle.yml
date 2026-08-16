@@ -192,8 +192,14 @@ jobs:
           git fetch origin gh-pages
           rm -rf /tmp/ghp && git worktree add /tmp/ghp origin/gh-pages --detach
           mkdir -p /tmp/ghp/signals
-          cp signals/hamid-latest.json /tmp/ghp/signals/ 2>/dev/null || true
-          cp signals/ob-radar.json /tmp/ghp/signals/ 2>/dev/null || true
+          # ۱۶ اوت: پنل «نتیجه ندارد» نشان می‌داد چون این‌جا فقط دو فایل
+          # کپی می‌شد. classify.json و improve.json را میز تمرین می‌سازد و
+          # به main می‌فرستد، ولی پنل از gh-pages سرو می‌شود — پس هرگز
+          # نمی‌دیدشان. هر فایلی که پنل می‌خواند باید این‌جا رد شود.
+          for f in hamid-latest ob-radar classify improve dominance \
+                   pump-radar pump-analysis btc-patterns news telegram-log; do
+            cp "signals/$f.json" /tmp/ghp/signals/ 2>/dev/null || true
+          done
           cd /tmp/ghp
           git add signals
           git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }

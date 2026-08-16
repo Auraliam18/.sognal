@@ -916,7 +916,25 @@ def _pick_chart(kc, p):
         cd = kc.get(p["symbol"], "5m", 120)
         if len(cd) < 20:
             return None
-        return _c(p["symbol"], cd, p.get("entry"), p.get("sl"), None, None, "LONG")
+        # خطوط روند از تایم بالا — دستور حمید (۱۶ اوت): «خطوط باید در
+        # تایم‌فریم‌های بالاتر کشیده شود و معتبر باشد.» خط از پنجرهٔ ۵د
+        # (۱۰ ساعت نویز) قانونِ «۴س/۱س، حداقل ۳ برخورد» را نقض می‌کرد.
+        # trendline() خودش بی‌اعتبار را None می‌کند — خط تزئینی کشیده نمی‌شود.
+        htf = []
+        try:
+            from hamid import structure as _st
+            for lbl, tf, n, col in (("4H", "4h", 200, "#e91e63"),
+                                    ("1H", "1h", 240, "#ab47bc")):
+                hcd = kc.get(p["symbol"], tf, n)
+                if len(hcd) >= 60:
+                    tl = _st.trendline(hcd, lookback=min(len(hcd), 200),
+                                       min_touches=3)
+                    if tl:
+                        htf.append((lbl, tl, hcd, col))
+        except Exception:                            # noqa: BLE001
+            pass
+        return _c(p["symbol"], cd, p.get("entry"), p.get("sl"), None, None,
+                  "LONG", htf=htf)
     except Exception as e:                           # noqa: BLE001 - چارت اختیاری، سیگنال نه
         print(f"چارت پیک: {type(e).__name__}")
         return None
