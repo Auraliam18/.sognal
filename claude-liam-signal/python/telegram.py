@@ -173,7 +173,9 @@ def _post_once(token, method, fields, files=None):
         return json.load(r)
 
 
-PANEL_NAME = "حمید کلود مکس پنل"
+# دستور حمید (۱۶ اوت): سیگنال‌ها به اسم «لیام تریدر ۹» می‌روند؛ این
+# چت/پنل از چت AuraLiam Max کاملاً جداست.
+PANEL_NAME = "لیام تریدر ۹"
 
 
 def tehran(ms=None):
