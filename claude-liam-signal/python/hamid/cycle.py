@@ -867,7 +867,21 @@ def _tg_chart(s, path):
                          "c": k[4], "v": k[5]} for k in _rows]
                 if len(_hcd) < 40:
                     continue
-                _tl = _stl.trendline(_hcd)
+                # اول از دیتابیس انباشته: خطی که در چند اجرای مستقل
+                # دوباره پیدا شده، همان خطی است که حمید دستی هم می‌کشد.
+                # اگر هنوز تأیید مستقل ندارد، خط لحظه‌ای کشیده می‌شود.
+                _tl = None
+                try:
+                    from hamid import levels_db as _ldb
+                    _ldb.update(s["sym"], _tf, _hcd)
+                    _rec = _ldb.best_line(s["sym"], _tf, _hcd)
+                    if _rec:
+                        _tl = _ldb.as_trendline(_rec)
+                        _lbl = f"{_lbl}✦"        # ✦ یعنی از دیتابیس، تأییدشده
+                except Exception:                # noqa: BLE001
+                    pass
+                if _tl is None:
+                    _tl = _stl.trendline(_hcd)
                 if _tl:
                     _htf.append((_lbl, _tl, _hcd, _col))
         except Exception as _e:                      # noqa: BLE001 - خط اختیاری است
@@ -1178,6 +1192,30 @@ def main():
         learned = []
         try:
             from hamid import paper as _paper
+            # ── کانال دوم: دانشِ **پایدار** از بک‌تست کندل واقعی ────────
+            #
+            # اندازه‌گیری ۱۶ اوت: ماشین شرط‌های دفتر کاغذی در ۸ روز پیاپی
+            # صفر شرط تأیید کرد، پس learn_score عملاً همیشه ۰ بود — یعنی
+            # رتبه‌بندی «یادگیرنده» هیچ اثری نداشت. دفتر پایداری
+            # (rule_ledger) قانون‌هایی را می‌دهد که در چند اندازه‌گیریِ
+            # مستقل با علامت ثابت تکرار شده‌اند.
+            #
+            # **فقط قانونِ هم‌استراتژی اعمال می‌شود.** قانونی که روی ibs
+            # اندازه گرفته شده دربارهٔ روش حمید چیزی ثابت نمی‌کند؛ منتقل
+            # کردنش یعنی ادعای بی‌شاهد. تا وقتی بک‌تستِ روش حمید حکم
+            # ندهد، این کانال باز است ولی ساکت — و همین درست است.
+            _stable = []
+            try:
+                _sr = json.loads((brain.BRAIN / "learning" /
+                                  "stable-rules.json").read_text())
+                _stable = [r for r in (_sr.get("rules") or [])
+                           if r.get("strategy") == "hamid"]
+                _other = len(_sr.get("rules") or []) - len(_stable)
+                if _other:
+                    print(f"دانش پایدار: {_other} قانون برای استراتژی دیگر "
+                          "اندازه‌گیری شده — روی روش حمید اعمال نمی‌شود")
+            except Exception:                        # noqa: BLE001 - نبودش حالت معتبر است
+                pass
             rj = json.loads((_paper.BOOK / "reasons.json").read_text())
             if rj.get("book") != str(_paper.CLOSED):
                 raise FileNotFoundError("reasons از دفتر واقعی نیامده — نادیده گرفته شد")
