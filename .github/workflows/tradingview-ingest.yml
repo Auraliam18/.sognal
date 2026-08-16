@@ -1,0 +1,91 @@
+# پل ورودی TradingView — آلارم چارت حمید به سیستم می‌رسد.
+#
+# مسیر: آلارم TradingView (وب‌هوک) → n8n (05-tradingview-bridge.json) →
+# repository_dispatch → این ورک‌فلو → signals/tradingview-in.json (دفتر
+# append-only) + اطلاع تلگرام. ایجنت‌ها (رادار/چرخه/حلقهٔ زنده) این فایل
+# را مثل هر فید دیگری می‌خوانند.
+#
+# TradingView API عمومی ندارد؛ وب‌هوکِ آلارم تنها مسیر خروجی آن است —
+# نتیجه‌گیری ثبت‌شدهٔ ۱۵ اوت. این پل همان اتصال است.
+name: TradingView ingest
+
+on:
+  repository_dispatch:
+    types: [tradingview_alert]
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: "JSON آلارم (برای تست دستی مسیر دریافت)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tradingview-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - name: ثبت آلارم در دفتر ورودی
+        env:
+          PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.payload || toJSON(github.event.client_payload) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, time
+          from pathlib import Path
+          p = Path("signals/tradingview-in.json")
+          try:
+              d = json.loads(p.read_text())
+              assert isinstance(d, list)
+          except Exception:
+              d = []
+          ev = json.loads(os.environ["PAYLOAD"])
+          ev["ingested_at"] = int(time.time() * 1000)
+          d.insert(0, ev)
+          d = d[:200]                      # دفتر ورودی، نه آرشیو ابدی
+          p.parent.mkdir(exist_ok=True)
+          p.write_text(json.dumps(d, ensure_ascii=False, indent=1))
+          print(f"آلارم TradingView ثبت شد: {ev.get('symbol')} "
+                f"{ev.get('direction') or ''} @ {ev.get('price') or '?'}")
+          EOF
+
+      - name: اطلاع تلگرام (در صورت وجود Secret)
+        if: ${{ env.TG != '' }}
+        env:
+          TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.payload || toJSON(github.event.client_payload) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request, urllib.parse
+          ev = json.loads(os.environ["PAYLOAD"])
+          sym = ev.get("symbol") or "?"
+          txt = (f"📡 آلارم TradingView: {sym} "
+                 f"{ev.get('direction') or ''} · TF {ev.get('tf') or '?'} · "
+                 f"قیمت {ev.get('price') or '?'} — وارد دفتر ورودی شد")
+          data = urllib.parse.urlencode(
+              {"chat_id": os.environ["CHAT"], "text": txt}).encode()
+          urllib.request.urlopen(urllib.request.Request(
+              f"https://api.telegram.org/bot{os.environ['TG']}/sendMessage",
+              data=data), timeout=15)
+          EOF
+
+      - name: کامیت
+        run: |
+          git config user.name "TradingView Bridge"
+          git config user.email "tv-bridge@signal.ai"
+          git add signals/tradingview-in.json
+          git diff --cached --quiet && exit 0
+          git commit -m "آلارم TradingView $(date -u +'%H:%M UTC')"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            sleep $((2*i)); git fetch origin main; git rebase origin/main || exit 1
+          done
+          exit 1

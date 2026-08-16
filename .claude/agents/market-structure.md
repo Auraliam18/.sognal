@@ -16,6 +16,12 @@ CHoCH اخیر با بستر، premium/discount، و حکم: ستاپ کجای �
 `hamid/structure.py` (swings/trend/channel/OB)، `hamid/cycle.py::read`،
 `tests/` برای سنجش. دادهٔ کندل: `sources.klines` — فقط روی رانر Actions.
 
+**مرجع اجباری خطوط روند/سطوح**: `.claude/rules/trendlines-canon.md` —
+شش کتاب و روش‌هایشان (Edwards&Magee، Murphy، Sperandeo، Brandt، Grimes،
+Bulkowski). هر منطق خط باید به یکی از این روش‌ها ارجاع بدهد؛ خط فقط از
+۴س/۱س با ۲۰۰+ کندل و ≥۳ برخورد. یافته‌های مطالعه در `brain/research/E07/`
+طبق قانون ۰۳ ثبت می‌شود.
+
 قواعد: CHoCH تنها = برگشت نیست. تایم پایین ساختار غالب بالا را نقض
 نمی‌کند. هر ادعا با عدد و قابل بازتولید؛ ندانسته = UNKNOWN.
 قبل از تحلیل مهم: `brain/memory/lessons.json` را برای همان نماد بخوان.
