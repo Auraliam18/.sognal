@@ -32,6 +32,9 @@ IGNITE_MOVE_LO = 1.5        # کمتر از این هنوز «شروع حرکت�
 IGNITE_MOVE_HI = 10.0       # بیشتر از این یعنی بدون ما پرید — دیگر سیگنال نیست
 MISSED_PCT = 10.0           # بالای این در ۲۴س = از دست رفت، درس بنویس
 MAX_AGE_H = 48              # سقف مطلق عمر ورودی، حتی با پنجرهٔ باز
+REJOIN_COOLDOWN_H = 24      # ارزِ منقضی/ازدست‌رفته تا این مدت دوباره ثبت نمی‌شود
+                            # (بدون این، چرخهٔ ثبت→انقضا→ثبت ۱۶ کپی از یک درس
+                            #  در حافظه می‌کاشت — دیده‌شده ۱۶ اوت)
 
 
 def _load():
@@ -53,11 +56,14 @@ def add_candidates(blocks, picks, now_ms=None):
     لحظهٔ حجم خوردنشان از دست نرود."""
     now_ms = now_ms or int(time.time() * 1000)
     wl = _load()
+    grave = wl.get("_graveyard") or {}
     pick_syms = {p["symbol"] for p in picks or []}
     added = []
     bmap = {b["symbol"]: b for b in blocks or []}
 
     def _put(sym, leader, window_end, reasons, entry=None, sl=None, src="pick"):
+        if sym and now_ms - grave.get(sym, 0) < REJOIN_COOLDOWN_H * 3600e3:
+            return                       # تازه منقضی شده — درس تکراری نساز
         if not sym or sym in wl:
             # تمدید پنجره اگر شاهد تازه پنجرهٔ بلندتر می‌دهد
             if sym in wl and window_end and window_end > wl[sym].get("expires_at", 0):
@@ -103,7 +109,10 @@ def sweep(kc, now_ms=None):
     if not wl:
         return [], []
     ignited, notes, drop = [], [], []
+    grave = wl.setdefault("_graveyard", {})
     for sym, e in wl.items():
+        if sym == "_graveyard":
+            continue
         age_h = (now_ms - e.get("added_at", now_ms)) / 3600e3
         c = kc.get(sym, "15m", 40)
         if len(c) < 32:
@@ -120,11 +129,13 @@ def sweep(kc, now_ms=None):
             notes.append(f"{sym} بدون ما پرید ({max(r15, r30, r24):+.1f}٪) — "
                          f"در دفتر انتظار بود ولی شلیک قبل از پایش رخ داد")
             drop.append(sym)
+            grave[sym] = now_ms
             continue
         if now_ms > e.get("expires_at", 0) or age_h > MAX_AGE_H:
             notes.append(f"{sym} پنجرهٔ تاریخی‌اش بسته شد بی‌آنکه بپرد — "
                          f"طبق سابقهٔ خودش دیگر احتمالاً نمی‌پرد")
             drop.append(sym)
+            grave[sym] = now_ms
             continue
         move = max(r15, r30)
         if vol_x >= IGNITE_VOL_X and IGNITE_MOVE_LO <= move <= IGNITE_MOVE_HI:
@@ -136,6 +147,9 @@ def sweep(kc, now_ms=None):
             drop.append(sym)
     for s in drop:
         wl.pop(s, None)
+    # قبرستان هرس می‌شود تا فایل بی‌سقف بزرگ نشود
+    wl["_graveyard"] = {k: v for k, v in grave.items()
+                        if now_ms - v < 2 * REJOIN_COOLDOWN_H * 3600e3}
     _save(wl)
     return ignited, notes
 
