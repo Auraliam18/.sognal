@@ -76,13 +76,32 @@ jobs:
           if is_test:
               print("آلارم تستی — در دفتر ثبت شد ولی به تلگرام نمی‌رود")
               raise SystemExit(0)
-          # قرار حمید (۱۶ اوت): دو پنل جدا، هر پیام با امضای پنل خودش تا
-          # معلوم باشد سیگنال تلگرام از کدام است. برند از خود آلارم می‌آید
-          # (فیلد panel در JSON آلارم TradingView/n8n)؛ آلارم بی‌امضا هم
-          # صریح «بدون امضا» می‌خورد — امضا جعل یا حدس زده نمی‌شود.
-          panel = (ev.get("panel")
-                   or (raw.get("panel") if isinstance(raw, dict) else None)
-                   or "⚠️ بدون امضای پنل — panel در JSON آلارم نیست")
+          # قرار حمید (۱۶ اوت): هر پیام با امضای پنل خودش. برند از خود
+          # آلارم می‌آید (فیلد panel در JSON آلارم TradingView/n8n).
+          #
+          # دستور جدید حمید (۱۶ اوت، همان روز — جایگزین قاعدهٔ «بی‌امضا
+          # با برچسب برود»): فقط سه پنل مجازند به تلگرام برسند —
+          # «شایورا»، «لیام مکس / aura liam mAx» و «لیام تریدر ۹».
+          # هر پنل دیگری (از جمله «aura 369 codex valhalla») و هر آلارم
+          # بی‌امضا: در دفتر ورودی ثبت می‌شود ولی به تلگرام نمی‌رود.
+          panel_raw = (ev.get("panel")
+                       or (raw.get("panel") if isinstance(raw, dict) else None)
+                       or "")
+          def _norm(s):
+              s = str(s).lower()
+              for ch in (" ", "‌", "‏", "‎", "-", "_", "."):
+                  s = s.replace(ch, "")
+              return s.replace("۹", "9")  # ۹ فارسی → 9
+          _p = _norm(panel_raw)
+          ALLOWED = ("لیامتریدر9", "liamtrader9",
+                     "auraliammax", "لیاممکس", "liammax",
+                     "شایورا", "shaiora", "shayora", "shaiyora", "shayoora")
+          if not panel_raw or not any(a in _p for a in ALLOWED):
+              print(f"پنل «{panel_raw or 'بدون امضا'}» در فهرست مجاز نیست — "
+                    "در دفتر ثبت شد ولی به تلگرام نمی‌رود "
+                    "(مجاز: شایورا / لیام مکس / لیام تریدر ۹)")
+              raise SystemExit(0)
+          panel = panel_raw
           txt = (f"🏷 {panel} · 📡 رسیدِ آلارم TradingView (سیگنال نیست)\n"
                  f"{sym} {ev.get('direction') or ''} · TF {ev.get('tf') or '?'} · "
                  f"قیمت اعلامیِ آلارم {ev.get('price') or '?'}\n"
