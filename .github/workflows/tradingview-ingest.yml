@@ -12,6 +12,11 @@ name: TradingView ingest
 on:
   repository_dispatch:
     types: [tradingview_alert]
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: "JSON آلارم (برای تست دستی مسیر دریافت)"
+        required: true
 
 permissions:
   contents: write
@@ -30,7 +35,7 @@ jobs:
 
       - name: ثبت آلارم در دفتر ورودی
         env:
-          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.payload || toJSON(github.event.client_payload) }}
         run: |
           python3 - <<'EOF'
           import json, os, time
@@ -56,7 +61,7 @@ jobs:
         env:
           TG: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          PAYLOAD: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.payload || toJSON(github.event.client_payload) }}
         run: |
           python3 - <<'EOF'
           import json, os, urllib.request, urllib.parse
