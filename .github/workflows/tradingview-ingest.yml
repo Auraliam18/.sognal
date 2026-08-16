@@ -67,9 +67,19 @@ jobs:
           import json, os, urllib.request, urllib.parse
           ev = json.loads(os.environ["PAYLOAD"])
           sym = ev.get("symbol") or "?"
-          txt = (f"📡 آلارم TradingView: {sym} "
-                 f"{ev.get('direction') or ''} · TF {ev.get('tf') or '?'} · "
-                 f"قیمت {ev.get('price') or '?'} — وارد دفتر ورودی شد")
+          # ۱۶ اوت: حمید یک آلارمِ تستی گرفت و پرسید این قیمت از کجاست.
+          # عدد از خودِ بستهٔ تست آمده بود (raw: {"test": ...}) و تقریباً دو
+          # برابر قیمت واقعی بیت‌کوین بود. دو اصلاح: آلارم تستی اصلاً به
+          # تلگرام نرود، و پیام صریح بگوید «رسید است، سیگنال نیست».
+          raw = ev.get("raw") or {}
+          is_test = bool(raw.get("test")) if isinstance(raw, dict) else False
+          if is_test:
+              print("آلارم تستی — در دفتر ثبت شد ولی به تلگرام نمی‌رود")
+              raise SystemExit(0)
+          txt = (f"🏷 aura liam mAx · 📡 رسیدِ آلارم TradingView (سیگنال نیست)\n"
+                 f"{sym} {ev.get('direction') or ''} · TF {ev.get('tf') or '?'} · "
+                 f"قیمت اعلامیِ آلارم {ev.get('price') or '?'}\n"
+                 f"— وارد دفتر ورودی شد؛ قیمت از خودِ آلارم است، نه از تحلیل ما.")
           data = urllib.parse.urlencode(
               {"chat_id": os.environ["CHAT"], "text": txt}).encode()
           urllib.request.urlopen(urllib.request.Request(
