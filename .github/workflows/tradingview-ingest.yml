@@ -76,7 +76,14 @@ jobs:
           if is_test:
               print("آلارم تستی — در دفتر ثبت شد ولی به تلگرام نمی‌رود")
               raise SystemExit(0)
-          txt = (f"🏷 aura liam mAx · 📡 رسیدِ آلارم TradingView (سیگنال نیست)\n"
+          # قرار حمید (۱۶ اوت): دو پنل جدا، هر پیام با امضای پنل خودش تا
+          # معلوم باشد سیگنال تلگرام از کدام است. برند از خود آلارم می‌آید
+          # (فیلد panel در JSON آلارم TradingView/n8n)؛ آلارم بی‌امضا هم
+          # صریح «بدون امضا» می‌خورد — امضا جعل یا حدس زده نمی‌شود.
+          panel = (ev.get("panel")
+                   or (raw.get("panel") if isinstance(raw, dict) else None)
+                   or "⚠️ بدون امضای پنل — panel در JSON آلارم نیست")
+          txt = (f"🏷 {panel} · 📡 رسیدِ آلارم TradingView (سیگنال نیست)\n"
                  f"{sym} {ev.get('direction') or ''} · TF {ev.get('tf') or '?'} · "
                  f"قیمت اعلامیِ آلارم {ev.get('price') or '?'}\n"
                  f"— وارد دفتر ورودی شد؛ قیمت از خودِ آلارم است، نه از تحلیل ما.")
