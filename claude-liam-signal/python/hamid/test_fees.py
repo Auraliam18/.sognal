@@ -35,13 +35,22 @@ def run():
     print(f"۴ ✅ دروازه: تنگ رد ({g_bad['net_rr']}R خالص) · عادی قبول ({g_ok['net_rr']}R)")
 
     # صفر-کارمزدِ تأییدنشده اثر ندارد (بی‌منبع = بی‌اعتبار)
-    fees.DEFAULTS["zero_fee_symbols"] = ["XUSDT"]
-    assert fees.round_trip_pct("XUSDT") == fees.round_trip_pct("YUSDT")
-    fees.DEFAULTS["zero_fee_status"] = "VERIFIED"
-    assert fees.round_trip_pct("XUSDT") < fees.round_trip_pct("YUSDT")
-    fees.DEFAULTS["zero_fee_symbols"] = []
-    fees.DEFAULTS["zero_fee_status"] = "UNVERIFIED"
-    print("۵ ✅ صفر-کارمزد فقط با وضعیت VERIFIED اثر می‌کند")
+    # ایزوله از config/fees.json روی دیسک — تستِ محیط-وابسته همان چیزی است
+    # که ۱۶ اوت بعد از ساخته‌شدن فایل config شکست (درسش همین‌جا ثبت است).
+    import json, tempfile
+    real_cfg = fees.CFG
+    tmp = Path(tempfile.mkdtemp()) / "fees.json"
+    fees.CFG = tmp
+    try:
+        tmp.write_text(json.dumps({"zero_fee_symbols": ["XUSDT"],
+                                   "zero_fee_status": "UNVERIFIED"}))
+        assert fees.round_trip_pct("XUSDT") == fees.round_trip_pct("YUSDT")
+        tmp.write_text(json.dumps({"zero_fee_symbols": ["XUSDT"],
+                                   "zero_fee_status": "VERIFIED"}))
+        assert fees.round_trip_pct("XUSDT") < fees.round_trip_pct("YUSDT")
+    finally:
+        fees.CFG = real_cfg
+    print("۵ ✅ صفر-کارمزد فقط با وضعیت VERIFIED اثر می‌کند (ایزوله از config دیسک)")
 
     print("\nهمهٔ ۵ آزمون کارمزد گذشت")
 
