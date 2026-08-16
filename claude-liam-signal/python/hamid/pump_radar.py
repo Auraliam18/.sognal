@@ -1041,6 +1041,21 @@ def reapply(backup_dir):
                                       ensure_ascii=False, indent=1))
         except Exception as e:                       # noqa: BLE001
             print(f"اجتماع درس‌ها نشد: {type(e).__name__}")
+    # دفتر انتظار — این‌جا «اجتماع» غلط است و «مالِ ما» درست.
+    #
+    # اجتماع، نمادِ همین الان حذف‌شده را از نسخهٔ main برمی‌گرداند و دقیقاً
+    # همان حلقهٔ بی‌پایان را می‌سازد که این تابع قرار است تمامش کند: منقضی
+    # شود، درسش نوشته شود، برگردد، سه دقیقه بعد دوباره. حذف باید ببرد.
+    #
+    # این امن است چون نویسندهٔ این فایل فقط pump_radar است و ورک‌فلو
+    # concurrency group دارد (`group: pump-radar`) — دو اجرا هم‌زمان نیستند،
+    # پس نسخهٔ ما تازه‌ترین حقیقت است، نه یکی از دو روایت هم‌زمان.
+    wl_bk = bk / "pump-watchlist.json"
+    if wl_bk.exists():
+        try:
+            shutil.copy(wl_bk, ROOT / "brain" / "pump-watchlist.json")
+        except Exception as e:                       # noqa: BLE001
+            print(f"بازنشانی دفتر انتظار نشد: {type(e).__name__}")
     tglog_bk = bk / "telegram-log.json"
     tglog = ROOT / "signals" / "telegram-log.json"
     if tglog_bk.exists():

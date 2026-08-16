@@ -3,6 +3,7 @@
     python3 -m hamid.test_memory
 """
 import json
+import json as _json
 import sys
 import tempfile
 from pathlib import Path
@@ -121,6 +122,28 @@ for _ in range(4):
 _d = [l for l in memory.lessons() if l["text"] == "پامپ رادار دیر رسید"]
 check("درس تکراری یک ردیف با شمارنده می‌شود، نه ۴ ردیف",
       len(_d) == 1 and _d[0].get("seen") == 4, str(_d))
+
+# ۱۶ اوت — این‌جا بود که ضدتکرار در عمل شکست. آزمون بالا فقط چهار نوشتنِ
+# پشت‌سرهم را می‌سنجید؛ در تولید بین دو تکرار، ده‌ها درسِ نمادهای دیگر
+# می‌نشست، ردیف زیر پنجرهٔ ۸۰تایی سُر می‌خورد و ردیف تازه ساخته می‌شد.
+# نتیجه: ۱۹۷ درس تکراری از ۳۰۰ و حافظهٔ دائمی به ۸.۶ ساعت آب رفت.
+for _i in range(150):
+    memory.remember("درس", f"NOISE{_i}USDT", f"نویز {_i}")
+memory.remember("ضعف", "-", "پامپ رادار دیر رسید")
+_all = memory._load()["lessons"]
+_d2 = [l for l in _all if l.get("text") == "پامپ رادار دیر رسید"]
+check("۱۵۰ درسِ دیگر وسط، باز هم یک ردیف — نه ردیف تازه",
+      len(_d2) == 1 and _d2[0].get("seen") == 5, f"{len(_d2)} ردیف")
+check("ردیفِ دوباره‌دیده‌شده می‌آید جلوی صف (قرارداد: جدیدترین اول)",
+      _all and _all[0].get("text") == "پامپ رادار دیر رسید")
+
+# و ضدتکرار نباید ابدی شود: بعد از پنجرهٔ ۱۲ساعته درس تازه ردیف خودش را دارد
+_d2[0]["at"] -= memory.DEDUP_MS + 1000
+memory.LESSONS.write_text(_json.dumps({"lessons": _all}, ensure_ascii=False))
+memory.remember("ضعف", "-", "پامپ رادار دیر رسید")
+check("بعد از ۱۲ ساعت، همان درس ردیف تازه می‌گیرد (ضدتکرار ابدی نیست)",
+      len([l for l in memory._load()["lessons"]
+           if l.get("text") == "پامپ رادار دیر رسید"]) == 2)
 
 
 print()
