@@ -47,6 +47,11 @@ concurrency:
   group: hamid-cycle
   cancel-in-progress: false
 
+# نام منبعِ این خط تولید روی پیام‌های تلگرام (دستور حمید ۱۶ اوت).
+# پنل دیگر نام خودش را دارد؛ بدون این، دو منبع در کانال قاتی می‌شوند.
+env:
+  PANEL_NAME: aura liam mAx
+
 jobs:
   cycle:
     runs-on: ubuntu-latest
@@ -191,17 +196,29 @@ jobs:
         run: |
           git fetch origin gh-pages
           rm -rf /tmp/ghp && git worktree add /tmp/ghp origin/gh-pages --detach
-          mkdir -p /tmp/ghp/signals
-          # ۱۶ اوت: پنل «نتیجه ندارد» نشان می‌داد چون این‌جا فقط دو فایل
-          # کپی می‌شد. classify.json و improve.json را میز تمرین می‌سازد و
-          # به main می‌فرستد، ولی پنل از gh-pages سرو می‌شود — پس هرگز
-          # نمی‌دیدشان. هر فایلی که پنل می‌خواند باید این‌جا رد شود.
+          # ── آدرس جدا برای این پنل (دستور حمید، ۱۶ اوت) ─────────────────
+          #
+          # «قطعاً آدرس پنل تو باید با آدرس پنل لیام تریدر ۹ متفاوت باشد.»
+          #
+          # تا امروز هر دو پنل روی همان index.html ریشه می‌نوشتند و عملاً
+          # همدیگر را بازنویسی می‌کردند — یک بار همین‌جا سرِ نام پنل تعارض
+          # واقعی خورد. حالا این پنل زیر /aura/ خانهٔ خودش را دارد و به
+          # index.html ریشه دست نمی‌زند.
+          #
+          # signals هم داخل /aura/signals/ کپی می‌شود چون پنل مسیرها را
+          # نسبت به خودش می‌خواند؛ اگر به ریشه تکیه کند، همان درهم‌ریختگی
+          # از راه داده برمی‌گردد.
+          mkdir -p /tmp/ghp/aura/signals /tmp/ghp/signals
+          cp index.html /tmp/ghp/aura/index.html
+          cp sw.js      /tmp/ghp/aura/sw.js
+          cp manifest.webmanifest /tmp/ghp/aura/ 2>/dev/null || true
           for f in hamid-latest ob-radar classify improve dominance \
-                   pump-radar pump-analysis btc-patterns news telegram-log; do
+                   pump-radar pump-analysis btc-patterns news telegram-log latest; do
+            cp "signals/$f.json" /tmp/ghp/aura/signals/ 2>/dev/null || true
             cp "signals/$f.json" /tmp/ghp/signals/ 2>/dev/null || true
           done
           cd /tmp/ghp
-          git add signals
+          git add aura signals
           git diff --cached --quiet && { echo "بدون تغییر"; exit 0; }
           git commit -q -m "چرخهٔ حمید $(date -u '+%Y-%m-%d %H:%M') UTC"
           for a in 1 2 3 4 5; do
