@@ -79,3 +79,7 @@ Return or validate `StructurePacket` exactly as registered in `config/engine_reg
 - https://onlinelibrary.wiley.com/doi/10.1111/j.1540-6261.1992.tb04681.x
 
 Read only what answers the active research question. A source may inform a hypothesis; LIAM historical tests decide whether it becomes a rule.
+
+
+## مرجع اجباری خطوط روند (دستور حمید، ۱۶ اوت)
+`.claude/rules/trendlines-canon.md` — شش کتاب مرجع؛ منطق خط بدون ارجاع به یکی از روش‌های آن پذیرفته نمی‌شود. مطالعه در `brain/research/E07/` ثبت می‌شود (الان صفر یافته دارد).

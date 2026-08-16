@@ -1,0 +1,60 @@
+{
+  "name": "Signal — TradingView bridge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tradingview-alert",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "TradingView Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "tradingview-alert"
+    },
+    {
+      "parameters": {
+        "jsCode": "// آلارم TradingView — بدنه یا JSON انجین Pine است یا متن سادهٔ آلارم.\n// خروجی: payload استاندارد برای repository_dispatch.\nconst raw = $input.first().json.body ?? $input.first().json;\nlet a;\ntry { a = typeof raw === 'string' ? JSON.parse(raw) : raw; }\ncatch { a = { text: String(raw) }; }\nreturn [{ json: {\n  event_type: 'tradingview_alert',\n  client_payload: {\n    received_at: Date.now(),\n    symbol: a.symbol ?? a.ticker ?? null,\n    tf: a.tf ?? a.interval ?? null,\n    engine: a.engine ?? 'tradingview',\n    direction: a.direction ?? null,\n    price: a.price ?? a.close ?? null,\n    structure: a.structure ?? null,\n    raw: a\n  }\n} }];"
+      },
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/Auraliam18/.sognal/dispatches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/vnd.github+json" },
+            { "name": "User-Agent", "value": "n8n-tradingview-bridge" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "GitHub dispatch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "GitHub token (Authorization: Bearer <PAT with repo scope>)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "TradingView Webhook": { "main": [[{ "node": "Normalize", "type": "main", "index": 0 }]] },
+    "Normalize": { "main": [[{ "node": "GitHub dispatch", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
