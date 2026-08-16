@@ -1338,7 +1338,7 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         wl_n = 0
         try:
             from hamid import pump_watchlist
-            wl_n = len(pump_watchlist._load())
+            wl_n = len([k for k in pump_watchlist._load() if k != "_graveyard"])
         except Exception:                            # noqa: BLE001
             pass
         verdict = ("خوشه قبل از رسیدن ما دویده — همهٔ اعضا ۱۰٪+ رفته‌اند یا نقطهٔ "

@@ -82,7 +82,15 @@ def run():
     assert not ig and any("بسته شد" in x for x in notes)
     print("۶ ✅ انقضا: پنجره بست → حذف با درس")
 
-    print("\nهمهٔ ۶ آزمون گذشت — دفتر انتظار درست کار می‌کند")
+    # قبرستان: ارز منقضی تا ۲۴س دوباره ثبت نمی‌شود — پایان ۱۶ کپی از یک درس
+    pw.add_candidates([], old, now_ms=now)
+    assert "BBBUSDT" not in pw._load() or "BBBUSDT" in (pw._load().get("_graveyard") or {}), \
+        "ارز منقضی نباید دوباره ثبت شود"
+    ig, notes2 = pw.sweep(FakeK(mk15(), mk1h()), now_ms=now + 1000)
+    assert not any("BBBUSDT" in x for x in notes2), "درس تکراری برای همان انقضا ممنوع"
+    print("۷ ✅ قبرستان: ثبت مجدد و درس تکراری بلاک شد")
+
+    print("\nهمهٔ ۷ آزمون گذشت — دفتر انتظار درست کار می‌کند")
 
 
 if __name__ == "__main__":
