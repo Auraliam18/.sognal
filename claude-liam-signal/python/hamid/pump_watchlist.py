@@ -173,6 +173,28 @@ def tg_ignition(ig):
 def send_ignitions(ignited, kc=None):
     if not ignited:
         return 0
+    # دروازهٔ روند (۱۷ اوت): شلیک لانگ وقتی ۴س و ۱س هر دو نزولی‌اند ممنوع؛
+    # یک تایم مخالف هم بدون تأییدیه‌های کامل رد می‌شود. شلیکِ ردشده به
+    # قبرستان نمی‌رود — اگر روند برگردد ممکن است دوباره واجد شود.
+    if kc is not None:
+        kept = []
+        for ig in ignited:
+            try:
+                from hamid import trend_gate
+                a = trend_gate.assess(ig["symbol"], "LONG", kc.get, evidence=ig)
+                if a["ok"]:
+                    if a["mode"] == "counter-confirmed":
+                        ig["reasons"] = (ig.get("reasons") or []) +                             [trend_gate.caption_line(a)]
+                    kept.append(ig)
+                else:
+                    print(f"  دروازهٔ روند {ig['symbol']}: {a['reason']}",
+                          flush=True)
+            except Exception as e:                   # noqa: BLE001
+                print(f"  دروازهٔ روند {ig['symbol']}: {type(e).__name__} — "
+                      f"دادهٔ ناقص، شلیک نشد", flush=True)
+        ignited = kept
+        if not ignited:
+            return 0
     try:
         import telegram as tg
         token, chat = tg.creds()

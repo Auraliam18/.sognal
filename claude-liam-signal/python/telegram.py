@@ -28,6 +28,10 @@ TGLOG = Path(__file__).resolve().parent.parent.parent / "signals" / "telegram-lo
 TTL_MS = 12 * 3600 * 1000
 
 
+def _counter_note(s):
+    return ("\n" + s["counter_trend_note"]) if s.get("counter_trend_note") else ""
+
+
 def _log_final(s):
     """«سیگنال نهایی» — هر چه واقعاً به تلگرام رفت، برای نمایش در پنل هم ثبت
     می‌شود. یک فایل مشترک با tg_batch، که پنل یک منبع حقیقت داشته باشد."""
@@ -37,6 +41,7 @@ def _log_final(s):
         log = []
     log.insert(0, {"at": int(time.time() * 1000),
                    "sym": s.get("sym"), "dir": s.get("dir"), "tf": s.get("tf"),
+                   "trend4": s.get("trend4"), "trend1": s.get("trend1"),
                    "entry": s.get("entry"), "sl": s.get("sl"),
                    "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                    "name": s.get("strategyName") or s.get("name") or "",
@@ -353,6 +358,33 @@ def send_signals(signals, render_chart, limit=8):
             _px = None
             print(f"  قیمت لحظهٔ {s['sym']} در دسترس نبود ({type(e).__name__}) — "
                   f"دروازهٔ هم‌زمانی رد شد", flush=True)
+        # دروازهٔ روند (دستور حمید ۱۷ اوت): سیگنال خلاف چارت ممنوع.
+        # هر دو تایم بالا مخالف → وتو؛ یکی مخالف → فقط با تمام تأییدیه‌ها.
+        try:
+            import sources as _src_t
+            from hamid import trend_gate as _tg_gate
+            _ta = _tg_gate.assess(
+                s["sym"], s["dir"],
+                lambda sym, tf, n: [
+                    {"t": k[0], "o": float(k[1]), "h": float(k[2]),
+                     "l": float(k[3]), "c": float(k[4]), "v": float(k[5])}
+                    for k in _src_t.klines(sym, tf, n)],
+                evidence=s)
+            s["trend4"], s["trend1"] = _ta["t4"], _ta["t1"]
+            s["trend_mode"] = _ta["mode"]
+            if not _ta["ok"]:
+                print(f"  دروازهٔ روند {s['sym']} {s['dir']}: {_ta['reason']}",
+                      flush=True)
+                sent[f"skip|{_key(s)}"] = now_ms
+                continue
+            _cl = _tg_gate.caption_line(_ta)
+            if _cl:
+                s["counter_trend_note"] = _cl
+        except Exception as _e:                      # noqa: BLE001
+            # دادهٔ روند در دسترس نیست = قانون ۱: NO_SIGNAL، نه عبورِ کور
+            print(f"  دروازهٔ روند {s['sym']}: {type(_e).__name__} — "
+                  f"دادهٔ ناقص، ارسال نشد", flush=True)
+            continue
         if _px is not None and s.get("entry") and s.get("sl"):
             _stop_frac = abs(s["entry"] - s["sl"]) / s["entry"]
             _signed = ((_px - s["entry"]) / s["entry"] if s["dir"] == "LONG"
