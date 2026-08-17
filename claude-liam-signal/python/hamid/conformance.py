@@ -168,7 +168,7 @@ def run():
         import telegram as tg
         token, chat = tg.creds()
         if token:
-            head = "🛡 <b>لیام تریدر ۹ — پاسبان نتیجه‌گیری‌ها</b>\n"
+            head = f"🛡 <b>{tg.PANEL_NAME} — پاسبان نتیجه‌گیری‌ها</b>\n"
             body = "\n".join(f"• [{x['rule']}] {x['msg']}"
                              for x in rep["violations"][:8])
             tg._post(token, "sendMessage",

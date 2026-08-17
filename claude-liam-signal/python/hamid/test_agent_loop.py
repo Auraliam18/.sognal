@@ -33,6 +33,13 @@ import sources                                                # noqa: E402
 _MEM_TMP = Path(tempfile.mkdtemp(prefix="agentloop-mem-"))
 _memguard.LESSONS = _MEM_TMP / "lessons.json"
 _memguard.HISTORY = _MEM_TMP / "history-stats.json"
+# دفترهای تولیدیِ گلوگاه ارسال هم منحرف می‌شوند — نگهبان پایین همین فایل
+# اولین نسخهٔ execution_gate را در حال نوشتن exec-outbox واقعی گرفت؛
+# viability-gate هم همان کلاس است (paper.open_from می‌نویسدش).
+from hamid import execution_gate as _egguard          # noqa: E402
+from hamid import paper as _pguard                    # noqa: E402
+_egguard.OUTBOX = _MEM_TMP / "exec-outbox.json"
+_pguard._append_gatelog = lambda *a, **k: None        # لاگ دروازهٔ دوام، تولید است
 
 # عکس اولیه، برای نگهبان پایانی — تفاوت سنجیده می‌شود نه پاکیِ مطلق
 import subprocess as _spg                                     # noqa: E402

@@ -19,6 +19,11 @@
 import json
 import time
 import uuid
+
+
+def _tg():
+    import telegram
+    return telegram
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -52,9 +57,9 @@ def evaluate(s):
         out["reason"] = f"دروازهٔ سایز: {sz['reason']}"
         return out
     out.update(ok=True, intent={
-        "id": f"LIAM9-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-"
+        "id": f"{_tg().PANEL_CODE}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-"
               f"{sym.replace('USDT', '')}-{uuid.uuid4().hex[:8]}",
-        "panel": "لیام تریدر ۹",
+        "panel": _tg().PANEL_NAME,
         "created_at": int(time.time() * 1000),
         "status": "PENDING",
         "symbol": sym, "direction": d, "tf": s.get("tf"),

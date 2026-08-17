@@ -11,6 +11,8 @@ brain/telegram-sent.json ثبت می‌کند تا هیچ سیگنالی دو ب
 import io, json, os, sys, time, urllib.request
 from pathlib import Path
 
+import telegram as tg                 # برند از یک منبع حقیقت — PANEL_NAME
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 SENT = ROOT / "brain" / "telegram-sent.json"
@@ -230,7 +232,7 @@ def main():
     new.sort(key=lambda s: (not s["elite"],))
     delivered = 0
     for s in new[:CAP]:
-        cap = ("🏷 لیام تریدر ۹\n"
+        cap = (f"🏷 {tg.PANEL_NAME}\n"
                f"{'🏆 ' if s['elite'] else ''}🚨 {s['sym']} — "
                f"{'خرید' if s['dir'] == 'LONG' else 'فروش'} ({s['tf']})\n"
                f"استراتژی: {s['name']}\n"
