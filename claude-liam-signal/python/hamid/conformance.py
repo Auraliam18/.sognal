@@ -132,10 +132,25 @@ def check(now_ms=None):
                           msg=f"{rel} از پنجرهٔ داده‌اش گذشته: {age_min:.0f}د "
                               f"(سقف {mx}د) — قانون ۵ حمید"))
 
+    # C6 — سیگنال ارسالی خلاف هر دو تایم بالا (دستور ۱۷ اوت): از این پس
+    # فرستنده trend4/trend1 را روی لاگ می‌نویسد؛ ورودیِ لاگ‌شده که هر دو
+    # مخالف جهتش باشند یعنی دروازهٔ روند دور خورده = تخلف high.
+    tg_log = _read("signals/telegram-log.json") or {}
+    for e in (tg_log.get("sent") or [])[-40:]:
+        t4, t1, d = e.get("trend4"), e.get("trend1"), e.get("dir")
+        if not t4 or not t1 or not d:
+            continue
+        opp = lambda t: (d == "LONG" and t == "down") or (d == "SHORT" and t == "up")
+        if opp(t4) and opp(t1):
+            v.append(dict(rule="C6", sev="high", sym=e.get("sym"),
+                          msg=f"سیگنال {d} {e.get('sym')} ارسال شده در حالی که "
+                              f"۴س={t4} و ۱س={t1} هر دو مخالف‌اند — دروازهٔ "
+                              f"روند دور خورده"))
+
     return dict(generated=now_ms,
                 generatedText=time.strftime("%Y-%m-%d %H:%M UTC",
                                             time.gmtime(now_ms / 1000)),
-                checks=["C1", "C2", "C3", "C4", "C5"],
+                checks=["C1", "C2", "C3", "C4", "C5", "C6"],
                 violations=v, ok=not v)
 
 

@@ -79,7 +79,18 @@ def run():
     assert any(x["rule"] == "C5" for x in rep["violations"])
     print("۶ ✅ C5: خروجی کهنه گرفته شد")
 
-    print("\nهمهٔ ۶ آزمون پاسبان گذشت")
+    # C6 — سیگنال لاگ‌شدهٔ خلاف هر دو تایم بالا
+    w(root, "signals/telegram-log.json",
+      {"sent": [{"sym": "ZUSDT", "dir": "SHORT", "trend4": "up", "trend1": "up"}]})
+    rep = cf.check(now_ms=now)
+    assert any(x["rule"] == "C6" for x in rep["violations"])
+    w(root, "signals/telegram-log.json",
+      {"sent": [{"sym": "ZUSDT", "dir": "SHORT", "trend4": "down", "trend1": "up"}]})
+    rep = cf.check(now_ms=now)
+    assert not any(x["rule"] == "C6" for x in rep["violations"])
+    print("۷ ✅ C6: شورت روی چارت دوطرفه-صعودی گرفته شد؛ یک‌طرفه رد نشد")
+
+    print("\nهمهٔ ۷ آزمون پاسبان گذشت")
 
 
 if __name__ == "__main__":
