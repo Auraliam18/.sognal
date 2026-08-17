@@ -1553,26 +1553,13 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
         send_telegram(source, picks, blocks, kc=kc)
     elif not picks:
         print("هیچ گزینه‌ای به آستانهٔ امتیاز نرسید — نفرستادن بهتر از پیشنهاد ضعیف است")
-        # نتیجهٔ «دیر رسیدیم» هم برای حمید نتیجه است — با ضدتکرار ۶ساعته
-        if verdict and not no_telegram:
-            try:
-                import telegram as _tg
-                tok, chat = _tg.creds()
-                sent = _load_sent()
-                key = "late|" + "|".join(sorted(t["symbol"] for t in triggers)[:3])
-                if tok and key not in sent:
-                    _tg._post(tok, "sendMessage",
-                              {"chat_id": chat, "parse_mode": "HTML",
-                               "text": (f"🏷 <b>{_tg.PANEL_NAME}</b>\n"
-                                        f"⏱ <b>نتیجهٔ رادار پامپ</b>\n\n{verdict}\n"
-                                        f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
-                    sent[key] = time.time() * 1000
-                    SENT.parent.mkdir(exist_ok=True)
-                    SENT.write_text(json.dumps(sent, indent=1))
-                    print("تلگرام: نتیجهٔ «دیر رسیدیم» فرستاده شد")
-            except Exception as e:                   # noqa: BLE001
-                print(f"ارسال نتیجهٔ رادار: {type(e).__name__}")
-    print(f"تمام شد در {time.time() - t0:.0f} ثانیه")
+        # دستور صریح حمید (۱۷ اوت، بعد از دیدن پیام «دیر رسیدیم» در
+        # تلگرام): «۱۰۰ بار گفتم این سیستم را پاک کن.» گزارشِ دیر رسیدن
+        # دیگر هرگز به تلگرام نمی‌رود — سیستم جایگزین، دفتر انتظار است:
+        # پیشنهاد = رهبرِ پامپ‌شده + دنباله‌روهای هنوز-ساکتِ تاریخچه‌محور،
+        # و سیگنال فقط در لحظهٔ حجم خوردن (🧠). حکم late فقط در لاگ/پنل
+        # می‌ماند (برای ممیزی)، نه در تلگرام حمید.
+        print(f"تمام شد در {time.time() - t0:.0f} ثانیه")
     return report
 
 

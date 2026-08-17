@@ -39,6 +39,13 @@ def _log_final(s):
         log = json.loads(TGLOG.read_text()).get("sent", []) if TGLOG.exists() else []
     except Exception:                                  # noqa: BLE001
         log = []
+    # پل داشبورد (۱۷ اوت): سیگنال ارسال‌شده اگر از زنجیرهٔ اجرا
+    # (کیل‌سوییچ/کارمزد/سایز) هم بگذرد، قصد اجرا در exec-outbox می‌نشیند.
+    try:
+        from hamid import execution_gate
+        execution_gate.push(s)
+    except Exception:                                  # noqa: BLE001
+        pass
     log.insert(0, {"at": int(time.time() * 1000),
                    "sym": s.get("sym"), "dir": s.get("dir"), "tf": s.get("tf"),
                    "trend4": s.get("trend4"), "trend1": s.get("trend1"),

@@ -130,7 +130,9 @@ def t_stables_rejected():
     old = paper.OPEN
     paper.OPEN = d / "o.jsonl"
     try:
-        sig = {"dir": "LONG", "entry": 1.0, "sl": 0.999, "tp1": 1.002,
+        # استاپ ۲٪ — قرارداد ۱۷ اوت: دفتر سیگنال‌گرید ورودِ استاپ‌تنگ
+        # (کارمزد ≥0.25R) نمی‌گیرد؛ فیکسچر قدیمی 0.1٪ بود و رد می‌شد.
+        sig = {"dir": "LONG", "entry": 1.0, "sl": 0.98, "tp1": 1.04,
                "waiting": False}
         n = paper.open_from([dict(sig, symbol="USD1USDT"),
                              dict(sig, symbol="USDEUSDT"),
@@ -139,6 +141,25 @@ def t_stables_rejected():
         opened = [json.loads(l)["sym"] for l in paper.OPEN.read_text().splitlines()]
         check("استیبل/رپد رد شد و ارز واقعی باز شد",
               n == 1 and opened == ["SOLUSDT"], f"opened={opened}")
+    finally:
+        paper.OPEN = old
+
+
+def t_viability_gate():
+    """قرارداد ۱۷ اوت: کالبدشکافی ۲۵۵ استاپ نشان داد نصفشان تلهٔ کارمزد
+    بودند. دفتر سیگنال‌گرید ورودِ استاپ‌تنگ نمی‌گیرد؛ دفتر آزمایش می‌گیرد."""
+    import tempfile
+    d = Path(tempfile.mkdtemp())
+    old = paper.OPEN
+    paper.OPEN = d / "o.jsonl"
+    try:
+        tight = {"dir": "LONG", "entry": 1.0, "sl": 0.999, "tp1": 1.002,
+                 "waiting": False, "symbol": "SOLUSDT"}
+        n = paper.open_from([tight], {})
+        check("سیگنال‌گرید با استاپ 0.1٪ رد شد", n == 0, f"n={n}")
+        exp = dict(tight, stage_tag="vetoed")
+        n = paper.open_from([exp], {})
+        check("دفتر آزمایش (vetoed) همان ورود را گرفت", n == 1, f"n={n}")
     finally:
         paper.OPEN = old
 
@@ -221,6 +242,7 @@ def main():
     t_real_effect_is_found()
     t_expired_not_scored()
     t_stables_rejected()
+    t_viability_gate()
     t_no_candle_expiry()
     t_trailing_stop()
     bad = [(n, d) for ok, n, d in R if not ok]

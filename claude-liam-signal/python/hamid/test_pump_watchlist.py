@@ -99,7 +99,15 @@ def run():
     assert m["_graveyard"]["XUSDT"] == 100 and "NEWUSDT" in m and "OLDUSDT" in m
     print("۸ ✅ merge_state: قبرستان از reset جان به در می‌برد، منقضی برنمی‌گردد")
 
-    print("\nهمهٔ ۸ آزمون گذشت — دفتر انتظار درست کار می‌کند")
+    # پیام «دیر رسیدیم» هرگز به تلگرام نمی‌رود (دستور ۱۷ اوت — ۱۰۰ بار)
+    import inspect
+    from hamid import pump_radar as pr
+    src = inspect.getsource(pr)
+    seg = src[src.index('elif not picks:'):src.index('تمام شد در')]
+    assert '_tg._post' not in seg, "مسیر تلگرامِ حکم late برگشته!"
+    print("۹ ✅ حکم «دیر رسیدیم» هیچ مسیری به تلگرام ندارد")
+
+    print("\nهمهٔ ۹ آزمون گذشت — دفتر انتظار درست کار می‌کند")
 
 
 if __name__ == "__main__":
