@@ -1,6 +1,6 @@
-# Parameter search — 2026-08-17 02:14 UTC
+# Parameter search — 2026-08-17 02:45 UTC
 
-320 of 320 configurations measured, fitted on 200 markets and judged on 200 the engine never saw. 9009.2s this run.
+320 of 320 configurations measured, fitted on 200 markets and judged on 200 the engine never saw. 0s this run.
 
 **Shipped configuration** — out-of-sample +0.3172R [0.2553, 0.3806] on 1629 trades.
 
