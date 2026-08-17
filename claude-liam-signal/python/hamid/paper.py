@@ -114,6 +114,20 @@ def experience_index(min_n=12):
 
 # ── the book ───────────────────────────────────────────────────────────────
 
+
+
+def _append_gatelog(sym, stage, why):
+    """ردِ دروازهٔ دوام — برای قیف یادگیری پنل، نه فقط سکوت."""
+    try:
+        p = ROOT / "signals" / "viability-gate.json"
+        d = json.loads(p.read_text()) if p.exists() else []
+        d.insert(0, {"at": int(time.time() * 1000), "sym": sym,
+                     "stage": stage, "why": why})
+        p.write_text(json.dumps(d[:100], ensure_ascii=False, indent=1))
+    except Exception:                                # noqa: BLE001
+        pass
+
+
 def open_from(setups, context):
     """Place the signals as pending limit orders, with their reasons attached.
 
@@ -138,6 +152,23 @@ def open_from(setups, context):
                s.get("stage_tag") or ("second" if not s.get("waiting") else "first"))
         if key in have:
             continue
+        # دروازهٔ دوام بعد از کارمزد (۱۷ اوت): کالبدشکافی ۲۵۵ استاپِ ۲۴س
+        # نشان داد ۱۲۴ تا (نصف) تلهٔ کارمزد بودند — استاپ آن‌قدر تنگ که
+        # کارمزد ≥۰.۲۵R می‌شد. دفتر سیگنال‌گرید دیگر چنین ورودی نمی‌گیرد؛
+        # دفترهای آزمایش/کنترل (first/vetoed/inducement/practice/v2) عمداً
+        # مستثنا هستند — کارشان اندازه‌گیری است، نه سود.
+        _stage = key[2]
+        if _stage not in ("first", "vetoed", "inducement", "practice", "v2"):
+            try:
+                from hamid import fees as _fees
+                _fr = _fees.cost_in_r(float(s["entry"]), float(s["sl"]),
+                                      s["symbol"])
+                if _fr is not None and _fr >= 0.25:
+                    _append_gatelog(s["symbol"], _stage,
+                                    f"استاپ تنگ: کارمزد {_fr}R ≥ 0.25R")
+                    continue
+            except Exception:                        # noqa: BLE001
+                pass
         _append(OPEN, {
             "sym": s["symbol"], "dir": s["dir"],
             "entry": float(s["entry"]), "sl": float(s["sl"]),

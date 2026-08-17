@@ -23,6 +23,15 @@ _FIELDS = ("sym", "dir", "entry", "sl", "tp1", "tp2", "opened", "filled",
            "held_h", "late_fill")
 
 
+def enrich_recent_losses():
+    """بعد از هر نوبت ثبت پرونده — باختِ بی‌علت باقی نماند (دستور ۱۷ اوت)."""
+    try:
+        from hamid import loss_autopsy
+        loss_autopsy.run(window_h=6, write_memory=True)
+    except Exception:                                # noqa: BLE001
+        pass
+
+
 def write_case(t, autopsy=None, regime=None):
     """یک معاملهٔ بسته → یک پروندهٔ یکتا. برگشتی: مسیر یا None."""
     try:
@@ -62,3 +71,4 @@ def write_cases(trades, autopsies=None, regime=None):
     if n:
         print(f"دفتر پرونده‌ها: {n} case ثبت شد")
     return n
+    enrich_recent_losses()   # باختِ بی‌علت باقی نماند (۱۷ اوت)
