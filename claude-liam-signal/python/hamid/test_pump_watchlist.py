@@ -90,7 +90,16 @@ def run():
     assert not any("BBBUSDT" in x for x in notes2), "درس تکراری برای همان انقضا ممنوع"
     print("۷ ✅ قبرستان: ثبت مجدد و درس تکراری بلاک شد")
 
-    print("\nهمهٔ ۷ آزمون گذشت — دفتر انتظار درست کار می‌کند")
+    # merge_state: قبرستانِ ما بعد از reset ورک‌فلو زنده می‌ماند و ورودیِ
+    # قبرستانی از نسخهٔ main برنمی‌گردد (کلاس ×۲۶ درس تکراری، ۱۷ اوت)
+    ours = {"_graveyard": {"XUSDT": 100}, "NEWUSDT": {"added_at": 5}}
+    theirs = {"XUSDT": {"added_at": 1}, "OLDUSDT": {"added_at": 2}}
+    m = pw.merge_state(ours, theirs)
+    assert "XUSDT" not in [k for k in m if k != "_graveyard"], m
+    assert m["_graveyard"]["XUSDT"] == 100 and "NEWUSDT" in m and "OLDUSDT" in m
+    print("۸ ✅ merge_state: قبرستان از reset جان به در می‌برد، منقضی برنمی‌گردد")
+
+    print("\nهمهٔ ۸ آزمون گذشت — دفتر انتظار درست کار می‌کند")
 
 
 if __name__ == "__main__":

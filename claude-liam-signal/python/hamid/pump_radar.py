@@ -1020,6 +1020,27 @@ def reapply(backup_dir):
                                        ensure_ascii=False, indent=1))
         except Exception as e:                       # noqa: BLE001
             print(f"بازنشانی تاریخچهٔ پامپ: {type(e).__name__}")
+    # دفتر انتظار + ضدتکرار ضعف — کلاس خطای ۱۷ اوت: این دو در لیست
+    # بازنشانی نبودند؛ reset --hard هر اجرا قبرستان و دفتر روز را می‌کشت،
+    # ورودی‌های منقضی برمی‌گشتند و همان درس ×۲۶ بار ثبت می‌شد.
+    try:
+        from hamid import pump_watchlist as _pw
+        wl_bk = bk / "pump-watchlist.json"
+        ours_wl = json.loads(wl_bk.read_text()) if wl_bk.exists() else {}
+        theirs_wl = _pw._load()
+        _pw._save(_pw.merge_state(ours_wl, theirs_wl))
+    except Exception as e:                           # noqa: BLE001
+        print(f"اجتماع دفتر انتظار نشد: {type(e).__name__}")
+    try:
+        wk_bk = bk / "pump-weakness-seen.json"
+        wk = ROOT / "brain" / "pump-weakness-seen.json"
+        a = json.loads(wk_bk.read_text()) if wk_bk.exists() else {}
+        b = json.loads(wk.read_text()) if wk.exists() else {}
+        b.update({k: max(v, b.get(k, 0)) for k, v in a.items()})
+        wk.write_text(json.dumps(dict(list(b.items())[-60:]),
+                                 ensure_ascii=False, indent=1))
+    except Exception as e:                           # noqa: BLE001
+        print(f"اجتماع ضدتکرار ضعف نشد: {type(e).__name__}")
     # درس‌های حافظه هم باید از reset جان به در ببرند — یافتهٔ بازبینی معماری:
     # reset --hard هر بار درس‌های همین اجرا را می‌کشت و رادار هیچ‌وقت
     # چیزی «یاد نمی‌گرفت» با اینکه می‌نوشت.
@@ -1031,7 +1052,10 @@ def reapply(backup_dir):
             theirs = json.loads(les.read_text()).get("lessons", []) if les.exists() else []
             seen, union = set(), []
             for e in sorted(ours + theirs, key=lambda x: -(x.get("at") or 0)):
-                k = (e.get("at"), e.get("sym"), e.get("text"))
+                # کلید با روز، نه timestamp — متنِ یکسان در همان روز
+                # با مهر تازه، درسِ جدید نیست (ریشهٔ ×۲۶ تکرار).
+                _day = int((e.get("at") or 0) / 86_400_000)
+                k = (_day, e.get("sym"), e.get("text"))
                 if k not in seen:
                     seen.add(k)
                     union.append(e)
