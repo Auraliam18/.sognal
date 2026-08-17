@@ -36,7 +36,15 @@ def _stage(stage, path):
 
 
 def unresolved():
-    r = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"],
+    # core.quotepath=false ضروری است، نه سلیقه. گیت به‌طور پیش‌فرض نام
+    # غیر-ASCII را escape می‌کند و در گیومه می‌گذارد:
+    #   "brain/patterns/hamid-reason-\330\247..."
+    # رشته با «"» شروع می‌شود، startswith("brain/") شکست می‌خورد، handler
+    # پیدا نمی‌شود و job با «دستی بماند» می‌میرد. دقیقاً همین در اجرای
+    # ۱۰:۱۶ روز ۱۷ اوت رخ داد: ۲۵ فایل حل شد و دو فایلِ نام-فارسیِ
+    # brain/patterns/hamid-reason-*.json کل انتشار را کشتند.
+    r = subprocess.run(["git", "-c", "core.quotepath=false",
+                        "diff", "--name-only", "--diff-filter=U"],
                        capture_output=True, text=True, cwd=ROOT)
     return [p for p in r.stdout.split("\n") if p.strip()]
 

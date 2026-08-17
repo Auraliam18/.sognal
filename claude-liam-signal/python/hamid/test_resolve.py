@@ -252,6 +252,34 @@ check("آرشیو بک‌تست عکس‌فوری است، job را نمی‌ک�
 check("و کد کنارش هنوز دستی می‌ماند",
       rbc.handler_for("claude-liam-signal/python/backtest.py") is None)
 
+# ── نام فایل فارسی — شکست واقعی ۱۰:۱۶ روز ۱۷ اوت ─────────────────────────
+#
+# گیت نام غیر-ASCII را با core.quotepath پیش‌فرض escape می‌کند و در گیومه
+# می‌گذارد؛ رشته با «"» شروع می‌شود، startswith("brain/") شکست می‌خورد و
+# resolver فایل را «دستی بماند» اعلام می‌کند — exit 1 و مرگ انتشار، در
+# حالی که ۲۵ فایل دیگر همه حل شده بودند. آزمون یک تعارض واقعی روی فایلِ
+# نام-فارسی می‌سازد و کل اسکریپت را می‌دواند.
+git("checkout", "-q", "-b", "fa-base", cwd=tmp)
+fa = tmp / "brain/patterns/hamid-reason-الگوی کلاسیک خلاف جهت.json"
+fa.parent.mkdir(parents=True, exist_ok=True)
+fa.write_text(json.dumps({"v": 0}))
+git("add", "-A", cwd=tmp); git("commit", "-qm", "پایهٔ فارسی", cwd=tmp)
+git("branch", "fa-other", cwd=tmp)
+git("checkout", "-q", "fa-other", cwd=tmp)
+fa.write_text(json.dumps({"v": "آن‌ها"})); git("add", "-A", cwd=tmp)
+git("commit", "-qm", "طرف مقابل", cwd=tmp)
+git("checkout", "-q", "fa-base", cwd=tmp)
+fa.write_text(json.dumps({"v": "ما"})); git("add", "-A", cwd=tmp)
+git("commit", "-qm", "طرف ما", cwd=tmp)
+git("merge", "--no-edit", "fa-other", cwd=tmp)
+r_fa = subprocess.run([sys.executable, "scripts/resolve_brain_conflicts.py"],
+                      cwd=tmp, capture_output=True, text=True)
+check("تعارضِ فایل نام-فارسی job را نمی‌کشد", r_fa.returncode == 0)
+check("و عکس‌فوری نسخهٔ همین اجرا را گرفت",
+      json.loads(fa.read_text())["v"] == "ما")
+check("چیزی حل‌نشده نماند (نام فارسی)",
+      not git("diff", "--name-only", "--diff-filter=U", cwd=tmp).stdout.strip())
+
 print()
 if fail:
     print(f"✗ {len(fail)} آزمون شکست: {fail}")

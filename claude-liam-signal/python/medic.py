@@ -132,8 +132,11 @@ def examine():
 
     try:
         st, body = fetch(f"{PAGES}/index.html")
+        # ۱۷ اوت: هر سه نشانهٔ قبلی اسم‌های قدیمی بودند که با تغییر برند از
+        # HTML رفته‌اند — نگهبان با HTTP 200 سالم هم «سرو نمی‌شود» می‌گفت.
+        # نشانه‌های امروز: نام هر دو پنل + مهر نسخهٔ چرخه.
         if st != 200 or all(n.encode() not in body for n in
-                            ("حمید کلود مکس", "کلود کد لیام", "Hamid Signal Agent")):
+                            ("لیام تریدر ۹", "aura liam mAx", "cycle v")):
             sick = True
             finds.append(f"صفحهٔ پنل درست سرو نمی‌شود (HTTP {st})")
         else:
