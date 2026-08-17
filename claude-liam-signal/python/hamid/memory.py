@@ -51,11 +51,24 @@ def remember(kind, sym, text, data=None):
     """
     j = _load()
     now = int(time.time() * 1000)
-    for old in j["lessons"][:80]:
+    # ۱۶ اوت — چرا ضدتکرار جلوی ۱۹۷ درس تکراری را نگرفت:
+    #
+    # ۱) پنجره فقط ۸۰ ردیف اول را می‌گشت. وقتی چند نماد هم‌زمان می‌نویسند،
+    #    ردیفِ درسِ تکراری زیر ۸۰ سُر می‌خورد و دفعهٔ بعد «پیدا نشد» ⇒ ردیف
+    #    تازه. یعنی هر چه حافظه شلوغ‌تر، ضدتکرار ضعیف‌تر — درست برعکس چیزی
+    #    که لازم است.
+    # ۲) وقتی هم پیدا می‌شد، `at` تازه می‌شد ولی ردیف **جابه‌جا نمی‌شد**؛
+    #    پس همان ردیفِ تازه‌شده ته صف می‌ماند و باز سُر می‌خورد.
+    #
+    # هر دو حل می‌شوند: کل دفتر گشته می‌شود (سقفش ۳۰۰ ردیف است، ارزان)، و
+    # ردیفِ دوباره‌دیده‌شده می‌آید جلو — که با قرارداد «جدیدترین اول» هم
+    # می‌خواند، چون `at` همین حالا تازه شده.
+    for i, old in enumerate(j["lessons"]):
         if (old.get("kind") == kind and old.get("sym") == sym
                 and old.get("text") == text and now - (old.get("at") or 0) < DEDUP_MS):
             old["seen"] = (old.get("seen") or 1) + 1
             old["at"] = now
+            j["lessons"].insert(0, j["lessons"].pop(i))
             j["updated"] = now
             LESSONS.parent.mkdir(parents=True, exist_ok=True)
             LESSONS.write_text(json.dumps(j, ensure_ascii=False, indent=1))

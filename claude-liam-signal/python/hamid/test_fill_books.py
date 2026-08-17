@@ -30,6 +30,18 @@ from hamid import stack                               # noqa: E402
 ok = 0
 fail = []
 
+# عکس اولیهٔ مغز — گارد پایانی «تفاوت» را می‌سنجد نه پاکیِ مطلق.
+import subprocess as _sp                              # noqa: E402
+
+
+def _brain_status():
+    return _sp.run(["git", "status", "--porcelain", "--",
+                    "brain/learning", "brain/memory", "brain/paper"],
+                   cwd=REPO, capture_output=True, text=True).stdout
+
+
+_BRAIN_BEFORE = _brain_status()
+
 
 def check(name, cond):
     global ok
@@ -226,14 +238,16 @@ stack.read = fake
 
 # گارد صریح: هیچ‌کدام از فایل‌های واقعی مغز نباید در این اجرا عوض شده باشند.
 # آزمونی که خودش تولید را آلوده کند بدتر از نبودنش است.
-import subprocess as _sp                              # noqa: E402
-
-_dirty = _sp.run(["git", "status", "--porcelain", "--",
-                  "brain/learning", "brain/memory", "brain/paper"],
-                 cwd=REPO, capture_output=True, text=True).stdout.strip()
-check("هیچ فایلی در مغز واقعی عوض نشد", not _dirty)
-if _dirty:
-    print("      ↳ " + _dirty.replace("\n", "\n      ↳ "))
+#
+# ۱۶ اوت: این گارد «پاکیِ مطلق» می‌سنجید و با یک خروجی تولیدیِ از پیش
+# موجود (bridge.json) قرمز شد — بدون آن‌که این تست به چیزی دست زده باشد.
+# گاردی که بابت کارِ کسِ دیگر اتهام می‌زند، اولین چیزی است که نادیده گرفته
+# می‌شود، و آن‌وقت روزی که واقعاً نشتی هست هم نادیده گرفته می‌شود. پس
+# **تفاوت** سنجیده می‌شود: عکس قبل از اجرا در برابر عکس بعد از اجرا.
+_new = sorted(set(_brain_status().splitlines()) - set(_BRAIN_BEFORE.splitlines()))
+if _new:
+    print("      ↳ " + " | ".join(_new)[:300])
+check("هیچ فایلی در مغز واقعی عوض نشد", not _new)
 
 paper.CLOSED, fb.STATE, fb.STATUS = real_closed, real_state, real_status
 for k, v in real_mem.items():

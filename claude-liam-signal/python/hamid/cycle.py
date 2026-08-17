@@ -54,6 +54,17 @@ ROOT = HERE.parent.parent.parent
 OUT = ROOT / "signals"
 STATE = ROOT / "brain" / "cycle-state.json"
 
+def _tgname():
+    """نام پنل، از همان منبع حقیقتی که تلگرام دارد (telegram.PANEL_NAME)."""
+    import telegram as _t
+    return _t.PANEL_NAME
+
+
+def _tgcode():
+    import telegram as _t
+    return _t.PANEL_CODE
+
+
 DAILY_TARGET = 15
 QUIET_LEARN_N = 40        # جهان روز آرام — فقط برای تمرین، نه سیگنال
 ROOMS = ["market", "radar", "scan", "deep", "trade", "paper",
@@ -192,6 +203,20 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
         r = read(sym, c4h, c1h, c15)
         reads.append(r)
         if r.setup:
+            # جای قیمت در کانال ۱ساعته و جهش حجم لحظهٔ ورود.
+            #
+            # هر دو را میز تمرین از روز اول می‌نوشت و دفتر سیگنال واقعی
+            # هرگز — پس شرط‌هایی که به این دو ستون تکیه دارند روی دفتر
+            # واقعی همیشه «نمونهٔ کم» می‌خوردند و پل تمرین→سیگنال بی‌صدا
+            # بسته می‌ماند. این نبودِ شاهد نبود؛ نبودِ ستون بود.
+            # position_1h را stack.read از قبل حساب کرده؛ فقط حمل نمی‌شد.
+            if r.position_1h is not None:
+                r.setup["chan_pos"] = round(r.position_1h, 2)
+            try:
+                from hamid.ob_intel import vol_z_at
+                r.setup["vol_z"] = round(vol_z_at(c15, len(c15) - 1), 2)
+            except Exception:                        # noqa: BLE001 - بستر اختیاری است
+                pass
             # نقشهٔ نقدینگی — روی هر ستاپ ثبت می‌شود تا بک‌تست شبانه بسنجد
             # هم‌جهتی با آهن‌ربای نقدینگی واقعاً انتظار را بالا می‌برد یا نه.
             try:
@@ -581,7 +606,7 @@ def settle_books(report):
                                  f"استاپِ تریل‌شده در سود بست — برگشتِ کامل دیگر ضرر نمی‌سازد</i>")
                     a = rmap.get(t["sym"] + t["dir"]) if t["outcome"] == "stop" else None
                     if mid:
-                        cap = ("🤖 <b>کلود مکس</b> · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
+                        cap = (f"{_tg.BRAND} · 📊 <b>نتیجهٔ همین سیگنال</b>\n" + line
                                + (f"\n🔎 <i>{a}</i>" if a else "")
                                + f"\n🕐 <code>{_tg.tehran()}</code> به وقت ایران")
                         # خواست حمید: ریپلای نتیجه حتماً با عکس چارت باشد —
@@ -636,7 +661,7 @@ def settle_books(report):
                                   {"chat_id": chat, "parse_mode": "HTML",
                                    "reply_to_message_id": t["why"]["tg_msg_id"],
                                    "allow_sending_without_reply": "true",
-                                   "text": (f"🤖 <b>کلود مکس</b> · ⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
+                                   "text": (f"{_tg.BRAND} · ⌛️ <b>این سیگنال منقضی شد — ورود ممنوع</b>\n"
                                             f"قیمت در {hrs} ساعت هرگز به ناحیهٔ ورود "
                                             f"<code>{t['entry']:.10g}</code> نرسید؛ ستاپ کهنه "
                                             f"شده و شرایطی که صدورش را توجیه می‌کرد دیگر "
@@ -816,7 +841,7 @@ def review_cycle():
             opens = len(_p._read(_p.OPEN))
             _tg._post(tok, "sendMessage",
                       {"chat_id": chat, "parse_mode": "HTML",
-                       "text": (f"🏷 <b>{_tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n"
+                       "text": (f"{_tg.BRAND}\n"
                                 f"🧾 <b>اعلام کلی دوساعته</b>\n\n{verdict}\n"
                                 f"پوزیشن باز: {opens} · {veto_line}{root}\n"
                                 f"🕐 <code>{_tg.tehran()}</code> به وقت ایران")})
@@ -975,7 +1000,11 @@ def main():
               "generatedText": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
               # شناسنامهٔ جفتِ ایجنت↔پنل — حمید چند هوش مصنوعی را با هم مقایسه
               # می‌کند؛ هر خروجی باید بگوید مال کدام جفت است تا هیچ‌وقت قاطی نشود.
-              "agent": {"name": "کلود — Claude Code", "panel": "لیام تریدر ۹"},
+              # نام پنل ثابت نوشته شده بود، پس گزارشِ **هر دو** خط تولید
+              # می‌گفت «لیام تریدر ۹» — یعنی همان شناسنامه‌ای که قرار بود
+              # جلوی قاطی‌شدن را بگیرد، خودش قاطی‌شان می‌کرد.
+              "agent": {"name": "کلود — Claude Code",
+                        "panel": _tgname(), "code": _tgcode()},
               "mode": mode, "why": why, "pacing": pace,
               "world": {k: world.get(k) for k in
                         ("verdict", "fear_greed", "dominance", "funding",
@@ -1221,6 +1250,17 @@ def main():
                 raise FileNotFoundError("reasons از دفتر واقعی نیامده — نادیده گرفته شد")
             conds = {c[0]: c[1] for c in
                      [(x["condition"], x) for x in rj.get("confirmed") or []]}
+            # پل تمرین→سیگنال (گزینهٔ ۲، دستور حمید ۱۶ اوت): یافته‌ای که روی
+            # دفتر تمرین کشف و روی دفتر سیگنال واقعی **تکرار** شده. اندازهٔ
+            # اثرش از دفتر واقعی است، نه از تمرین. اگر همان شرط از راه
+            # مستقیم هم تأیید شده باشد، نسخهٔ مستقیم می‌ماند — پل فقط
+            # چیزی اضافه می‌کند که وگرنه هرگز به رتبه‌بندی نمی‌رسید.
+            try:
+                from hamid import bridge as _bridge
+                for b in _bridge.promoted():
+                    conds.setdefault(b["condition"], b)
+            except Exception as e:                   # noqa: BLE001 - پل اختیاری است
+                print(f"پل تمرین: {type(e).__name__}: {e}")
             if conds:
                 cond_fns = dict((n, f) for n, f in _paper.CONDITIONS)
                 def learn_score(x):
@@ -1238,7 +1278,9 @@ def main():
                 for x in ready:
                     x["learn_score"] = round(learn_score(x), 3)
                 learned = [{"rule": n, "diff": round(r["diff"], 3),
-                            "n": r["n_with"]} for n, r in conds.items()]
+                            "n": r["n_with"],
+                            "via": r.get("via") or "direct"}
+                           for n, r in conds.items()]
         except FileNotFoundError:
             pass
         except Exception as e:                       # noqa: BLE001 - یادگیری چرخه را نمی‌کشد

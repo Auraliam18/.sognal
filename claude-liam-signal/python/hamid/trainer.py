@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -60,6 +61,87 @@ TFS = {
     "15m": {"bars": 2000, "max_hold": 96,  "warmup": 160},   # ~۲۱ روز، نگه‌داری ۲۴س
     "1h":  {"bars": 1500, "max_hold": 48,  "warmup": 200},   # ~۶۲ روز، نگه‌داری ۴۸س
 }
+
+
+# ── پله‌های دروازه (گزینهٔ ۳ — دستور حمید ۱۶ اوت) ──────────────────────────
+#
+# «سخت‌کردن تدریجی دروازه‌های تمرین تا به دروازهٔ واقعی نزدیک شود و
+#  مقایسه‌شان معنادار شود.»
+#
+# روشِ ساده این بود که دروازه را سفت کنیم و بقیه را دور بریزیم. آن کار دو
+# ضرر دارد: نمونه نصف می‌شود، و هیچ‌وقت نمی‌فهمیم سفت‌کردن **کمک کرد یا
+# نه** — چون دادهٔ حالت شل دیگر ساخته نمی‌شود.
+#
+# پس هر ستاپ در برابر کل نردبان سنجیده می‌شود و با **بالاترین پله‌ای که از
+# آن رد می‌شود** برچسب می‌خورد. یک بازپخش، دادهٔ همهٔ پله‌ها را هم‌زمان
+# می‌سازد؛ `bridge.stage_report()` بعداً می‌پرسد «پلهٔ بالاتر واقعاً
+# انتظارِ بهتری داد؟» و تا وقتی بازه از صفر رد نشده، کف بالا نمی‌رود.
+#
+# پله‌ها عمداً آینهٔ همان چیزی‌اند که دروازهٔ سیگنال واقعی می‌خواهد:
+#   ۱ — همسویی تایم بالا (قانون ۲: ۴س/۱س بر ۱۵د/۵د اولویت دارد)
+#   ۲ — ستاپ روی اردر بلاک معتبر با استاپ در باند معقول (نه هر شکستی)
+#   ۳ — تأیید بستر: حجم (مهم‌ترین تأیید حمید)، جای قیمت در کانال،
+#       و ضدتکرارِ ورودِ پشت‌سرهم روی یک ارز
+GATE_STAGES = {
+    0: "بدون دروازهٔ اضافه — همان رفتار تاریخی میز تمرین",
+    1: "همسویی تایم بالاتر با جهت معامله",
+    2: "+ اردر بلاک معتبر هم‌جهت و استاپ ۰.۳٪–۳٪",
+    3: "+ حجم تأییدکننده، جای سالم در کانال، بدون ورود پشت‌سرهم",
+}
+HTF_RATIO = 4          # ۱۵د→۱س، ۱س→۴س، ۵د→۲۰د
+REPEAT_BARS = 12       # ضدتکرار ورود روی یک ارز — آینهٔ دروازهٔ ضدتکرار واقعی
+
+# کف پله برای **ثبت** معامله. صفر یعنی همه‌چیز ثبت می‌شود و فقط برچسب
+# می‌خورد — هیچ دادهٔ تاریخی از دست نمی‌رود و مقایسه ممکن می‌ماند. بالا
+# بردنش تصمیمی است که فقط با اندازه‌گیری (و دستور حمید) گرفته می‌شود، نه
+# با حدس؛ به همین دلیل هم پارامتر محیط است نه عدد سفت داخل کد.
+MIN_STAGE = int(os.getenv("PRACTICE_MIN_STAGE") or 0)
+
+
+def _htf_agrees(window, direction, ratio=HTF_RATIO):
+    """آیا تایم بالاتر هم همین جهت را می‌گوید؟ None یعنی نمی‌دانیم.
+
+    کندل‌های پنجره ratio‌تایی تجمیع می‌شوند تا تایم بالاتر همان نماد ساخته
+    شود. «نمی‌دانیم» عمداً از «نه» جدا است و مثل «نه» رفتار می‌کند —
+    قانون ۱: دادهٔ ناقص در فیلد اجباری مجوز نمی‌دهد.
+    """
+    from hamid.structure import trend
+    if len(window) < ratio * 30:
+        return None
+    agg = []
+    for i in range(0, len(window) - ratio + 1, ratio):
+        g = window[i:i + ratio]
+        agg.append({"t": g[0]["t"], "o": g[0]["o"],
+                    "h": max(c["h"] for c in g), "l": min(c["l"] for c in g),
+                    "c": g[-1]["c"], "v": sum(c.get("v") or 0 for c in g)})
+    t = trend(agg)
+    if t not in ("up", "down"):
+        return None
+    return t == ("up" if direction == "LONG" else "down")
+
+
+def gate_stage(window, s, bars_since_last=None):
+    """بالاترین پله‌ای که این ستاپ از آن رد می‌شود (۰ تا ۳).
+
+    پله‌ها تجمعی‌اند: رد نشدن از پلهٔ k یعنی همان‌جا توقف، حتی اگر شرط
+    پلهٔ k+1 برقرار باشد. سخت‌گیری نردبانی است، نه امتیازِ جمع‌شونده.
+    """
+    w = s.get("why") or {}
+    if _htf_agrees(window, s["dir"]) is not True:
+        return 0
+    stop = w.get("stop_pct")
+    if w.get("ob_align") != "with" or stop is None or not 0.3 <= stop <= 3.0:
+        return 1
+    long = s["dir"] == "LONG"
+    vol_z = w.get("vol_z")
+    if vol_z is None or vol_z < 0.5:
+        return 2
+    pos = w.get("chan_pos")
+    if pos is not None and ((long and pos > 0.85) or (not long and pos < 0.15)):
+        return 2
+    if bars_since_last is not None and bars_since_last < REPEAT_BARS:
+        return 2
+    return 3
 
 
 def top_symbols(n=TOP_N):
@@ -241,16 +323,27 @@ def replay_symbol(sym, c15, after_ms=0, cap=40, tf="15m"):
     max_hold, warmup = cfg["max_hold"], cfg["warmup"]
     trades = []
     i = warmup
+    last_entry = None                                 # برای ضدتکرار پلهٔ ۳
     while i < len(c15) - 2 and len(trades) < cap:
         if c15[i]["t"] <= after_ms:
             i += 1
             continue
-        s = decide(c15[:i + 1], tf=tf)
+        window = c15[:i + 1]
+        s = decide(window, tf=tf)
         if not s:
             i += 1
             continue
+        stage = gate_stage(window, s,
+                           bars_since_last=(i - last_entry)
+                           if last_entry is not None else None)
+        if stage < MIN_STAGE:
+            i += 1
+            continue
+        last_entry = i                                # فقط ورودِ ثبت‌شده «قبلی» است
         j, outcome, r, excursion = resolve(c15, i, s, max_hold=max_hold)
         why = dict(s["why"])
+        why["gate_stage"] = stage                     # برچسب پله — بدون این،
+        # سؤال «سخت‌کردن دروازه کمک کرد؟» اصلاً قابل پرسیدن نیست
         why.update(excursion)                         # MFE/MAE روی خود پرونده
         trades.append({"sym": sym, "dir": s["dir"], "entry": s["entry"],
                        "sl": s["sl"], "tp1": s["tp1"], "tp2": None,

@@ -114,6 +114,14 @@ jobs:
             cp brain/pump-radar-sent.json "$BK/" 2>/dev/null || true
             cp brain/pump-history.json "$BK/" 2>/dev/null || true
             cp brain/memory/lessons.json "$BK/" 2>/dev/null || true
+            # دفتر انتظار پامپ — ۱۶ اوت، تشخیص پاسبان C3.
+            # نبودنش این‌جا یک نامتقارنی ساخته بود که حافظهٔ دائمی را
+            # می‌خورد: sweep() نمادِ منقضی را حذف می‌کرد و درسش را
+            # می‌نوشت، بعد بازگشتِ درخت به origin/main دفتر را برمی‌گرداند
+            # (نماد برمی‌گشت) ولی درس در reapply زنده می‌ماند. یعنی حذف
+            # گم می‌شد و درس می‌ماند — و همان ۹ نماد هر ۳ دقیقه دوباره
+            # «منقضی» می‌شدند. ۲۶ ساعت، ۱۹۷ درس تکراری از ۳۰۰.
+            # (هر دو خط تولید مستقل به همین تشخیص رسیدند — اجتماعِ mergeِ ۱۷ اوت.)
             cp brain/pump-watchlist.json "$BK/" 2>/dev/null || true
             cp brain/pump-weakness-seen.json "$BK/" 2>/dev/null || true
             for i in 1 2 3 4; do

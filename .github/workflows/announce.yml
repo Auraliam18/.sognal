@@ -32,7 +32,7 @@ jobs:
           text = json.loads(open(os.environ["GITHUB_EVENT_PATH"]).read())["inputs"]["text"]
           r = tg._post(tok, "sendMessage",
                        {"chat_id": chat, "parse_mode": "HTML",
-                        "text": (f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>\n\n"
+                        "text": (f"{tg.BRAND}\n\n"
                                  + text + f"\n\n🕐 <code>{tg.tehran()}</code> به وقت ایران")})
           assert r.get("ok"), r
           print("فرستاده شد")
