@@ -204,3 +204,22 @@ def send_ignitions(ignited, kc=None):
         except Exception:                            # noqa: BLE001
             pass
     return n
+
+
+def merge_state(ours, theirs):
+    """اجتماع دو نسخهٔ دفتر بعد از git reset ورک‌فلو (کلاس خطای ۱۷ اوت:
+    reset --hard هر اجرا قبرستان را می‌کشت چون دفتر در لیست بازنشانی نبود —
+    ×۲۶ درس تکراری). قبرستان: union با جدیدترین timestamp؛ ورودی‌ها: نسخهٔ
+    ما (پساپردازش همین اجرا) مقدم است، ورودیِ فقط-آن‌طرفی اگر در قبرستان
+    ادغامی نباشد می‌ماند."""
+    ours, theirs = ours or {}, theirs or {}
+    g = dict(theirs.get("_graveyard") or {})
+    for k, v in (ours.get("_graveyard") or {}).items():
+        g[k] = max(v, g.get(k, 0))
+    out = {k: v for k, v in theirs.items() if k != "_graveyard" and k not in g}
+    for k, v in ours.items():
+        if k != "_graveyard":
+            out[k] = v
+    out = {k: v for k, v in out.items() if k not in g}
+    out["_graveyard"] = g
+    return out
