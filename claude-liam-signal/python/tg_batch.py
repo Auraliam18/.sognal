@@ -11,7 +11,11 @@ brain/telegram-sent.json ثبت می‌کند تا هیچ سیگنالی دو ب
 import io, json, os, sys, time, urllib.request
 from pathlib import Path
 
-import telegram as tg                 # برند از یک منبع حقیقت — PANEL_NAME
+# برند از یک منبع حقیقت (PANEL_NAME). نام مستعار عمداً tg نیست:
+# این فایل یک تابع محلی `tg()` دارد که هر import هم‌نامی را سایه
+# می‌زند — نسخهٔ اول همین اشتباه را داشت و main در اولین پیام
+# AttributeError می‌گرفت؛ تستِ import-فقط آن را نمی‌دید.
+import telegram as _brand
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -232,7 +236,7 @@ def main():
     new.sort(key=lambda s: (not s["elite"],))
     delivered = 0
     for s in new[:CAP]:
-        cap = (f"🏷 {tg.PANEL_NAME}\n"
+        cap = (f"🏷 {_brand.PANEL_NAME}\n"
                f"{'🏆 ' if s['elite'] else ''}🚨 {s['sym']} — "
                f"{'خرید' if s['dir'] == 'LONG' else 'فروش'} ({s['tf']})\n"
                f"استراتژی: {s['name']}\n"
