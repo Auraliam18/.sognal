@@ -170,6 +170,8 @@ DERIVED_SNAPSHOTS = {
     "brain/medic.json",
     "brain/paper/equity.json",       # از closed.jsonl ساخته می‌شود
     "brain/paper/reasons.json",      # خروجی ماشین بونفرونی، از همان دفتر
+    "brain/paper/bridge.json",       # پل تمرین→سیگنال، هر اجرا از closed.jsonl
+                                     # از نو ساخته می‌شود — تاریخِ انباشته ندارد
     "brain/sources-probe.json",      # نتیجهٔ کاوش منابع، هر اجرا از نو
 }
 
@@ -190,6 +192,17 @@ def handler_for(path):
         return merge_frontier                         # {url: وضعیت} — کلیدها جمع
     if path.startswith("signals/"):
         return take_ours
+    # آرشیو بک‌تست — ۱۷ اوت: heartbeat و hamid-backtest هر دو این پوشه را
+    # commit می‌کنند ولی resolver برایش handler نداشت؛ اولین تصادم واقعی
+    # None گرفت، exit 1 شد و **کل استپ ضربان** را کشت (سه شکست Heartbeat
+    # و یک Publish to main در همان صبح). فایل‌های تاریخ‌دار
+    # (backtest-<date>.json) دو محتوای متفاوت با یک نام نمی‌گیرند مگر دو
+    # رانر هم‌زمان — آن‌جا هم هر دو از یک ورودی ساخته شده‌اند و تازه‌تر
+    # کافی است؛ latest.json هم عکس‌فوریِ بازتولیدشدنی است.
+    if path.startswith("claude-liam-signal/backtests/") and path.endswith(".json"):
+        return take_ours
+    if path.startswith("claude-liam-signal/backtests/") and path.endswith(".jsonl"):
+        return merge_jsonl                            # اگر روزی دفتر شد، اجتماع
     # ── واپسین پناه برای هر json تولیدشدهٔ ناشناخته زیر brain/ ──────────────
     #
     # قبلاً این‌جا None برمی‌گشت یعنی «دستی بماند». برای یک آدم درست است؛

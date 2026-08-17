@@ -242,6 +242,15 @@ check("پناهِ ناشناخته عکس‌فوری است، نه اجتماع�
       rbc.handler_for("brain/something-new.json") is rbc.take_ours)
 check("ولی دفتر jsonl هرگز به پناه نمی‌رسد (اجتماع مقدم است)",
       rbc.handler_for("brain/whatever/new-book.jsonl") is rbc.merge_jsonl)
+# ۱۷ اوت: heartbeat آرشیو بک‌تست را هم commit می‌کند و resolver برایش
+# handler نداشت — None ⇒ exit 1 ⇒ سه شکست Heartbeat در یک صبح.
+check("آرشیو بک‌تست عکس‌فوری است، job را نمی‌کشد",
+      rbc.handler_for("claude-liam-signal/backtests/backtest-2026-08-17.json")
+      is rbc.take_ours
+      and rbc.handler_for("claude-liam-signal/backtests/latest.json")
+      is rbc.take_ours)
+check("و کد کنارش هنوز دستی می‌ماند",
+      rbc.handler_for("claude-liam-signal/python/backtest.py") is None)
 
 print()
 if fail:

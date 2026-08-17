@@ -152,6 +152,9 @@ def open_from(setups, context):
                 "flipped": (s.get("on_level") or {}).get("flipped"),
                 "stop_pct": s.get("stop_pct"),
                 "liq": s.get("liq"),
+                # همان دو ستونی که میز تمرین می‌نوشت و این دفتر نمی‌نوشت
+                "chan_pos": s.get("chan_pos"),
+                "vol_z": s.get("vol_z"),
                 "tg_msg_id": s.get("tg_msg_id"),
                 "dir": s["dir"],
                 "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),
@@ -241,6 +244,8 @@ def mark():
         # رفت و تا کجا علیه‌اش، تا بازبینی بفهمد «جهت درست بود و تایم غلط» یا
         # ورود زود بود — نه فقط برد/باخت خام.
         mfe = mae = 0.0
+        mfe_bar = mae_bar = 0
+        bar = 0
         end_t = p["filled"]
         # تریل — قانون حمید (EURI درس شد): «هر ارزی که یک‌سوم مسیر تارگت را
         # رفت، استاپ بیاید در سود با حساب کارمزد؛ سود که بالاتر رفت، استاپ هم
@@ -263,9 +268,13 @@ def mark():
                     lvl = None
                 if lvl is not None:
                     sl_eff = max(sl_eff, lvl) if long else min(sl_eff, lvl)
+            bar += 1
             fav = ((c["h"] - p["entry"]) if long else (p["entry"] - c["l"])) / risk
             adv = ((p["entry"] - c["l"]) if long else (c["h"] - p["entry"])) / risk
-            mfe, mae = max(mfe, fav), max(mae, adv)
+            if fav > mfe:
+                mfe, mfe_bar = fav, bar
+            if adv > mae:
+                mae, mae_bar = adv, bar
             end_t = c["t"]
             hit_sl = (c["l"] <= sl_eff) if long else (c["h"] >= sl_eff)
             hit_tp = (c["h"] >= p["tp1"]) if long else (c["l"] <= p["tp1"])
@@ -293,6 +302,20 @@ def mark():
             p["sl_eff"] = round(sl_eff, 10)
         p["mfe_r"], p["mae_r"] = round(mfe, 3), round(mae, 3)
         p["held_h"] = round((end_t - p["filled"]) / 3600e3, 1)
+        # همان امضای رفتاری، این بار **داخل why** و با همان نام و همان علامتی
+        # که میز تمرین می‌نویسد (mae منفی است). دلیلش اندازه‌گیری ۱۶ اوت بود:
+        # پل تمرین→سیگنال پنج یافته روی دفتر تمرین کشف کرد و هیچ‌کدام قابل
+        # تکرار نبود — نه به‌خاطر نبودِ شاهد، بلکه چون دفتر سیگنال واقعی این
+        # ستون‌ها را **اصلاً نمی‌نوشت**. mfe_r بالای رکورد بود و شرط‌های
+        # paper.CONDITIONS از why می‌خوانند، پس همیشه خالی دیده می‌شد.
+        #
+        # هشدار صادقانه دربارهٔ واحد: این‌جا «کندل» همیشه ۱۵دقیقه است، ولی
+        # میز تمرین سه تایم‌فریم دارد. پس mfe/mae مستقیماً قابل مقایسه‌اند
+        # (به واحد R)، اما mfe_bar فقط داخل هم‌تایم‌فریم معنا دارد.
+        w = p.setdefault("why", {})
+        w["mfe"] = round(mfe, 2)
+        w["mae"] = round(-mae, 2)
+        w["mfe_bar"], w["mae_bar"] = mfe_bar, mae_bar
         # R خالص با کارمزد+لغزش ~۰.۰۵٪ هر طرف — روی استاپ تنگ چند دهم R است
         try:
             fee_r = 0.001 * p["entry"] / abs(p["entry"] - p["sl"])

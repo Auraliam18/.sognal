@@ -66,7 +66,7 @@ def run(sym):
 
     # ── پیام ۱: علت + دنباله‌روها ──────────────────────────────────────────
     st = pump_start(c15)
-    L1 = [f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>",
+    L1 = [tg.BRAND,
           f"🚀 <b>کاوش پامپ {sym.replace('USDT','')}</b>"]
     if st:
         hh = time.strftime("%H:%M", time.gmtime(st["t"] / 1000 + 3.5 * 3600))
@@ -103,7 +103,7 @@ def run(sym):
     # ── پیام ۲: تحلیل خود ارز، همهٔ تایم‌فریم‌ها ──────────────────────────
     t4, t1, t15 = trend(c4h) if len(c4h) >= 30 else "؟", trend(c1h), trend(c15)
     r1, r15 = rsi(c1h), rsi(c15)
-    L2 = [f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>",
+    L2 = [tg.BRAND,
           f"🔬 <b>تحلیل {sym.replace('USDT','')} — همهٔ تایم‌فریم‌ها</b>",
           f"روند: ۴س <b>{t4}</b> · ۱س <b>{t1}</b> · ۱۵د <b>{t15}</b>",
           f"RSI: ۱س <code>{r1:.0f}</code> · ۱۵د <code>{r15:.0f}</code>"

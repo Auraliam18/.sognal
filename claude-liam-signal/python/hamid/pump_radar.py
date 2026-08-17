@@ -1065,6 +1065,11 @@ def reapply(backup_dir):
                                       ensure_ascii=False, indent=1))
         except Exception as e:                       # noqa: BLE001
             print(f"اجتماع درس‌ها نشد: {type(e).__name__}")
+    # (mergeِ ۱۷ اوت: هر دو خط تولید مستقل برای دفتر انتظار رفع نوشتند.
+    # نسخهٔ کپیِ «مالِ ما» حذف شد چون merge_state بالا — union با قبرستانِ
+    # حذف‌ها — همان مشکل را قوی‌تر حل می‌کند: حذف حتی اگر پشتیبان هم گم
+    # شود، با tombstone زنده می‌ماند. دو رفع روی یک فایل، دومی اولی را
+    # بازنویسی می‌کرد.)
     tglog_bk = bk / "telegram-log.json"
     tglog = ROOT / "signals" / "telegram-log.json"
     if tglog_bk.exists():

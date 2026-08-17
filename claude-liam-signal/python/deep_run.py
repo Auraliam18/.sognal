@@ -67,7 +67,7 @@ def caption(d):
     head = ("🎯 <b>ستاپ آماده</b>" if ready else
             "🔍 <b>تحلیل عمیق</b>" if st else "🔍 <b>تحلیل عمیق — بدون ستاپ</b>")
 
-    L = [f"🏷 <b>{tg.PANEL_NAME}</b> · 🤖 <b>کلود مکس</b>",
+    L = [tg.BRAND,
          "",
          f"{head} — <code>{sym}</code>",
          f"⏱ قیمت لحظهٔ تحلیل: <code>{_fmt(px)}</code>"]
