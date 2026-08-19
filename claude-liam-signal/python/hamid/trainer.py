@@ -28,7 +28,7 @@ import json
 import os
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -367,6 +367,13 @@ def _state_key(sym, tf):
     return sym if tf == "15m" else f"{sym}|{tf}"
 
 
+def _replay_job(args):
+    """بازپخش یک (ارز، تایم‌فریم) — سطح ماژول تا در ProcessPool قابل pickle باشد."""
+    key, sym, tf, cd, after_ms = args
+    trades, frontier = replay_symbol(sym, cd, after_ms=after_ms, tf=tf)
+    return key, trades, frontier
+
+
 BUDGET_S = 15 * 60     # بودجهٔ دیوارِ ساعت — پایین‌تر از timeout ورک‌فلو
 
 
@@ -409,21 +416,28 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
     deadline = started + budget_s
     skipped = {"n": 0}
 
-    def one(job):
+    # ── دو فاز، دو نوع موازی‌سازی (دستور «۳ برابر کن»، ۱۸ اوت) ────────────
+    #
+    # نسخهٔ قبلی fetch و بازپخش را در یک نخ انجام می‌داد. اندازه‌گیری در
+    # test_trainer_speed نشان داد بالا بردن تعداد نخ **هیچ** سرعتی نمی‌دهد
+    # (۰.۹۹×): گلوگاه CPUی بازپخش است و GIL پایتون نمی‌گذارد نخ‌ها روی CPU
+    # موازی شوند. پس: fetch (شبکه) با نخ، بازپخش (CPU) با **پردازه** —
+    # موازی واقعی روی هسته‌ها. خروجی معامله‌به‌معامله باید یکسان بماند؛
+    # همان آزمون این را هم قفل کرده است.
+    def fetch_one(job):
         sym, tf = job
         cfg = TFS.get(tf) or TFS["15m"]
         key = _state_key(sym, tf)
         if time.time() > deadline:
             skipped["n"] += 1
-            return key, [], None
+            return key, sym, tf, None
         try:
             cd = fetch(sym, tf, cfg["bars"])
         except Exception:                             # noqa: BLE001 - یک ارز خراب، بقیه نه
-            return key, [], None
+            return key, sym, tf, None
         if len(cd) < cfg["warmup"] + 50:
-            return key, [], None
-        trades, frontier = replay_symbol(sym, cd, after_ms=st.get(key, 0), tf=tf)
-        return key, trades, frontier
+            return key, sym, tf, None
+        return key, sym, tf, cd
 
     # سقف نداریم و break هم نداریم: درس عیب‌یابی همین تست — break وسط حلقه
     # مرز پیشرویِ ارزهای باقی‌مانده را ثبت‌نشده رها می‌کرد و اجرای بعد
@@ -434,12 +448,24 @@ def run(symbols=None, fetch_c15=None, target=TARGET, quiet=False,
     # ساختن است؛ ترتیب دیگر یعنی تایم‌فریم سوم همیشه خالی می‌ماند.
     jobs = [(s, tf) for s in symbols for tf in tfs]
     all_trades = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for key, trades, frontier in pool.map(one, jobs):
-            if trades:
-                all_trades.extend(trades)
-            if frontier:
-                st[key] = max(st.get(key, 0), frontier)
+    fetched = []
+    with ThreadPoolExecutor(max_workers=16) as pool:  # فاز شبکه — نخ کافی است
+        for key, sym, tf, cd in pool.map(fetch_one, jobs):
+            if cd is not None:
+                fetched.append((key, sym, tf, cd, st.get(key, 0)))
+    # فاز CPU — پردازه‌ها. اگر پردازه در محیطی ممنوع بود (بعضی سندباکس‌ها)،
+    # عقب‌گرد امن به همان مسیر ترتیبی، تا میز تمرین هرگز نایستد.
+    try:
+        with ProcessPoolExecutor(max_workers=min(8, os.cpu_count() or 4)) as ppool:
+            results = list(ppool.map(_replay_job, fetched, chunksize=2))
+    except Exception as e:                            # noqa: BLE001 - سرعت فدای بقا
+        print(f"⚠ پردازه ممکن نشد ({type(e).__name__}) — ترتیبی ادامه می‌دهم")
+        results = [_replay_job(x) for x in fetched]
+    for key, trades, frontier in results:
+        if trades:
+            all_trades.extend(trades)
+        if frontier:
+            st[key] = max(st.get(key, 0), frontier)
 
     for t in all_trades:
         paper._append(paper.CLOSED, t)

@@ -51,6 +51,15 @@ jobs:
             --bars "${{ github.event.inputs.bars || '1000' }}" \
             | tee bt.txt
 
+      # UT Bot — استراتژی تازه از ایده‌های TradingView (دستور حمید ۱۸ اوت).
+      # دفتر آزمایش است (قانون ۱۲): فقط اندازه‌گیری روی کندل واقعی؛ ورودی
+      # به مسیر سیگنال ندارد تا CI حکم بدهد. خودآزمایی قبل از اجرا.
+      - name: UT Bot backtest (experiment)
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 -m hamid.test_strat_utbot
+          python3 -m hamid.backtest_utbot --symbols 40 --bars 2000 | tee -a bt.txt || true
+
       - name: Summary
         if: always()
         working-directory: claude-liam-signal/python
@@ -78,7 +87,7 @@ jobs:
           #
           # بدون این دفتر، روش حمید هرگز نمونهٔ کافی برای حکم جمع نمی‌کند و
           # کانال «دانش پایدار → تصمیم» برایش ساکت می‌ماند.
-          git add brain/backtest claude-liam-signal/backtests
+          git add brain/backtest brain/backtests claude-liam-signal/backtests
           git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git commit -q -m "Hamid method backtest $(date -u '+%Y-%m-%d %H:%M') UTC"
           for a in 1 2 3 4 5; do
