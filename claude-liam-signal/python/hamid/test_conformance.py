@@ -89,8 +89,25 @@ def run():
     rep = cf.check(now_ms=now)
     assert not any(x["rule"] == "C6" for x in rep["violations"])
     print("۷ ✅ C6: شورت روی چارت دوطرفه-صعودی گرفته شد؛ یک‌طرفه رد نشد")
+    # C7 — امضای پنل بیگانه روی خروجی خودمان. این دقیقاً همان چیزی است که
+    # روی main افتاده بود: exec-outbox با برند «لیام تریدر ۹» و شناسهٔ
+    # LIAM9-… پر شده بود، چون پیش‌فرض برند هنوز عوض نشده بود.
+    import telegram as _tg
+    w(root, "signals/exec-outbox.json",
+      [{"id": "LIAM9-20260820T093129Z-LINK-x", "panel": "لیام تریدر ۹",
+        "symbol": "LINKUSDT"}])
+    rep = cf.check(now_ms=now)
+    assert any(x["rule"] == "C7" for x in rep["violations"]), rep["violations"]
 
-    print("\nهمهٔ ۷ آزمون پاسبان گذشت")
+    # برند خودی → ساکت. سکوت هم اثبات می‌شود، وگرنه آزمونِ همیشه-قرمز است.
+    w(root, "signals/exec-outbox.json",
+      [{"id": f"{_tg.PANEL_CODE}-0820-0931-LINK", "panel": _tg.PANEL_NAME,
+        "symbol": "LINKUSDT"}])
+    rep = cf.check(now_ms=now)
+    assert not any(x["rule"] == "C7" for x in rep["violations"]), rep["violations"]
+    print("۸ ✅ C7: امضای پنل بیگانه گرفته شد؛ امضای خودی رد نشد")
+
+    print("\nهمهٔ ۸ آزمون پاسبان گذشت")
 
 
 if __name__ == "__main__":

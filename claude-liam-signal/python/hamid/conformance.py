@@ -18,6 +18,9 @@ C4  وظیفهٔ مطالعه: قفسهٔ کتابخانه مدخل VERIFIED د�
     مربوط خالی است، یا صف بررسی ورودیِ مانده >۴۸س دارد (دستور ۱۶ اوت).
 C5  پنجرهٔ رسیدن داده (قانون ۵ حمید): تازگی خروجی هر انجین از سقفش
     گذشته = همان لحظه گزارش.
+C7  امضای پنل بیگانه (دستور حمید ۲۰ اوت): خروجیِ خودِ این مخزن که برند
+    یا پیشوند شناسهٔ پنل دیگری دارد = یک زنجیره هنوز با برند رفته
+    می‌نویسد و دو پنل دارند قاطی می‌شوند.
 
 خروجی: signals/conformance.json + تلگرام فقط در صورت تخلف.
 """
@@ -147,10 +150,38 @@ def check(now_ms=None):
                               f"۴س={t4} و ۱س={t1} هر دو مخالف‌اند — دروازهٔ "
                               f"روند دور خورده"))
 
+    # C7 — امضای پنل بیگانه روی خروجیِ خودِ این مخزن (دستور حمید ۲۰ اوت:
+    # «فقط با فایل‌های خودت کار می‌کنی؛ اطلاعات دو پنل قاطی نشوند»). این
+    # مخزن از ۱۷ اوت تک‌پنل است؛ پس ردیفی که خودمان ساخته باشیم و برند یا
+    # پیشوند شناسهٔ پنل دیگری داشته باشد یعنی دروازهٔ برند دور خورده.
+    # ورودی بیرونی (tradingview-in) عمداً مستثناست — امضای غریبه آن‌جا
+    # دادهٔ فرستنده است، نه تخلف ما (بند «امضای پنل» در CLAUDE.md).
+    try:
+        import telegram as _tgb
+        _panel, _code = _tgb.PANEL_NAME, _tgb.PANEL_CODE
+    except Exception:                                # noqa: BLE001
+        _panel = _code = None
+    if _panel:
+        for rel, field in (("signals/exec-outbox.json", None),
+                           ("signals/telegram-log.json", "sent")):
+            d = _read(rel)
+            rows = d if isinstance(d, list) else (d or {}).get(field) or []
+            for e in rows[-40:]:
+                if not isinstance(e, dict):
+                    continue
+                p, i = e.get("panel"), e.get("id") or ""
+                pre = i.split("-")[0] if "-" in i else ""
+                if (p and p != _panel) or (pre and pre != _code):
+                    v.append(dict(rule="C7", sev="high",
+                                  sym=e.get("symbol") or e.get("sym") or "-",
+                                  msg=f"{rel}: ردیف با امضای پنل بیگانه "
+                                      f"(panel={p!r}, id={i!r}) — خروجی این "
+                                      f"مخزن فقط «{_panel}»/{_code} است"))
+
     return dict(generated=now_ms,
                 generatedText=time.strftime("%Y-%m-%d %H:%M UTC",
                                             time.gmtime(now_ms / 1000)),
-                checks=["C1", "C2", "C3", "C4", "C5", "C6"],
+                checks=["C1", "C2", "C3", "C4", "C5", "C6", "C7"],
                 violations=v, ok=not v)
 
 
