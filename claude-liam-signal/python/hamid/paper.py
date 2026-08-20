@@ -212,9 +212,61 @@ def _candles_since(sym, since_ms):
             for k in rows if k[0] >= since_ms]
 
 
+def _identity(t):
+    """هویت یک معامله — نماد + لحظهٔ باز شدن + جهت + دفتر.
+
+    دو ردیف با این چهار مقدار یکسان، دو معامله نیستند؛ همان معامله‌اند که
+    دو بار ثبت شده. (entry عمداً در کلید نیست: تریل آن را عوض نمی‌کند ولی
+    دو نسخهٔ ذخیره‌شدهٔ یک ردیف می‌توانند در رندِ اعشار فرق کنند.)"""
+    return (t.get("sym"), t.get("opened"), t.get("dir"),
+            (t.get("why") or {}).get("stage") or "")
+
+
+def dedup_closed():
+    """پاک‌سازی حلقهٔ احیا — کشف ۲۰ اوت (پرسش حمید: «چرا این‌همه پوزیشن
+    روی استر؟»).
+
+    مکانیزم خرابی: دو ورک‌فلو هم‌زمان دفتر باز را دارند. یکی معامله را
+    می‌بندد (از open حذف، به closed اضافه)؛ دیگری هنوز نسخهٔ قدیمی open را
+    دارد و در merge، اجتماعِ خطیِ open.jsonl ردیفِ حذف‌شده را **زنده
+    می‌کند**. چرخهٔ بعد همان معامله را دوباره می‌بندد — با زمانِ بستهٔ
+    جدید، پس خطش با قبلی فرق دارد و اجتماعِ خطیِ closed.jsonl هر دو را نگه
+    می‌دارد. اندازه‌گیری: یک معاملهٔ ASTERUSDT دوازده بار بسته شده بود؛ کل
+    دفتر ۶٬۸۰۸ ردیف اضافه از ۱۶٬۳۷۶ داشت (۴۲٪) و آمار دفتر ارسالی را از
+    +0.14R به +0.34R باد کرده بود.
+
+    اولین بسته‌شدن، بسته‌شدنِ واقعی است — بقیه بازپخشِ زامبی‌اند؛ پس
+    قدیمی‌ترین `closed` می‌ماند. خروجی: (ردیف حذف‌شده، هویت‌های بسته)."""
+    rows = _read(CLOSED)
+    best, order = {}, []
+    for t in rows:
+        k = _identity(t)
+        if k not in best:
+            best[k] = t
+            order.append(k)
+        elif (t.get("closed") or 0) < (best[k].get("closed") or 0):
+            best[k] = t
+    removed = len(rows) - len(best)
+    if removed:
+        _write(CLOSED, [best[k] for k in order])
+    return removed, set(best)
+
+
 def mark():
     """Walk every open position forward and close what has resolved."""
+    # خود-درمانی هر دور: تکراری‌های دفتر بسته جمع می‌شوند و ردیفِ بازی که
+    # هویتش قبلاً بسته شده (زامبیِ احیاشده با merge) بی‌صدا حذف می‌شود —
+    # بدون این، همان معامله بارها «بسته» می‌شد و آمار باد می‌کرد.
+    removed, closed_ids = dedup_closed()
+    if removed:
+        print(f"پاک‌سازی دفتر بسته: {removed} ردیف تکراری جمع شد")
     positions = _read(OPEN)
+    zombies = [p for p in positions if _identity(p) in closed_ids]
+    if zombies:
+        positions = [p for p in positions if _identity(p) not in closed_ids]
+        _write(OPEN, positions)
+        print(f"{len(zombies)} ردیف احیاشدهٔ merge از دفتر باز حذف شد "
+              f"(قبلاً بسته شده بودند)")
     if not positions:
         print("دفتر باز خالی است")
         return 0, 0

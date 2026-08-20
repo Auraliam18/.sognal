@@ -150,9 +150,84 @@ def take_ours(path):
     return "عکس‌فوری تازهٔ همین اجرا"
 
 
+# ── دفتر معامله: اجتماعِ هویت، نه اجتماعِ خط (کشف ۲۰ اوت) ──────────────────
+#
+# اجتماعِ خطی برای دفتر معامله کافی نبود و ۴۲٪ دفتر را تکراری کرد:
+# دو بسته‌شدنِ همان معامله زمانِ `closed` متفاوت دارند، پس دو «خط یکتا»یند
+# و هر دو زنده می‌ماندند. بدتر: اجتماعِ خطیِ open.jsonl ردیفی را که طرف
+# دیگر بسته بود **احیا** می‌کرد و چرخهٔ بعد دوباره می‌بستش — یک معاملهٔ
+# ASTERUSDT دوازده بار بسته شد. هویت معامله = (نماد، لحظهٔ باز، جهت، دفتر)
+# — هم‌مقدار با paper._identity.
+
+def _trade_identity(r):
+    return (r.get("sym"), r.get("opened"), r.get("dir"),
+            (r.get("why") or {}).get("stage") or "")
+
+
+def _stage_rows(path):
+    out = []
+    for st in (2, 3):
+        for line in (_stage(st, path) or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except Exception:                        # noqa: BLE001 - خط خراب رد
+                continue
+    return out
+
+
+def merge_trade_closed(path):
+    """اجتماع بر هویت معامله؛ از هر هویت، قدیمی‌ترین بسته‌شدن می‌ماند —
+    اولین بسته‌شدن واقعی است، بقیه بازپخشِ زامبیِ احیاشده‌اند."""
+    best = {}
+    for r in _stage_rows(path):
+        k = _trade_identity(r)
+        old = best.get(k)
+        if old is None or (r.get("closed") or 0) < (old.get("closed") or 0):
+            best[k] = r
+    rows = sorted(best.values(), key=lambda r: r.get("closed") or 0)
+    (ROOT / path).write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n"
+        if rows else "", encoding="utf-8")
+    return f"{len(rows)} معاملهٔ یکتا"
+
+
+def merge_trade_open(path):
+    """اجتماع دفتر باز، منهای هویت‌هایی که در دفتر بسته هستند (سنگ قبر).
+
+    حذف از open در یک طرف یعنی «بسته شد»، نه «گم شد» — پس اجتماعِ کور،
+    حذف را باطل می‌کرد. مرجعِ سنگ قبر خودِ closed.jsonl است: اگر آن هم در
+    همین merge تعارض دارد از هر دو نسخه‌اش خوانده می‌شود، وگرنه از درخت."""
+    closed_rows = _stage_rows("brain/paper/closed.jsonl")
+    if not closed_rows:
+        f = ROOT / "brain" / "paper" / "closed.jsonl"
+        if f.exists():
+            for line in f.read_text(encoding="utf-8").splitlines():
+                try:
+                    closed_rows.append(json.loads(line))
+                except Exception:                    # noqa: BLE001
+                    continue
+    tomb = {_trade_identity(r) for r in closed_rows}
+    best = {}
+    for r in _stage_rows(path):
+        k = _trade_identity(r)
+        if k in tomb:
+            continue                                 # قبلاً بسته شده — احیا ممنوع
+        best.setdefault(k, r)
+    rows = sorted(best.values(), key=lambda r: r.get("opened") or 0)
+    (ROOT / path).write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n"
+        if rows else "", encoding="utf-8")
+    return f"{len(rows)} سفارش باز ({len(tomb)} سنگ قبر اعمال شد)"
+
+
 EXACT = {
     "brain/memory/lessons.json": merge_lessons,
     "brain/learning/index.json": rebuild_index,
+    "brain/paper/closed.jsonl": merge_trade_closed,
+    "brain/paper/open.jsonl": merge_trade_open,
 }
 
 # ── دفترِ انباشته در برابر عکس‌فوریِ مشتق‌شده ─────────────────────────────

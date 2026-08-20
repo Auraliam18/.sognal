@@ -155,8 +155,10 @@ import importlib.util                                  # noqa: E402
 spec = importlib.util.spec_from_file_location("rbc", SCRIPT)
 rbc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rbc)
+# ۲۰ اوت: دفترهای معامله از اجتماعِ خطی درآمدند — اجتماعِ خطی open.jsonl
+# ردیفِ بسته‌شده را احیا می‌کرد (حلقهٔ ۱۲بار-بستنِ ASTER). حالا هویت‌محورند.
 check("دفتر jsonl تازه خودکار پوشش داده می‌شود",
-      rbc.handler_for("brain/paper/open.jsonl") is rbc.merge_jsonl)
+      rbc.handler_for("brain/paper/open.jsonl") is rbc.merge_trade_open)
 check("هر jsonl زیر brain (مثلاً learning) هم پوشش دارد",
       rbc.handler_for("brain/learning/experiences.jsonl") is rbc.merge_jsonl)
 check("signals عکس‌فوری می‌گیرد نه اجتماع",
@@ -212,8 +214,8 @@ check("نماد فقط-در-خودمان هم نمی‌افتد", _st.get("B") =
 # درس: آزمونی که جلوی تولید را می‌گیرد باید قطعی باشد. حالا **قاعده‌ها**
 # سنجیده می‌شوند، نه محتویات دیسک — با فهرست ثابتِ نمونه‌های بحرانی.
 CRITICAL = {
-    "brain/paper/closed.jsonl": rbc.merge_jsonl,
-    "brain/paper/open.jsonl": rbc.merge_jsonl,
+    "brain/paper/closed.jsonl": rbc.merge_trade_closed,   # هویت‌محور، ۲۰ اوت
+    "brain/paper/open.jsonl": rbc.merge_trade_open,        # اجتماع منهای سنگ قبر
     "brain/learning/experiences.jsonl": rbc.merge_jsonl,
     "brain/memory/lessons.json": rbc.merge_lessons,
     "brain/learning/index.json": rbc.rebuild_index,
@@ -279,6 +281,65 @@ check("و عکس‌فوری نسخهٔ همین اجرا را گرفت",
       json.loads(fa.read_text())["v"] == "ما")
 check("چیزی حل‌نشده نماند (نام فارسی)",
       not git("diff", "--name-only", "--diff-filter=U", cwd=tmp).stdout.strip())
+
+# ── حلقهٔ احیا (کشف ۲۰ اوت — «چرا این‌همه پوزیشن روی استر؟») ─────────────
+# صحنهٔ واقعی: طرف A معامله را می‌بندد (از open حذف، به closed اضافه)؛
+# طرف B هنوز نسخهٔ قدیمی open را دارد. اجتماعِ خطی ردیف بسته‌شده را در
+# open احیا می‌کرد و همان معامله دوباره بسته می‌شد — تا ۱۲ بار.
+import shutil as _sh
+tmp2 = Path(tempfile.mkdtemp(prefix="resolve-zombie-"))
+git("init", "-q", "-b", "main", cwd=tmp2)
+git("config", "user.email", "t@t", cwd=tmp2)
+git("config", "user.name", "t", cwd=tmp2)
+(tmp2 / "scripts").mkdir()
+(tmp2 / "scripts" / "resolve_brain_conflicts.py").write_text(
+    SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+(tmp2 / "brain" / "paper").mkdir(parents=True)
+
+def _tr(sym, opened, closed=None, stage="sig-smc", extra=""):
+    r = {"sym": sym, "dir": "LONG", "entry": 1.0, "opened": opened,
+         "why": {"stage": stage}}
+    if closed is not None:
+        r.update({"closed": closed, "R": 0.1, "outcome": "trail"})
+    return json.dumps(r, ensure_ascii=False)
+
+OP = tmp2 / "brain" / "paper" / "open.jsonl"
+CL = tmp2 / "brain" / "paper" / "closed.jsonl"
+# پایه: معاملهٔ ASTER باز است، دفتر بسته یک معاملهٔ قدیمی دارد
+OP.write_text(_tr("ASTERUSDT", 100) + "\n" + _tr("OTHERUSDT", 50) + "\n")
+CL.write_text(_tr("OLDUSDT", 10, closed=20) + "\n")
+git("add", "-A", cwd=tmp2); git("commit", "-qm", "base", cwd=tmp2)
+# طرف A: استر را می‌بندد
+git("checkout", "-qb", "sideA", cwd=tmp2)
+OP.write_text(_tr("OTHERUSDT", 50) + "\n")
+CL.write_text(_tr("OLDUSDT", 10, closed=20) + "\n"
+              + _tr("ASTERUSDT", 100, closed=200) + "\n")
+git("commit", "-qam", "close aster", cwd=tmp2)
+# طرف B: استر هنوز باز است + معاملهٔ تازهٔ خودش؛ و استر را با زمان بستهٔ
+# دیگری هم بسته (همان دوبار-بستنِ واقعی)
+git("checkout", "-q", "main", cwd=tmp2)
+git("checkout", "-qb", "sideB", cwd=tmp2)
+OP.write_text(_tr("ASTERUSDT", 100) + "\n" + _tr("OTHERUSDT", 50) + "\n"
+              + _tr("NEWUSDT", 300) + "\n")
+CL.write_text(_tr("OLDUSDT", 10, closed=20) + "\n"
+              + _tr("ASTERUSDT", 100, closed=260) + "\n")
+git("commit", "-qam", "sideB", cwd=tmp2)
+git("merge", "sideA", cwd=tmp2)                       # تعارض
+rz = subprocess.run([sys.executable, "scripts/resolve_brain_conflicts.py"],
+                    cwd=tmp2, capture_output=True, text=True)
+check("حل‌کننده روی صحنهٔ احیا خارج شد بدون خطا", rz.returncode == 0)
+cl_rows = [json.loads(l) for l in CL.read_text().splitlines() if l.strip()]
+aster_cl = [r for r in cl_rows if r["sym"] == "ASTERUSDT"]
+check("دو بسته‌شدنِ همان معامله → یک ردیف", len(aster_cl) == 1)
+check("قدیمی‌ترین بسته‌شدن ماند (بسته‌شدنِ واقعی)",
+      aster_cl and aster_cl[0]["closed"] == 200)
+check("ردیف‌های غیرتکراری دفتر بسته گم نشدند",
+      {r["sym"] for r in cl_rows} == {"OLDUSDT", "ASTERUSDT"})
+op_rows = [json.loads(l) for l in OP.read_text().splitlines() if l.strip()]
+check("معاملهٔ بسته‌شده در دفتر باز احیا نشد (سنگ قبر)",
+      all(r["sym"] != "ASTERUSDT" for r in op_rows))
+check("سفارش‌های واقعاً باز هر دو طرف ماندند",
+      {r["sym"] for r in op_rows} == {"OTHERUSDT", "NEWUSDT"})
 
 print()
 if fail:

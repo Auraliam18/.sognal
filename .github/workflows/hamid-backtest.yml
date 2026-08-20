@@ -64,6 +64,15 @@ jobs:
       # چون دفتر پیشنهادهایش هر اجرا با reset --hard پاک می‌شد. دفتر از
       # تاریخچهٔ گیت بازیابی شد؛ از این‌جا به بعد هر شب روی کندل واقعی
       # نمره می‌خورد. حکم فقط از CI — این‌جا فقط عدد تولید می‌شود.
+      # فایل متا (دستور حمید ۲۰ اوت): IBS به‌صورت پایتون خوداتکا + فرضیهٔ
+      # «نزدیک TP2 تارگت را بردار و تنگ تریل کن» — هر شب A/B روی کندل
+      # واقعی. حکم فقط با CI بلوکی-ارزی؛ قانون بدون CI عوض نمی‌شود.
+      - name: Meta IBS A/B (trail-after-TP2 vs classic)
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 -m hamid.test_aura_meta
+          python3 -m hamid.backtest_meta --symbols 40 --bars 2000 | tee -a bt.txt || true
+
       - name: Pump radar scorecard (real candles)
         working-directory: claude-liam-signal/python
         run: |
