@@ -97,7 +97,17 @@ def to_paper(sym, tr, stage):
                         "trail" if r > 0 else
                         "stop" if r <= -0.9 else "timeout"),
             "R": round(r, 3), "tf": "15m",
-            "closed": tr["t"] + 96 * 900_000}
+            # ۲۰ اوت — زمان بستهٔ ساختگی: این‌جا `ورود + ۹۶ کندل` نوشته می‌شد،
+            # یعنی هر ردیف بازپخش دقیقاً ۲۴ ساعت بعد از ورودش «بسته» به نظر
+            # می‌رسید، فارغ از این‌که واقعاً کِی خورده. دو خرابیِ سنجش داشت:
+            # (۱) هر پنجرهٔ «۲۴ ساعت اخیر» و هر بلوک‌بندی روزانهٔ بوت‌استرپ
+            #     روی این دفتر یک شبانه‌روز جابه‌جا می‌شد؛
+            # (۲) ردیف‌هایی با زمان بسته در **آینده** ساخته می‌شد — روی دفتر
+            #     تولید ۹ ردیف تا ۱۱.۲ ساعت جلوتر از حالا دیده شد.
+            # حالا زمانِ واقعیِ کندلِ خروج از simulate می‌آید و علاوه بر آن
+            # به «حالا» مهار می‌شود، تا هیچ مسیری نتواند ردیف آینده‌دار بسازد.
+            "closed": min(tr.get("closed_t") or (tr["t"] + 96 * 900_000),
+                          int(time.time() * 1000))}
 
 
 def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL, deadline=None):
@@ -150,13 +160,13 @@ def walk_both(sym, c15, c1h, after_ms=0, cap=CAP_PER_SYMBOL, deadline=None):
         if not r.setup:
             i += STEP
             continue
-        R = simulate(c15, i, r.setup)
+        R, exit_t = simulate(c15, i, r.setup, with_exit=True)
         if R is None:                                 # سفارش پر نشد = معامله نیست
             i += STEP
             continue
         s = r.setup
         out.append(to_paper(sym, {
-            "t": now, "dir": s["dir"], "R": R,
+            "t": now, "dir": s["dir"], "R": R, "closed_t": exit_t,
             "entry": s.get("entry"), "sl": s.get("sl"), "tp1": s.get("tp1"),
             "stop_pct": s.get("stop_pct"), "trend_4h": r.trend_4h,
             "returns": (s.get("block") or {}).get("returns"),

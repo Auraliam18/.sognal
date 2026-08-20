@@ -94,7 +94,14 @@ class FakeRead:
 orig_read, orig_sim = stack.read, bt.simulate
 fake = FakeRead()
 stack.read = fake
-bt.simulate = lambda c, i, s: 1.6                      # همیشه پر می‌شود، R=+1.6
+# ۲۰ اوت: simulate حالا با with_exit زمان کندلِ خروج را هم برمی‌گرداند،
+# پس بدل هم باید همان قرارداد را داشته باشد — بدلی که قرارداد تازه را
+# نشناسد، تستِ سبز می‌دهد و خرابی را از تولید رد می‌کند.
+def _sim(c, i, s, with_exit=False):                    # همیشه پر می‌شود، R=+1.6
+    j = min(i + 3, len(c) - 1)                         # خروج سه کندل بعد
+    return (1.6, c[j]["t"]) if with_exit else 1.6
+
+bt.simulate = _sim
 
 rows, frontier = fb.walk_both("XUSDT", c15, c1h)
 check(f"ستاپ‌ها به ردیف دفتر تبدیل شدند ({len(rows)})", len(rows) > 0)
@@ -122,10 +129,10 @@ check("R عددی و گرد شده است", isinstance(r0["R"], float))
 check("closed بعد از opened است", r0["closed"] > r0["opened"])
 
 # ── سفارش پرنشده معامله نیست ──────────────────────────────────────────────
-bt.simulate = lambda c, i, s: None
+bt.simulate = lambda c, i, s, with_exit=False: (None, None) if with_exit else None
 none_rows, _ = fb.walk_both("XUSDT", c15, c1h)
 check("سفارش پرنشده هیچ ردیفی نمی‌سازد", none_rows == [])
-bt.simulate = lambda c, i, s: 1.6
+bt.simulate = _sim
 
 # ── ضدتکرار بین اجراها ────────────────────────────────────────────────────
 again, _ = fb.walk_both("XUSDT", c15, c1h, after_ms=frontier)
@@ -248,6 +255,27 @@ _new = sorted(set(_brain_status().splitlines()) - set(_BRAIN_BEFORE.splitlines()
 if _new:
     print("      ↳ " + " | ".join(_new)[:300])
 check("هیچ فایلی در مغز واقعی عوض نشد", not _new)
+
+# ── پاسبان: زمان بستهٔ ردیف بازپخش باید واقعی باشد، نه ساختگی ────────────
+# تا ۲۰ اوت این‌جا «ورود + ۹۶ کندل» نوشته می‌شد، پس هر ردیف دقیقاً ۲۴ ساعت
+# بعد از ورودش «بسته» به نظر می‌رسید و روی دفتر تولید ۹ ردیف زمان بسته در
+# آینده گرفته بودند (تا ۱۱.۲ ساعت جلوتر از حالا). هر پنجرهٔ «۲۴ ساعت اخیر»
+# و هر بلوک‌بندی روزانهٔ بوت‌استرپ روی این دفتر یک شبانه‌روز جابه‌جا می‌شد.
+_now_ms = int(_t.time() * 1000)
+_fresh, _ = fb.walk_both("XUSDT", c15, c1h)
+_ahead = sum(1 for r in _fresh if r["closed"] > int(_t.time() * 1000))
+if _ahead:
+    print(f"      ↳ {_ahead} ردیف آینده‌دار")
+check("هیچ ردیفی زمان بستهٔ آینده ندارد", not _ahead)
+check("زمان بسته از کندل خروجِ simulate می‌آید، نه فرمول ثابت",
+      bool(_fresh)
+      and all(r["closed"] != r["opened"] + 96 * 900_000 for r in _fresh)
+      and all(r["closed"] > r["opened"] for r in _fresh))
+_synth = fb.to_paper("XUSDT", {"t": _now_ms, "dir": "LONG", "R": 1.0,
+                               "closed_t": _now_ms + 30 * 24 * 3600_000},
+                     "first")
+check("حتی زمان خروجِ آینده‌دار هم به «حالا» مهار می‌شود",
+      _synth["closed"] <= int(_t.time() * 1000))
 
 paper.CLOSED, fb.STATE, fb.STATUS = real_closed, real_state, real_status
 for k, v in real_mem.items():

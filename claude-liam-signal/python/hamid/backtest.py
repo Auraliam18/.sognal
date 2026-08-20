@@ -75,17 +75,27 @@ def fetch(sym, bars):
     return c15, c1h
 
 
-def simulate(c15, i, setup):
+def simulate(c15, i, setup, with_exit=False):
     """Place the limit and see what happens. Returns R, or None if never filled.
 
     `i` is the bar the setup was produced on, so the walk starts at i+1 — the
     setup could not have been acted on any earlier than the bar after the one
     that revealed it.
+
+    With `with_exit=True` the return is `(R, exit_bar_timestamp)`. The callers
+    that write ledger rows need the real exit bar: synthesising a close time as
+    "entry + the full hold window" dates every replayed row 24h after entry
+    whatever actually happened, which shifts every close-time-based window and
+    can even land rows in the future. Default stays R-only so existing callers
+    are untouched.
     """
+    def done(R, j):
+        return (R, c15[j]["t"]) if with_exit else R
+
     entry, sl, tp = setup["entry"], setup["sl"], setup["tp1"]
     risk = abs(entry - sl)
     if risk <= 0:
-        return None
+        return (None, None) if with_exit else None
     long = setup["dir"] == "LONG"
 
     fill = None
@@ -93,22 +103,22 @@ def simulate(c15, i, setup):
         if c15[j]["l"] <= entry <= c15[j]["h"]:
             fill = j
             break
-    if fill is None:
-        return None                       # never filled: not a trade
+    if fill is None:                      # never filled: not a trade
+        return (None, None) if with_exit else None
 
     for j in range(fill, min(len(c15), fill + HOLD_WINDOW)):
         c = c15[j]
         hit_sl = (c["l"] <= sl) if long else (c["h"] >= sl)
         hit_tp = (c["h"] >= tp) if long else (c["l"] <= tp)
         if hit_sl and hit_tp:
-            return -1.0                   # cannot tell the order; assume the worse
+            return done(-1.0, j)          # cannot tell the order; assume the worse
         if hit_sl:
-            return -1.0
+            return done(-1.0, j)
         if hit_tp:
-            return abs(tp - entry) / risk
+            return done(abs(tp - entry) / risk, j)
     end = min(len(c15) - 1, fill + HOLD_WINDOW - 1)
     out = c15[end]["c"]
-    return ((out - entry) if long else (entry - out)) / risk
+    return done(((out - entry) if long else (entry - out)) / risk, end)
 
 
 def walk(sym, c15, c1h, bars_needed=140):
