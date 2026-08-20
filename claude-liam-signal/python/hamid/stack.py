@@ -203,6 +203,9 @@ def _setup(symbol, c15m, blocks, lvls, t4, t1, t15, ch, re, notes):
             "m15_touches": t15n,
             "stop_pct": stop_pct,
             "entry": round(entry, 8), "sl": round(sl, 8),
+            # قیمت لحظهٔ صدور — دفتر کاغذی از همین dist_pct را می‌سازد
+            # (مطالعهٔ انقضا: چرا نیمی از ستاپ‌ها هرگز پر نمی‌شوند؟)
+            "cur": round(price, 8),
             "tp1": round(tp1, 8), "tp2": round(tp2, 8),
             "rr": round(abs(tp1 - entry) / risk, 2),
             "block": _ob(b), "on_level": _lv(lvl),

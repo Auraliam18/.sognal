@@ -35,6 +35,7 @@ def check(name, cond, detail=""):
 tmp = Path(tempfile.mkdtemp(prefix="pdedup-"))
 paper.OPEN = tmp / "open.jsonl"
 paper.CLOSED = tmp / "closed.jsonl"
+paper.EQUITY = tmp / "equity.json"     # mark → _equity؛ بدون این، تست به تولید می‌نوشت
 memory.digest_closed = lambda rows: None
 paper.brain.room_log = lambda *a, **k: None
 paper._candles_since = lambda sym, opened: []         # بدون شبکه

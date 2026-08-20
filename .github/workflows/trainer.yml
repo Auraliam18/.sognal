@@ -82,6 +82,12 @@ jobs:
 
       # دانش انباشته: حکم امروزِ بک‌تست ثبت می‌شود و «پایدار» یعنی در چند
       # اندازه‌گیریِ مستقل با علامت ثابت تکرار شده — نه یک روز شانسی.
+      # مطالعهٔ انقضا (سؤال باز ۲۰ اوت): نیمی از ستاپ‌های دفتر اول منقضی
+      # می‌شوند — رابطهٔ فاصلهٔ ورود با نرخ پر شدن و R، فقط عدد، بدون تغییر رفتار.
+      - name: مطالعهٔ انقضا و فاصلهٔ ورود
+        working-directory: claude-liam-signal/python
+        run: python3 -m hamid.expiry_study || true
+
       - name: دفتر پایداری قانون‌ها
         working-directory: claude-liam-signal/python
         run: python3 -m hamid.rule_ledger || true

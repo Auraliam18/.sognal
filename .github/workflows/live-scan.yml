@@ -47,7 +47,10 @@ permissions:
 
 concurrency:
   group: live-scan
-  cancel-in-progress: true
+  # ۲۰ اوت — جداسازی اسکن از زنجیرهٔ رادار: اسکن حالا زنجیرهٔ خودش را دارد
+  # (self-dispatch در انتهای هر اجرا؛ کرون فقط تور ایمنی). cancel-in-progress
+  # باید خاموش باشد وگرنه اجرای کرون، اجرای وسطِ pushِ زنجیره را می‌کشد.
+  cancel-in-progress: false
 
 # نام منبعِ این خط تولید روی پیام‌های تلگرام (دستور حمید ۱۶ اوت).
 # پنل دیگر نام خودش را دارد؛ بدون این، دو منبع در کانال قاتی می‌شوند.
@@ -87,8 +90,12 @@ jobs:
           PY
           )
           echo "عمر خروجی: ${AGE} دقیقه"
-          if [ "$AGE" -lt 12 ]; then
-            echo "زنجیرهٔ اصلی زنده است — این تور ایمنی کنار می‌کشد"
+          # ۳ دقیقه، نه ۱۲: مالکیت کادنس ۳-۵ دقیقه‌ای حالا با خود این
+          # زنجیره است (قبلاً داخل حلقهٔ رادار بود و حکمِ رادار می‌توانست
+          # کادنس سیگنال را گروگان بگیرد). گارد فقط جلوی دو زنجیرهٔ موازی
+          # را می‌گیرد.
+          if [ "$AGE" -lt 3 ]; then
+            echo "اجرای موازی تازه است — این اجرا کنار می‌کشد"
             echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.fresh.outputs.skip != '1'
@@ -107,7 +114,7 @@ jobs:
           TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
         run: |
           python3 claude-liam-signal/python/scan.py \
-            --symbols "${{ github.event.inputs.symbols || '100' }}" \
+            --symbols "${{ github.event.inputs.symbols || '60' }}" \
             --telegram \
             | tee scan-output.txt
 
@@ -201,6 +208,23 @@ jobs:
       # serving a scan hours old. `deploy-pages` refuses to run from anything but
       # the default branch, so the fix is to dispatch it there rather than to add
       # a push trigger here.
+      # زنجیرهٔ پیوسته: اجرای بعدیِ خودش را صدا می‌زند (همان الگوی رادار —
+      # کرون گیت‌هاب در ساعت شلوغی می‌افتد و «هر ۳۰ دقیقه» تنها چیزی است که
+      # از کرون برمی‌آید). فقط اجرایی که واقعاً اسکن کرده dispatch می‌کند،
+      # وگرنه هر کرونِ ردشده یک زنجیرهٔ موازی می‌ساخت.
+      - name: Self-dispatch next scan
+        if: steps.fresh.outputs.skip != '1' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 60
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/live-scan.yml/dispatches" \
+            -d '{"ref":"main"}' && echo "زنجیره ادامه یافت"
+
       - name: Rebuild the published panel
         if: steps.fresh.outputs.skip != '1' && github.ref == 'refs/heads/main'
         continue-on-error: true

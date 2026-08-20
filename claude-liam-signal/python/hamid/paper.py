@@ -186,6 +186,12 @@ def open_from(setups, context):
                 # همان دو ستونی که میز تمرین می‌نوشت و این دفتر نمی‌نوشت
                 "chan_pos": s.get("chan_pos"),
                 "vol_z": s.get("vol_z"),
+                # فاصلهٔ ورود از قیمت لحظهٔ صدور (٪) — سؤال باز ۲۰ اوت:
+                # نیمی از ستاپ‌های دفتر اول منقضی می‌شوند؛ حکمِ تغییرِ
+                # پنجرهٔ پر شدن فقط از همین ستون + CI می‌آید (expiry_study).
+                "dist_pct": (round(abs(float(s["entry"]) - float(s["cur"]))
+                                   / float(s["cur"]) * 100, 3)
+                             if s.get("cur") else None),
                 "tg_msg_id": s.get("tg_msg_id"),
                 "dir": s["dir"],
                 "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),

@@ -427,6 +427,41 @@ def send_signals(signals, render_chart, limit=8):
             print(f"  دروازهٔ روند {s['sym']}: {type(_e).__name__} — "
                   f"دادهٔ ناقص، ارسال نشد", flush=True)
             continue
+        # دروازهٔ قانون‌های پایدار (تغییر کنترل‌شدهٔ ۲۰ اوت): قانونی که چند
+        # روز پیاپی با CI همان علامت را داده، دیگر فقط امتیاز نیست — منفی
+        # وتو می‌کند، مثبت الیت. سیگنالِ وتوشده به دفتر vetoed می‌رود تا
+        # خود دروازه چرخهٔ بعد نمره بگیرد؛ اگر بدتر کرد، برمی‌گردد.
+        try:
+            import sources as _src_r
+            from hamid import rule_gate as _rg
+            _btc15 = [{"t": k[0], "c": float(k[4])}
+                      for k in _src_r.klines("BTCUSDT", s.get("tf") or "15m", 12)]
+            _rv = _rg.assess(s, _rg.btc_dir(_btc15))
+            _rg.log_verdict(s, _rv)
+            if not _rv["ok"]:
+                print(f"  🧱 {s['sym']} {s['dir']}: {_rv['reason']}", flush=True)
+                sent[f"skip|{_key(s)}"] = now_ms
+                try:
+                    from hamid import paper as _paper_rg
+                    _paper_rg.open_from(
+                        [{"symbol": s["sym"], "dir": s["dir"],
+                          "entry": s["entry"], "sl": s["sl"],
+                          "tp1": s.get("tp1") or s["entry"],
+                          "tp2": s.get("tp2"), "stage_tag": "vetoed",
+                          "why": {"gate": "stable_rule",
+                                  "reason": _rv["reason"]}}],
+                        {})
+                except Exception:                    # noqa: BLE001 - دفتر نمره، نه مسیر اصلی
+                    pass
+                continue
+            if _rv["boost"]:
+                s["elite"] = True
+                s["stable_rules"] = _rv["applied"]
+        except Exception as _e:                      # noqa: BLE001
+            # خطای زیرساخت در خواندن دفتر قانون‌ها نباید ارسال را بخواباند؛
+            # ولی نبودِ دادهٔ بیت‌کوین داخل خود assess وتو می‌شود (قانون ۱).
+            print(f"  دروازهٔ قانون {s['sym']}: {type(_e).__name__} — "
+                  f"بدون دروازه ادامه یافت", flush=True)
         if _px is not None and s.get("entry") and s.get("sl"):
             _stop_frac = abs(s["entry"] - s["sl"]) / s["entry"]
             _signed = ((_px - s["entry"]) / s["entry"] if s["dir"] == "LONG"

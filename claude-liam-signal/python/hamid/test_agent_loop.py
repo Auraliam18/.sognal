@@ -39,6 +39,8 @@ _memguard.HISTORY = _MEM_TMP / "history-stats.json"
 from hamid import execution_gate as _egguard          # noqa: E402
 from hamid import paper as _pguard                    # noqa: E402
 _egguard.OUTBOX = _MEM_TMP / "exec-outbox.json"
+from hamid import rule_gate as _rgguard               # noqa: E402
+_rgguard.LOG = _MEM_TMP / "rule-gate-log.json"        # لاگ دروازهٔ قانون، تولید است
 _pguard._append_gatelog = lambda *a, **k: None        # لاگ دروازهٔ دوام، تولید است
 
 # عکس اولیه، برای نگهبان پایانی — تفاوت سنجیده می‌شود نه پاکیِ مطلق
