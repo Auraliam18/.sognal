@@ -29,6 +29,31 @@ LESSONS = ROOT / "brain" / "memory" / "lessons.json"
 HISTORY = ROOT / "brain" / "history-stats.json"
 CAP = 300
 
+# ۲۰ اوت — چرا حافظهٔ «دائمی» فقط ۵ ساعت عمر داشت:
+#
+# اندازه‌گیری روی دفتر تولید: هر ۳۰۰ ردیف، قدیمی‌ترینشان ۵.۲ ساعت پیش، و
+# ۲۴۰ ردیف از ۳۰۰ از نوع «نتیجه» بود — یعنی خروجی تک‌تکِ معامله‌های بسته.
+# با ~۲۵۰۰ معاملهٔ بسته در ۲۴ ساعت، digest_closed کل سقف را هر چند ساعت
+# یک‌بار می‌شوید و درس‌های واقعی (درس/عیب/کشف/ضعف — آن روز فقط ۶ ردیف از
+# ۳۰۰) زیر سیلِ نتیجه‌ها بیرون می‌افتند. این دقیقاً نقض «حافظهٔ دائمی
+# آسیب نبیند» بود و C3 فقط علامتِ بیرونی‌اش.
+#
+# رفعِ ریشه‌ای: بریدن دیگر FIFOی کور نیست. ردیف‌های «واقعیت» (نتیجهٔ یک
+# معامله) سهمیهٔ خودشان را دارند و بیشتر از آن جا نمی‌گیرند؛ باقیِ سقف
+# دستِ دانشِ قابل‌استفادهٔ مجدد است و سیلِ نتیجه هرگز بیرونش نمی‌کند.
+# آمار معامله‌ها از دست نمی‌رود — brain.learn و brain/cases/ جای اصلی‌شان
+# است و همان‌جا کامل ثبت می‌شوند.
+FACT_KINDS = ("نتیجه", "ضرر واقعی")     # هم‌مقدار با revalidate.FACT_KINDS
+FACT_QUOTA = 120                        # سقف ردیف‌های نتیجه‌ای داخل همین دفتر
+
+
+def _trim(rows):
+    """بریدن سهمیه‌ای: نتیجه‌ها تا FACT_QUOTA، بقیهٔ سقف مالِ دانش."""
+    facts = [l for l in rows if l.get("kind") in FACT_KINDS][:FACT_QUOTA]
+    know = [l for l in rows if l.get("kind") not in FACT_KINDS][:CAP - len(facts)]
+    keep = {id(l) for l in facts} | {id(l) for l in know}
+    return [l for l in rows if id(l) in keep]        # ترتیب «جدیدترین اول» حفظ
+
 
 def _load():
     try:
@@ -75,7 +100,7 @@ def remember(kind, sym, text, data=None):
             return
     j["lessons"].insert(0, {"at": now, "kind": kind,
                             "sym": sym, "text": text, "data": data or {}})
-    j["lessons"] = j["lessons"][:CAP]
+    j["lessons"] = _trim(j["lessons"])
     j["updated"] = int(time.time() * 1000)
     LESSONS.parent.mkdir(parents=True, exist_ok=True)
     LESSONS.write_text(json.dumps(j, ensure_ascii=False, indent=1))

@@ -146,6 +146,31 @@ check("بعد از ۱۲ ساعت، همان درس ردیف تازه می‌گی
            if l.get("text") == "پامپ رادار دیر رسید"]) == 2)
 
 
+# ── پاسبان: سیلِ «نتیجه» حق ندارد دانش را از حافظه بیرون بیندازد ──────────
+# اندازه‌گیری ۲۰ اوت روی دفتر تولید: ۲۴۰ ردیف از ۳۰۰ از نوع «نتیجه» بود و
+# قدیمی‌ترین درسِ حافظهٔ «دائمی» فقط ۵.۲ ساعت عمر داشت. این آزمون همان
+# صحنه را بازمی‌سازد تا برگشتش ناممکن شود.
+memory.LESSONS = tmp / "flood.json"
+KNOW = [("درس", f"K{i}", f"دانشِ ماندنی شمارهٔ {i}") for i in range(6)]
+for k, s, t in KNOW:
+    memory.remember(k, s, t)
+for i in range(1500):                                  # سیل نتیجه‌ها
+    memory.remember("نتیجه", f"S{i}USDT", f"✅ برد S{i}USDT خرید (+1.50R) — {i}")
+
+_flood = memory._load()["lessons"]
+_facts = [l for l in _flood if l.get("kind") in memory.FACT_KINDS]
+_know = [l for l in _flood if l.get("kind") not in memory.FACT_KINDS]
+check(f"سقف کل رعایت شد ({len(_flood)} ≤ {memory.CAP})", len(_flood) <= memory.CAP)
+check(f"نتیجه‌ها از سهمیه رد نشدند ({len(_facts)} ≤ {memory.FACT_QUOTA})",
+      len(_facts) <= memory.FACT_QUOTA)
+_texts = {l.get("text") for l in _know}
+check("هر ۶ درسِ دانش بعد از ۱۵۰۰ نتیجه هنوز در حافظه‌اند",
+      all(t in _texts for _, _, t in KNOW),
+      f"{len(_texts & {t for _, _, t in KNOW})} از ۶ ماند")
+check("جای دانش واقعاً باز ماند (سقف منهای سهمیه)",
+      len(_know) >= memory.CAP - memory.FACT_QUOTA - len(KNOW)
+      or len(_know) == len(KNOW))
+
 print()
 if FAIL:
     print(f"✗ {FAIL} آزمون شکست")
