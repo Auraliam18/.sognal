@@ -11,6 +11,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from hamid import pump_radar as pr                            # noqa: E402
 
+import subprocess as _sp                              # noqa: E402
+_REPO = str(Path(__file__).resolve().parents[3])
+
+
+def _brain_status():
+    return _sp.run(["git", "-C", _REPO, "status", "--short", "brain"],
+                   capture_output=True, text=True).stdout
+
+
+_BRAIN_BEFORE = _brain_status()
+
 FAIL = 0
 
 
@@ -422,6 +433,99 @@ hb = {b["symbol"]: b for b in hist_blocks}
 msg_h = pr.tg_message("تست", picks[:1], blocks + hist_blocks)
 check("سابقهٔ سردسته با تاریخ و واکنش در پیام است",
       "📜" in msg_h and "پامپ +" in msg_h and "س بعد" in msg_h)
+
+# ── پاسبانِ کلاس: هیچ دفتری نباید از reset --hard جان سالم به در نبرد ──────
+#
+# این سومین باری است که همین کلاس خطا زد: ۱۷ اوت دفتر انتظار و ضدتکرار ضعف،
+# ۲۰ اوت دفتر نمرهٔ پیشنهادها. هر بار «یک فایل جا مانده بود». پس این آزمون
+# نمونهٔ منفرد را نمی‌سنجد — کلاس را می‌بندد: هر فایلی که رادار زیر brain/
+# می‌نویسد باید یا از reapply جان به در ببرد، یا صریح در PRESERVE_EXEMPT
+# نامش آمده باشد. عضو جدیدِ بی‌نام، تست را قرمز می‌کند.
+import shutil as _sh                                  # noqa: E402
+import tempfile as _tf                                # noqa: E402
+
+# دفترهایی که عمداً نگه داشته نمی‌شوند (بازتولیدشدنی از منبع، نه دانش)
+PRESERVE_EXEMPT = set()
+
+_root = Path(_tf.mkdtemp(prefix="pump-preserve-"))
+_brain = _root / "brain"
+_brain.mkdir(parents=True)
+(_brain / "memory").mkdir()
+
+# «نوشتهٔ اجرای فعلی» — هر دفتری که رادار زیر brain/ نگه می‌دارد
+_LEDGERS = {
+    "pump-picks.jsonl": '{"t": 1, "sym": "AUSDT", "entry": 1.0}\n',
+    "pump-radar-sent.json": '{"AUSDT@1.0": 1}',
+    "pump-history.json": '{"symbols": {"AUSDT": {"events": [{"t": 1}], "updated": 1}}}',
+    "pump-watchlist.json": '{"AUSDT": {"leader": "L", "added_at": 1, "expires_at": 9e12}}',
+    "pump-weakness-seen.json": '{"AUSDT": 1}',
+}
+_bk = _root / "bk"
+_bk.mkdir()
+for _n, _c in _LEDGERS.items():
+    (_bk / _n).write_text(_c)
+(_bk / "pump-radar.json").write_text('{"generated": 1}')
+
+_saved = (pr.ROOT, pr.OUT, pr.SENT, pr.PICKS, pr.HIST)
+try:
+    pr.ROOT, pr.OUT = _root, _root / "signals" / "pump-radar.json"
+    pr.SENT = _brain / "pump-radar-sent.json"
+    pr.PICKS = _brain / "pump-picks.jsonl"
+    pr.HIST = _brain / "pump-history.json"
+    # نامِ ثابتِ مسیر در pump_watchlist «WL» است. نسخهٔ اول این آزمون
+    # `PATH` را عوض می‌کرد — یعنی هیچ — و در همان اجرا به فایل **تولید**
+    # نوشت. گاردِ تفاضلیِ پایین همین را گرفت. حالا اگر روزی نام ثابت عوض
+    # شود، assert زیر تست را می‌شکند نه تولید را.
+    import hamid.pump_watchlist as _pw2               # noqa: E402
+    assert hasattr(_pw2, "WL"), "pump_watchlist.WL نیست — آزمون به تولید می‌نویسد"
+    _pw_saved = _pw2.WL
+    _pw2.WL = _brain / "pump-watchlist.json"
+    # صحنهٔ واقعی: reset --hard درخت را خالی کرده، فقط پشتیبان مانده
+    pr.reapply(str(_bk))
+    _lost = [n for n in _LEDGERS
+             if n not in PRESERVE_EXEMPT
+             and not (_brain / n).exists()
+             or (n not in PRESERVE_EXEMPT and (_brain / n).exists()
+                 and not (_brain / n).read_text().strip())]
+    if _lost:
+        print("      ↳ گم‌شده پس از reapply: " + "، ".join(_lost))
+    check("هر دفتر رادار از reset --hard جان به در می‌برد", not _lost)
+    _picks = (_brain / "pump-picks.jsonl").read_text()
+    check("دفتر پیشنهادها محتوایش را نگه داشت (نه فقط فایل خالی)",
+          "AUSDT" in _picks)
+    # اجتماع، نه جایگزینی: ردیف تازهٔ درختِ ریست‌شده هم باید بماند
+    (_brain / "pump-picks.jsonl").write_text(
+        '{"t": 2, "sym": "BUSDT", "entry": 2.0}\n')
+    pr.reapply(str(_bk))
+    _both = (_brain / "pump-picks.jsonl").read_text()
+    check("اجتماع دو نسخه، نه بازنویسی (append-only)",
+          "AUSDT" in _both and "BUSDT" in _both)
+    check("اجتماع تکراری نمی‌سازد",
+          _both.count("AUSDT") == 1 and _both.count("BUSDT") == 1)
+finally:
+    pr.ROOT, pr.OUT, pr.SENT, pr.PICKS, pr.HIST = _saved
+    _pw2.WL = _pw_saved
+
+# گارد ایزوله‌سازی: خودِ این آزمون نباید به دفتر تولید دست بزند.
+# (نسخهٔ اولش زد — به brain/pump-watchlist.json — چون نام ثابت را اشتباه
+# عوض کرده بود. آزمونی که تولید را آلوده کند بدتر از نبودنش است.)
+# سنجش **تفاضلی** است نه پاکیِ مطلق (همان درسِ ۱۶ اوت در test_fill_books):
+# گاردی که بابت تغییرِ عمدیِ کسِ دیگر — مثلاً بازیابی دفتر پیشنهادها —
+# قرمز شود، اولین چیزی است که نادیده گرفته می‌شود، و آن‌وقت روزی که
+# واقعاً نشتی هست هم نادیده گرفته می‌شود.
+_new_dirty = sorted(set(_brain_status().splitlines()) - set(_BRAIN_BEFORE.splitlines()))
+if _new_dirty:
+    print("      ↳ " + " | ".join(_new_dirty)[:200])
+check("آزمون به دفتر تولید دست نزد", not _new_dirty)
+
+# و پاسبانِ ورک‌فلو: پشتیبانِ خودِ yml هم باید همان فهرست را داشته باشد،
+# وگرنه reapply چیزی برای بازگرداندن ندارد.
+_yml = (Path(__file__).resolve().parents[3] / ".github" / "workflows"
+        / "pump-radar.yml").read_text()
+_missing = [n for n in _LEDGERS if n not in PRESERVE_EXEMPT and n not in _yml]
+if _missing:
+    print("      ↳ در backup ورک‌فلو نیست: " + "، ".join(_missing))
+check("ورک‌فلو از همهٔ دفترها پشتیبان می‌گیرد", not _missing)
 
 print()
 if FAIL:

@@ -60,6 +60,17 @@ jobs:
           python3 -m hamid.test_strat_utbot
           python3 -m hamid.backtest_utbot --symbols 40 --bars 2000 | tee -a bt.txt || true
 
+      # کارنامهٔ رادار پامپ (تصمیم ۲۰ اوت): انجینی که ۱۰ روز بی‌نمره دوید،
+      # چون دفتر پیشنهادهایش هر اجرا با reset --hard پاک می‌شد. دفتر از
+      # تاریخچهٔ گیت بازیابی شد؛ از این‌جا به بعد هر شب روی کندل واقعی
+      # نمره می‌خورد. حکم فقط از CI — این‌جا فقط عدد تولید می‌شود.
+      - name: Pump radar scorecard (real candles)
+        working-directory: claude-liam-signal/python
+        run: |
+          python3 -m hamid.test_pump_score
+          python3 -m hamid.pump_score --recover || true
+          python3 -m hamid.pump_score | tee -a bt.txt || true
+
       - name: Summary
         if: always()
         working-directory: claude-liam-signal/python
@@ -87,7 +98,7 @@ jobs:
           #
           # بدون این دفتر، روش حمید هرگز نمونهٔ کافی برای حکم جمع نمی‌کند و
           # کانال «دانش پایدار → تصمیم» برایش ساکت می‌ماند.
-          git add brain/backtest brain/backtests claude-liam-signal/backtests
+          git add brain/backtest brain/backtests brain/pump-picks.jsonl claude-liam-signal/backtests
           git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git commit -q -m "Hamid method backtest $(date -u '+%Y-%m-%d %H:%M') UTC"
           for a in 1 2 3 4 5; do

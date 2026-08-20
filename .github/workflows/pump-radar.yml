@@ -124,6 +124,11 @@ jobs:
             # (هر دو خط تولید مستقل به همین تشخیص رسیدند — اجتماعِ mergeِ ۱۷ اوت.)
             cp brain/pump-watchlist.json "$BK/" 2>/dev/null || true
             cp brain/pump-weakness-seen.json "$BK/" 2>/dev/null || true
+            # دفتر نمرهٔ پیشنهادها — عضو سومِ همان کلاس خطا (۲۰ اوت).
+            # نبودنش این‌جا یعنی reset --hard هر اجرا پیشنهادهای همان دور را
+            # می‌کشت: فایل ۱۰ روز صفر بایت ماند در حالی که رادار ۲۴۹ پیشنهاد
+            # یکتا صادر کرده بود. بدون این دفتر، precision رادار نمره نمی‌خورد.
+            cp brain/pump-picks.jsonl "$BK/" 2>/dev/null || true
             for i in 1 2 3 4; do
               git fetch origin main -q
               git reset --hard origin/main -q

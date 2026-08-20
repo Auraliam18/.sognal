@@ -47,6 +47,7 @@ ROOT = HERE.parent.parent.parent
 OUT = ROOT / "signals" / "pump-radar.json"
 SENT = ROOT / "brain" / "pump-radar-sent.json"
 SENT_TTL_MS = 6 * 3600 * 1000        # همان نتیجه دوباره فرستاده نمی‌شود
+PICKS = ROOT / "brain" / "pump-picks.jsonl"   # دفتر نمرهٔ پیشنهادها
 BITUNIX_TICKERS = "https://fapi.bitunix.com/api/v1/futures/market/tickers"
 
 # ── قانون تازگی رهبر (دستور حمید، ۱۴ اوت) ─────────────────────────────────
@@ -1020,6 +1021,42 @@ def reapply(backup_dir):
                                        ensure_ascii=False, indent=1))
         except Exception as e:                       # noqa: BLE001
             print(f"بازنشانی تاریخچهٔ پامپ: {type(e).__name__}")
+    # دفتر نمرهٔ پیشنهادها — همان کلاس خطا، عضو سوم (کشف ۲۰ اوت).
+    #
+    # brain/pump-picks.jsonl از ۱۰ اوت ساخته شد و ۱۰ روز **صفر بایت** ماند،
+    # با اینکه رادار در همین مدت ۲۴۹ پیشنهاد یکتا صادر کرده بود (از تاریخچهٔ
+    # signals/pump-radar.json بازیابی شد). علت: این فایل نه در backup ورک‌فلو
+    # بود نه این‌جا در reapply، پس `git reset --hard origin/main` که پیش از
+    # هر تلاشِ پوش می‌دود، هر بار پاکش می‌کرد — ثانیه‌ها بعد از نوشتنش.
+    #
+    # نتیجه‌اش این بود که precision رادار هیچ‌وقت نمره نخورد: انجینی که
+    # بیشترین محاسبهٔ کل مخزن را می‌گیرد، ۱۰ روز بدون کارنامه ماند. اجتماع
+    # است نه کپی، چون دفتر append-only است و دو اجرای هم‌زمان هر کدام
+    # ردیف‌های خودشان را دارند.
+    try:
+        def _rd(p):
+            out = []
+            if p.exists():
+                for ln in p.read_text().splitlines():
+                    if ln.strip():
+                        try:
+                            out.append(json.loads(ln))
+                        except Exception:            # noqa: BLE001
+                            continue
+            return out
+        merged, seen = [], set()
+        for r in _rd(bk / "pump-picks.jsonl") + _rd(PICKS):
+            k = (r.get("t"), r.get("sym"), r.get("entry"))
+            if k in seen:
+                continue
+            seen.add(k)
+            merged.append(r)
+        merged.sort(key=lambda r: r.get("t") or 0)
+        PICKS.parent.mkdir(parents=True, exist_ok=True)
+        PICKS.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
+                                 for r in merged))
+    except Exception as e:                           # noqa: BLE001
+        print(f"اجتماع دفتر پیشنهادها نشد: {type(e).__name__}")
     # دفتر انتظار + ضدتکرار ضعف — کلاس خطای ۱۷ اوت: این دو در لیست
     # بازنشانی نبودند؛ reset --hard هر اجرا قبرستان و دفتر روز را می‌کشت،
     # ورودی‌های منقضی برمی‌گشتند و همان درس ×۲۶ بار ثبت می‌شد.
@@ -1449,7 +1486,8 @@ def run(top=6, min_pct=5.0, deep_n=4, no_telegram=False):
     # هر pick با قیمت لحظه ثبت می‌شود تا اسکریپت نمره‌دهی بعداً بسنجد چند
     # درصدشان واقعاً در پنجره پریدند.
     try:
-        with (ROOT / "brain" / "pump-picks.jsonl").open("a") as f:
+        PICKS.parent.mkdir(parents=True, exist_ok=True)
+        with PICKS.open("a") as f:
             for p in picks:
                 f.write(json.dumps({"t": report["generated"], "sym": p["symbol"],
                                     "entry": p["entry"], "price": p["price"],
