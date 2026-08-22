@@ -1,6 +1,6 @@
 {
- "generated": 1787391131503,
- "generatedText": "2026-08-22 09:32 UTC",
+ "generated": 1787391315701,
+ "generatedText": "2026-08-22 09:35 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -0.8
+  "btcChange": -0.908
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -1152,68 +1152,6 @@
    }
   },
   {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "DOTUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.93,
-   "sl": 0.9502942857142856,
-   "tp1": 0.893,
-   "tp2": 0.8634,
-   "rr": 1.82,
-   "price": 0.93,
-   "conf": 41,
-   "ev": 0.16054466730134853,
-   "quality": 51,
-   "visits": 1,
-   "depth": 83,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": null,
-   "channel": {
-    "dir": "صعودی",
-    "drift": 14,
-    "posPct": 8
-   },
-   "adx": 46.9,
-   "room": {
-    "r": 1.53,
-    "blocker": "FVG مقابل"
-   },
-   "swept": null,
-   "thin": {
-    "insideRatio": 0.17,
-    "volRatio": 0.44
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1787390100000,
-   "ob": {
-    "low": 0.943,
-    "high": 0.949
-   },
-   "learned": {
-    "boost": 0.233,
-    "rules": [
-     {
-      "rule": "جای حرکت بیش از ۱.۵ برابر",
-      "delta": 0.233
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "good",
-    "n": 120,
-    "hit": 35.0,
-    "ev": 0.485
-   }
-  },
-  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "PEPEUSDT",
@@ -1619,6 +1557,76 @@
   {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
+   "sym": "DOTUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.93,
+   "sl": 0.9502942857142856,
+   "tp1": 0.893,
+   "tp2": 0.8634,
+   "rr": 1.82,
+   "price": 0.93,
+   "conf": 41,
+   "ev": 0.16054466730134853,
+   "quality": 51,
+   "visits": 1,
+   "depth": 83,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": null,
+   "channel": {
+    "dir": "صعودی",
+    "drift": 14,
+    "posPct": 8
+   },
+   "adx": 46.9,
+   "room": {
+    "r": 1.53,
+    "blocker": "FVG مقابل"
+   },
+   "swept": null,
+   "thin": {
+    "insideRatio": 0.17,
+    "volRatio": 0.44
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1787390100000,
+   "ob": {
+    "low": 0.943,
+    "high": 0.949
+   },
+   "learned": {
+    "boost": -0.376,
+    "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.371
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.238
+     },
+     {
+      "rule": "جای حرکت بیش از ۱.۵ برابر",
+      "delta": 0.233
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 120,
+    "hit": 35.0,
+    "ev": 0.485
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
    "sym": "TRXUSDT",
    "tf": "15m",
    "stage": "SIGNAL",
@@ -1665,8 +1673,16 @@
     "high": 0.3455
    },
    "learned": {
-    "boost": -0.211,
+    "boost": -0.82,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.371
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.238
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.211
@@ -2408,8 +2424,16 @@
     "high": 0.0634
    },
    "learned": {
-    "boost": -0.211,
+    "boost": -0.82,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.371
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.238
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.211
