@@ -1,6 +1,6 @@
 {
- "generated": 1787464353565,
- "generatedText": "2026-08-23 05:52 UTC",
+ "generated": 1787464504317,
+ "generatedText": "2026-08-23 05:55 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -29,6 +29,18 @@
   }
  },
  "alarms": [
+  {
+   "sym": "BTCUSDT",
+   "tf": "5m",
+   "dir": "SHORT",
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "price": 76172,
+   "now": 76172,
+   "distancePct": 0.0,
+   "why": "اتاق یادگیری مخالف است — 238 مورد مشابه، برد 9.7٪، انتظار -0.47R",
+   "stage": "ARMED"
+  },
   {
    "sym": "POLUSDT",
    "tf": "5m",
@@ -75,18 +87,6 @@
    "now": 0.0962,
    "distancePct": 0.0,
    "why": "اتاق یادگیری مخالف است — 105 مورد مشابه، برد 26.7٪، انتظار -0.21R",
-   "stage": "ARMED"
-  },
-  {
-   "sym": "BTCUSDT",
-   "tf": "5m",
-   "dir": "SHORT",
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "price": 76172,
-   "now": 76172,
-   "distancePct": 0.0,
-   "why": "اتاق یادگیری مخالف است — 238 مورد مشابه، برد 9.7٪، انتظار -0.47R",
    "stage": "ARMED"
   },
   {
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -1.702
+  "btcChange": -1.579
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -1701,6 +1701,73 @@
  ],
  "watch": [
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "BTCUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 76172,
+   "sl": 76775.2176,
+   "tp1": 75086.20831999999,
+   "tp2": 74217.57497599999,
+   "rr": 1.8,
+   "price": 76172,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 59,
+   "visits": 1,
+   "depth": 13,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 16
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": -0.9,
+    "posPct": 42
+   },
+   "adx": 43.3,
+   "room": {
+    "r": 0.09,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 3
+   },
+   "thin": {
+    "insideRatio": 0.14,
+    "volRatio": 1.65
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "اتاق یادگیری مخالف است — 238 مورد مشابه، برد 9.7٪، انتظار -0.47R",
+   "lastClose": 1787463900000,
+   "ob": {
+    "low": 76622,
+    "high": 76746
+   },
+   "learned": {
+    "boost": 0.478,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.478
+     }
+    ]
+   },
+   "elite": true,
+   "learning": {
+    "verdict": "bad",
+    "n": 238,
+    "hit": 9.7,
+    "ev": -0.467
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "POLUSDT",
@@ -1922,64 +1989,6 @@
     "n": 105,
     "hit": 26.7,
     "ev": -0.21
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "BTCUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 76172,
-   "sl": 76775.2176,
-   "tp1": 75086.20831999999,
-   "tp2": 74217.57497599999,
-   "rr": 1.8,
-   "price": 76172,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 59,
-   "visits": 1,
-   "depth": 13,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 16
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": -0.9,
-    "posPct": 42
-   },
-   "adx": 43.3,
-   "room": {
-    "r": 0.09,
-    "blocker": "FVG مقابل"
-   },
-   "swept": {
-    "n": 3
-   },
-   "thin": {
-    "insideRatio": 0.14,
-    "volRatio": 1.65
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "اتاق یادگیری مخالف است — 238 مورد مشابه، برد 9.7٪، انتظار -0.47R",
-   "lastClose": 1787463900000,
-   "ob": {
-    "low": 76622,
-    "high": 76746
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "bad",
-    "n": 238,
-    "hit": 9.7,
-    "ev": -0.467
    }
   },
   {
@@ -2509,7 +2518,16 @@
     "low": 0.00974,
     "high": 0.00982
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.478,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.478
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "good",
     "n": 70,
