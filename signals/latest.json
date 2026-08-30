@@ -1,6 +1,6 @@
 {
- "generated": 1788127050406,
- "generatedText": "2026-08-30 21:57 UTC",
+ "generated": 1788127203539,
+ "generatedText": "2026-08-30 22:00 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.611
+  "btcChange": 0.648
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -1064,126 +1064,6 @@
    }
   },
   {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "PROMUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 6.658,
-   "sl": 6.861785714285714,
-   "tp1": 6.2911857142857155,
-   "tp2": 5.997734285714287,
-   "rr": 1.8,
-   "price": 6.658,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 51,
-   "visits": 1,
-   "depth": 73,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": null,
-   "channel": {
-    "dir": "صعودی",
-    "drift": 3.3,
-    "posPct": 43
-   },
-   "adx": 29,
-   "room": {
-    "r": 4.38,
-    "blocker": "FVG مقابل"
-   },
-   "swept": null,
-   "thin": {
-    "insideRatio": 0.24,
-    "volRatio": 0.87
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788125400000,
-   "ob": {
-    "low": 6.806,
-    "high": 6.85
-   },
-   "learned": {
-    "boost": 0.228,
-    "rules": [
-     {
-      "rule": "جای حرکت بیش از ۱.۵ برابر",
-      "delta": 0.228
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "good",
-    "n": 159,
-    "hit": 27.7,
-    "ev": 0.064
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "NILUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.05143,
-   "sl": 0.052585400000000004,
-   "tp1": 0.04932,
-   "tp2": 0.04763200000000001,
-   "rr": 1.83,
-   "price": 0.05143,
-   "conf": 41,
-   "ev": 0.16342663148048775,
-   "quality": 96,
-   "visits": 2,
-   "depth": 64,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "R",
-    "touches": 3
-   },
-   "channel": {
-    "dir": "نزولی",
-    "drift": -1.9,
-    "posPct": 10
-   },
-   "adx": 33.6,
-   "room": {
-    "r": 1.15,
-    "blocker": "FVG مقابل"
-   },
-   "swept": {
-    "n": 3
-   },
-   "thin": {
-    "insideRatio": 0.24,
-    "volRatio": 1.09
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788125400000,
-   "ob": {
-    "low": 0.05194,
-    "high": 0.05249
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 136,
-    "hit": 31.6,
-    "ev": 0.146
-   }
-  },
-  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "TRXUSDT",
@@ -1607,8 +1487,16 @@
     "high": 0.7682
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.046,
     "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": 0.393
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -1621,6 +1509,147 @@
     "n": 10886,
     "hit": 26.4,
     "ev": 0.123
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "PROMUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 6.658,
+   "sl": 6.861785714285714,
+   "tp1": 6.2911857142857155,
+   "tp2": 5.997734285714287,
+   "rr": 1.8,
+   "price": 6.658,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 51,
+   "visits": 1,
+   "depth": 73,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": null,
+   "channel": {
+    "dir": "صعودی",
+    "drift": 3.3,
+    "posPct": 43
+   },
+   "adx": 29,
+   "room": {
+    "r": 4.38,
+    "blocker": "FVG مقابل"
+   },
+   "swept": null,
+   "thin": {
+    "insideRatio": 0.24,
+    "volRatio": 0.87
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788125400000,
+   "ob": {
+    "low": 6.806,
+    "high": 6.85
+   },
+   "learned": {
+    "boost": -0.508,
+    "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
+     {
+      "rule": "جای حرکت بیش از ۱.۵ برابر",
+      "delta": 0.228
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 159,
+    "hit": 27.7,
+    "ev": 0.064
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "NILUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.05143,
+   "sl": 0.052585400000000004,
+   "tp1": 0.04932,
+   "tp2": 0.04763200000000001,
+   "rr": 1.83,
+   "price": 0.05143,
+   "conf": 41,
+   "ev": 0.16342663148048775,
+   "quality": 96,
+   "visits": 2,
+   "depth": 64,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "R",
+    "touches": 3
+   },
+   "channel": {
+    "dir": "نزولی",
+    "drift": -1.9,
+    "posPct": 10
+   },
+   "adx": 33.6,
+   "room": {
+    "r": 1.15,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 3
+   },
+   "thin": {
+    "insideRatio": 0.24,
+    "volRatio": 1.09
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788125400000,
+   "ob": {
+    "low": 0.05194,
+    "high": 0.05249
+   },
+   "learned": {
+    "boost": -0.736,
+    "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 136,
+    "hit": 31.6,
+    "ev": 0.146
    }
   },
   {
@@ -1674,8 +1703,16 @@
     "high": 0.08584
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -1739,8 +1776,16 @@
     "high": 11.672
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -2088,8 +2133,16 @@
     "high": 78918.01
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -2153,8 +2206,16 @@
     "high": 700.35
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -2218,8 +2279,16 @@
     "high": 2507.88
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
@@ -2285,8 +2354,16 @@
     "high": 105.17
    },
    "learned": {
-    "boost": -0.183,
+    "boost": -0.919,
     "rules": [
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": -0.48
+     },
+     {
+      "rule": "بیت‌کوین نزولی",
+      "delta": -0.256
+     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.183
