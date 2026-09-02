@@ -1,6 +1,6 @@
 {
- "generated": 1788350189295,
- "generatedText": "2026-09-02 11:56 UTC",
+ "generated": 1788350368382,
+ "generatedText": "2026-09-02 11:59 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -1.749
+  "btcChange": -1.662
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -565,7 +565,16 @@
     "low": 1.9405,
     "high": 1.9749
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.549,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.549
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "thin",
     "n": 0,
@@ -2875,6 +2884,85 @@
    }
   },
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "ENSOUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 0.876,
+   "sl": 0.8725628571428572,
+   "tp1": 0.885,
+   "tp2": 0.91,
+   "rr": 2.62,
+   "price": 0.874,
+   "conf": 38,
+   "ev": 0.3653363464813978,
+   "quality": 100,
+   "visits": 2,
+   "depth": 100,
+   "exited": false,
+   "inside": true,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 7
+   },
+   "channel": {
+    "dir": "صعودی",
+    "drift": 2.9,
+    "posPct": 39
+   },
+   "adx": 17.8,
+   "room": {
+    "r": 1.6,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 5
+   },
+   "thin": {
+    "insideRatio": 0.31,
+    "volRatio": 0.77
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788349800000,
+   "ob": {
+    "low": 0.873,
+    "high": 0.876
+   },
+   "learned": {
+    "boost": 1.02,
+    "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.664
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.549
+     },
+     {
+      "rule": "R:R بالای ۲.۵",
+      "delta": -0.474
+     },
+     {
+      "rule": "جای حرکت بیش از ۱.۵ برابر",
+      "delta": 0.281
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 120,
+    "hit": 39.2,
+    "ev": 0.487
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "ARBUSDT",
@@ -4235,77 +4323,6 @@
     "n": 210,
     "hit": 32.4,
     "ev": 0.043
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "ENSOUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 0.876,
-   "sl": 0.8725628571428572,
-   "tp1": 0.885,
-   "tp2": 0.91,
-   "rr": 2.62,
-   "price": 0.874,
-   "conf": 38,
-   "ev": 0.3653363464813978,
-   "quality": 100,
-   "visits": 2,
-   "depth": 100,
-   "exited": false,
-   "inside": true,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 7
-   },
-   "channel": {
-    "dir": "صعودی",
-    "drift": 2.9,
-    "posPct": 39
-   },
-   "adx": 17.8,
-   "room": {
-    "r": 1.6,
-    "blocker": "FVG مقابل"
-   },
-   "swept": {
-    "n": 5
-   },
-   "thin": {
-    "insideRatio": 0.31,
-    "volRatio": 0.77
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788349800000,
-   "ob": {
-    "low": 0.873,
-    "high": 0.876
-   },
-   "learned": {
-    "boost": -0.193,
-    "rules": [
-     {
-      "rule": "R:R بالای ۲.۵",
-      "delta": -0.474
-     },
-     {
-      "rule": "جای حرکت بیش از ۱.۵ برابر",
-      "delta": 0.281
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 120,
-    "hit": 39.2,
-    "ev": 0.487
    }
   },
   {
