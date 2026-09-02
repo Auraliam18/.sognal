@@ -1,6 +1,6 @@
 {
- "generated": 1788391910136,
- "generatedText": "2026-09-02 23:31 UTC",
+ "generated": 1788392088438,
+ "generatedText": "2026-09-02 23:34 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -0.195
+  "btcChange": -0.383
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -2263,10 +2263,7 @@
     "n": 40137,
     "hit": 32.1,
     "ev": 0.048
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "with-trend"
+   }
   },
   {
    "strategy": "ibs",
@@ -2877,43 +2874,6 @@
     "n": 585,
     "hit": 38.5,
     "ev": 0.155
-   },
-   "trend4": "down",
-   "trend1": "down",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 217.0,
-    "dist_pct": 0.44
-   },
-   "premortem": {
-    "pro": [
-     "RSI ۱۵د سالم (45)",
-     "آهن‌ربای نقدینگی هم‌جهت"
-    ],
-    "con": [
-     "استاپ 0.37٪ داخل نویز ۱۵د است (ATR 0.42٪) — ویک می‌خورد",
-     "الگوی کلاسیک خلاف جهت: کف دوقلو در 15m، کف دوقلو در 1h — دو تایم‌فریم مخالف"
-    ],
-    "pro_w": 2,
-    "con_w": 4,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 2 امتیاز تارگت / 4 امتیاز استاپ — صادر نشد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 217.0,
-    "patterns": {
-     "by_tf": {
-      "15m": [
-       "کف دوقلو"
-      ],
-      "1h": [
-       "کف دوقلو"
-      ]
-     },
-     "align": "against",
-     "note": "کف دوقلو در 15m، کف دوقلو در 1h",
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": null
    }
   }
  ],
@@ -4678,6 +4638,77 @@
    }
   },
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "DASHUSDT",
+   "tf": "15m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 42.67,
+   "sl": 42.292542857142855,
+   "tp1": 43.34942285714286,
+   "tp2": 43.89296114285715,
+   "rr": 1.8,
+   "price": 42.66,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 72,
+   "visits": 2,
+   "depth": 21,
+   "exited": false,
+   "inside": true,
+   "fvg": true,
+   "level": {
+    "type": "R",
+    "touches": 5
+   },
+   "channel": {
+    "dir": "نزولی",
+    "drift": -3.3,
+    "posPct": 70
+   },
+   "adx": 28,
+   "room": {
+    "r": 0.29,
+    "blocker": "حمایت ×5"
+   },
+   "swept": {
+    "n": 2
+   },
+   "thin": {
+    "insideRatio": 0.24,
+    "volRatio": 1.77
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788390900000,
+   "ob": {
+    "low": 42.33,
+    "high": 42.67
+   },
+   "learned": {
+    "boost": 0.213,
+    "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": 0.435
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.222
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 254,
+    "hit": 30.7,
+    "ev": 0.422
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "XRPUSDT",
@@ -5709,53 +5740,6 @@
     "n": 330,
     "hit": 28.2,
     "ev": -0.141
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "CRVUSDT",
-   "tf": "15m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 0.3538,
-   "sl": 0.3513428,
-   "tp1": 0.35748579999999996,
-   "tp2": 0.359943,
-   "rr": 1.5,
-   "price": 0.361,
-   "conf": null,
-   "ev": null,
-   "quality": 56,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788390900000,
-   "ob": {
-    "low": 0.3524,
-    "high": 0.3552
-   },
-   "choch": 0,
-   "barsAgo": 9,
-   "inOB": 0,
-   "nearOB": 0,
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 195,
-    "hit": 46.7,
-    "ev": 0.423
    }
   }
  ],
