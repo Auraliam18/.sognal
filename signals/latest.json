@@ -1,6 +1,6 @@
 {
- "generated": 1788513038164,
- "generatedText": "2026-09-04 09:10 UTC",
+ "generated": 1788513213181,
+ "generatedText": "2026-09-04 09:13 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 4.136
+  "btcChange": 4.095
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -1615,10 +1615,7 @@
     "n": 572,
     "hit": 39.0,
     "ev": 0.861
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "counter-blocked"
+   }
   },
   {
    "strategy": "smc",
@@ -1668,8 +1665,16 @@
     "high": 970.75
    },
    "learned": {
-    "boost": 0.218,
+    "boost": 1.438,
     "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.677
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.543
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.218
@@ -1733,8 +1738,16 @@
     "high": 1580.65
    },
    "learned": {
-    "boost": 0.218,
+    "boost": 1.438,
     "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.677
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.543
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.218
@@ -4592,8 +4605,16 @@
     "high": 0.1669
    },
    "learned": {
-    "boost": 0.218,
+    "boost": 1.438,
     "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.677
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.543
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.218
@@ -4606,6 +4627,74 @@
     "n": 500,
     "hit": 24.4,
     "ev": -0.046
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "MUBARAKUSDT",
+   "tf": "15m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 0.02969,
+   "sl": 0.030831342857142858,
+   "tp1": 0.02763558285714286,
+   "tp2": 0.025992049142857146,
+   "rr": 1.8,
+   "price": 0.02969,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 51,
+   "visits": 1,
+   "depth": 48,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": null,
+   "channel": {
+    "dir": "صعودی",
+    "drift": 13.3,
+    "posPct": 19
+   },
+   "adx": 22.9,
+   "room": {
+    "r": 0.15,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 2
+   },
+   "thin": {
+    "insideRatio": 0.28,
+    "volRatio": 1.2
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 22.9 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1788511500000,
+   "ob": {
+    "low": 0.0301,
+    "high": 0.03075
+   },
+   "learned": {
+    "boost": 0.351,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.543
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.192
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 121,
+    "hit": 33.1,
+    "ev": 0.21
    }
   },
   {
@@ -5076,53 +5165,6 @@
     "n": 42227,
     "hit": 32.0,
     "ev": 0.047
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "APTUSDT",
-   "tf": "15m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.602,
-   "sl": 0.6048089999999999,
-   "tp1": 0.5977865,
-   "tp2": 0.5949775000000002,
-   "rr": 1.5,
-   "price": 0.594,
-   "conf": null,
-   "ev": null,
-   "quality": 56,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788511500000,
-   "ob": {
-    "low": 0.601,
-    "high": 0.603
-   },
-   "choch": 0,
-   "barsAgo": 13,
-   "inOB": 0,
-   "nearOB": 0,
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 195,
-    "hit": 34.4,
-    "ev": 0.121
    }
   }
  ],
