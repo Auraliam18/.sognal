@@ -1,6 +1,6 @@
 {
- "generated": 1788971518813,
- "generatedText": "2026-09-09 16:31 UTC",
+ "generated": 1788971693999,
+ "generatedText": "2026-09-09 16:34 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -90,18 +90,6 @@
    "stage": "ARMED"
   },
   {
-   "sym": "SNDKBUSDT",
-   "tf": "15m",
-   "dir": "LONG",
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "price": 1770.47,
-   "now": 1770.47,
-   "distancePct": 0.0,
-   "why": "ADX 16.8 زیر حد 25 — بازار روند ندارد",
-   "stage": "ARMED"
-  },
-  {
    "sym": "BTCUSDT",
    "tf": "15m",
    "dir": "SHORT",
@@ -123,6 +111,18 @@
    "now": 63.32,
    "distancePct": 0.0,
    "why": "ADX 21.2 زیر حد 25 — بازار روند ندارد",
+   "stage": "ARMED"
+  },
+  {
+   "sym": "SNDKBUSDT",
+   "tf": "15m",
+   "dir": "LONG",
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "price": 1770.47,
+   "now": 1770.47,
+   "distancePct": 0.0,
+   "why": "ADX 16.8 زیر حد 25 — بازار روند ندارد",
    "stage": "ARMED"
   },
   {
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.127
+  "btcChange": 0.25
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -565,7 +565,16 @@
     "low": 1.9405,
     "high": 1.9749
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "thin",
     "n": 0,
@@ -712,93 +721,6 @@
     "n": 616,
     "hit": 38.3,
     "ev": 0.169
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.434,
-    "dist_pct": -0.32
-   },
-   "premortem": {
-    "pro": [
-     "استاپ 1.62٪ بیرون نویز ۱۵د (ATR 0.91٪)",
-     "روند ۱۵د هم‌جهت (down)"
-    ],
-    "con": [
-     "RSI ۱۵د اشباع فروش (20) — ورود دیر",
-     "اردر بلاک 1h (نزدیک، تازه (هنوز لمس‌نشده)) — خلاف جهت، دیوار جلوی راه"
-    ],
-    "pro_w": 3,
-    "con_w": 2,
-    "issue": true,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 3 امتیاز تارگت / 2 امتیاز استاپ — صادر شد",
-    "price": 0.434,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": false,
-    "ob_ctx": {
-     "align": "against",
-     "tf": "1h",
-     "reactions": 0,
-     "hunts": 0,
-     "fresh": true,
-     "note": "اردر بلاک 1h (نزدیک، تازه (هنوز لمس‌نشده))",
-     "low": 0.4084,
-     "high": 0.4238
-    }
-   },
-   "tg_msg_id": 7750
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "DOTUSDT",
-   "tf": "5m",
-   "stage": "SIGNAL",
-   "dir": "LONG",
-   "entry": 1.126,
-   "sl": 1.121625,
-   "tp1": 1.1325624999999997,
-   "tp2": 1.1369374999999993,
-   "rr": 1.5,
-   "price": 1.126,
-   "conf": null,
-   "ev": null,
-   "quality": 76,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": true,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788971100000,
-   "ob": {
-    "low": 1.125,
-    "high": 1.132
-   },
-   "choch": 0,
-   "barsAgo": 5,
-   "inOB": 1,
-   "nearOB": 0,
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 255,
-    "hit": 46.3,
-    "ev": 0.337
    }
   },
   {
@@ -846,6 +768,53 @@
     "n": 615,
     "hit": 44.1,
     "ev": 0.365
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "DOTUSDT",
+   "tf": "5m",
+   "stage": "SIGNAL",
+   "dir": "LONG",
+   "entry": 1.126,
+   "sl": 1.121625,
+   "tp1": 1.1325624999999997,
+   "tp2": 1.1369374999999993,
+   "rr": 1.5,
+   "price": 1.126,
+   "conf": null,
+   "ev": null,
+   "quality": 76,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": true,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788971100000,
+   "ob": {
+    "low": 1.125,
+    "high": 1.132
+   },
+   "choch": 0,
+   "barsAgo": 5,
+   "inOB": 1,
+   "nearOB": 0,
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 255,
+    "hit": 46.3,
+    "ev": 0.337
    }
   },
   {
@@ -1353,574 +1322,6 @@
    }
   },
   {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "BTCUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 79067.51000000001,
-   "sl": 79368.28266999999,
-   "tp1": 78616.35099500004,
-   "tp2": 78315.57832500007,
-   "rr": 1.5,
-   "price": 78634.01,
-   "conf": null,
-   "ev": null,
-   "quality": 64,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 79004.13,
-    "high": 79130.89
-   },
-   "choch": 0,
-   "barsAgo": 5,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "good",
-    "n": 617,
-    "hit": 37.9,
-    "ev": 0.169
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "XRPUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 1.421,
-   "sl": 1.4266672,
-   "tp1": 1.4124992,
-   "tp2": 1.406832,
-   "rr": 1.5,
-   "price": 1.4159,
-   "conf": null,
-   "ev": null,
-   "quality": 64,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 1.4196,
-    "high": 1.4224
-   },
-   "choch": 0,
-   "barsAgo": 5,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "flat",
-    "n": 616,
-    "hit": 30.0,
-    "ev": -0.009
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "PAXGUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 4397.625,
-   "sl": 4411.896099999999,
-   "tp1": 4376.218350000001,
-   "tp2": 4361.947250000003,
-   "rr": 1.5,
-   "price": 4401.22,
-   "conf": null,
-   "ev": null,
-   "quality": 64,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 4396.55,
-    "high": 4398.7
-   },
-   "choch": 0,
-   "barsAgo": 5,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "flat",
-    "n": 570,
-    "hit": 29.6,
-    "ev": -0.025
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "FFUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.1517,
-   "sl": 0.15256632999999997,
-   "tp1": 0.15040050500000005,
-   "tp2": 0.14953417500000007,
-   "rr": 1.5,
-   "price": 0.15105,
-   "conf": null,
-   "ev": null,
-   "quality": 64,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 0.15129,
-    "high": 0.15211
-   },
-   "choch": 0,
-   "barsAgo": 2,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "flat",
-    "n": 60,
-    "hit": 35.0,
-    "ev": 0.042
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "USD1USDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.999775,
-   "sl": 1.00278937,
-   "tp1": 0.9952534450000001,
-   "tp2": 0.9922390750000001,
-   "rr": 1.5,
-   "price": 0.99972,
-   "conf": null,
-   "ev": null,
-   "quality": 78,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 0.99976,
-    "high": 0.99979
-   },
-   "choch": 1,
-   "barsAgo": 41,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": 0.164,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     },
-     {
-      "rule": "CHOCH دارد",
-      "delta": -0.161
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "flat",
-    "n": 615,
-    "hit": 0.0,
-    "ev": 0.0
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "SAHARAUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "LONG",
-   "entry": 0.01006,
-   "sl": 0.009664314285714286,
-   "tp1": 0.010772234285714284,
-   "tp2": 0.011342021714285711,
-   "rr": 1.8,
-   "price": 0.01006,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 71,
-   "visits": 1,
-   "depth": 42,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": null,
-   "channel": {
-    "dir": "صعودی",
-    "drift": 2.3,
-    "posPct": 72
-   },
-   "adx": 35.2,
-   "room": {
-    "r": 99,
-    "blocker": null
-   },
-   "swept": {
-    "n": 4
-   },
-   "thin": {
-    "insideRatio": 0.17,
-    "volRatio": 1.13
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 0.00968,
-    "high": 0.0098
-   },
-   "learned": {
-    "boost": -0.173,
-    "rules": [
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
-     {
-      "rule": "جای حرکت بیش از ۱.۵ برابر",
-      "delta": 0.201
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "thin",
-    "n": 9,
-    "hit": 33.3,
-    "ev": 1.036
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "TRXUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "LONG",
-   "entry": 0.33899999999999997,
-   "sl": 0.3378833,
-   "tp1": 0.3406750499999999,
-   "tp2": 0.3417917499999999,
-   "rr": 1.5,
-   "price": 0.3397,
-   "conf": null,
-   "ev": null,
-   "quality": 64,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 0.3389,
-    "high": 0.3391
-   },
-   "choch": 0,
-   "barsAgo": 0,
-   "inOB": 0,
-   "nearOB": 1,
-   "learned": {
-    "boost": -0.25,
-    "rules": [
-     {
-      "rule": "لانگ خلاف بیت‌کوین",
-      "delta": -0.25
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 615,
-    "hit": 44.1,
-    "ev": 0.365
-   },
-   "trend4": "up",
-   "trend1": "range",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.34,
-    "dist_pct": 0.29
-   },
-   "premortem": {
-    "pro": [
-     "استاپ 0.33٪ بیرون نویز ۱۵د (ATR 0.13٪)",
-     "RSI ۱۵د سالم (65)"
-    ],
-    "con": [
-     "روند ۱۵د خلاف جهت (down)",
-     "آهن‌ربای نقدینگی خلاف جهت — استخر استاپ آن‌طرف است",
-     "اردر بلاک 1h (داخل، 3 واکنش) — خلاف جهت، دیوار جلوی راه"
-    ],
-    "pro_w": 2,
-    "con_w": 4,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 2 امتیاز تارگت / 4 امتیاز استاپ — صادر نشد",
-    "price": 0.3401,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": false,
-    "ob_ctx": {
-     "align": "against",
-     "tf": "1h",
-     "reactions": 3,
-     "hunts": 0,
-     "fresh": false,
-     "note": "اردر بلاک 1h (داخل، 3 واکنش)",
-     "low": 0.3399,
-     "high": 0.3415
-    }
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "RLUSDUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "LONG",
-   "entry": 1.0003,
-   "sl": 0.9971994,
-   "tp1": 1.0049508999999999,
-   "tp2": 1.0080515,
-   "rr": 1.5,
-   "price": 1.0003,
-   "conf": null,
-   "ev": null,
-   "quality": 98,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": true,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 1.0002,
-    "high": 1.0003
-   },
-   "choch": 1,
-   "barsAgo": 17,
-   "inOB": 1,
-   "nearOB": 0,
-   "learned": {
-    "boost": -0.411,
-    "rules": [
-     {
-      "rule": "لانگ خلاف بیت‌کوین",
-      "delta": -0.25
-     },
-     {
-      "rule": "CHOCH دارد",
-      "delta": -0.161
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "flat",
-    "n": 615,
-    "hit": 0.0,
-    "ev": 0.0
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "AAVEUSDT",
-   "tf": "15m",
-   "stage": "SIGNAL",
-   "dir": "LONG",
-   "entry": 129.13,
-   "sl": 128.43354,
-   "tp1": 130.17469,
-   "tp2": 130.87115,
-   "rr": 1.5,
-   "price": 129.13,
-   "conf": null,
-   "ev": null,
-   "quality": 98,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": true,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 128.82,
-    "high": 129.21
-   },
-   "choch": 1,
-   "barsAgo": 12,
-   "inOB": 1,
-   "nearOB": 0,
-   "learned": {
-    "boost": -0.411,
-    "rules": [
-     {
-      "rule": "لانگ خلاف بیت‌کوین",
-      "delta": -0.25
-     },
-     {
-      "rule": "CHOCH دارد",
-      "delta": -0.161
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 585,
-    "hit": 47.0,
-    "ev": 0.426
-   }
-  },
-  {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
    "sym": "ARBUSDT",
@@ -1968,23 +1369,15 @@
     "high": 0.1638
    },
    "learned": {
-    "boost": -0.67,
+    "boost": 0.201,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
      }
     ]
    },
-   "elite": false,
+   "elite": true,
    "learning": {
     "verdict": "good",
     "n": 225,
@@ -2043,134 +1436,487 @@
     "high": 2.237
    },
    "learned": {
-    "boost": -0.67,
+    "boost": 0.201,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
      }
     ]
    },
-   "elite": false,
+   "elite": true,
    "learning": {
     "verdict": "good",
     "n": 279,
     "hit": 26.5,
     "ev": 0.095
-   },
-   "trend4": "down",
-   "trend1": "range",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 2.17,
-    "dist_pct": -0.42
-   },
-   "premortem": {
-    "pro": [
-     "استاپ 3.66٪ بیرون نویز ۱۵د (ATR 0.95٪)",
-     "قانون تأییدشدهٔ تاریخی «جای حرکت بیش از ۱.۵ برابر» (+0.20R، n=707، CI ردشده از صفر)"
-    ],
-    "con": [
-     "RSI ۱۵د اشباع فروش (25) — ورود دیر",
-     "تارگت 6.6٪ یعنی 7 برابر ATR — راه خیلی دور"
-    ],
-    "pro_w": 3,
-    "con_w": 2,
-    "issue": true,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 3 امتیاز تارگت / 2 امتیاز استاپ — صادر شد",
-    "price": 2.17,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": false,
-    "ob_ctx": null
-   },
-   "tg_msg_id": 7751
+   }
   },
   {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
-   "sym": "ZKCUSDT",
+   "sym": "SAHARAUSDT",
    "tf": "15m",
    "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.0484,
-   "sl": 0.048934285714285715,
-   "tp1": 0.04743828571428571,
-   "tp2": 0.04666891428571428,
+   "dir": "LONG",
+   "entry": 0.01006,
+   "sl": 0.009664314285714286,
+   "tp1": 0.010772234285714284,
+   "tp2": 0.011342021714285711,
    "rr": 1.8,
-   "price": 0.0484,
+   "price": 0.01006,
    "conf": 41,
    "ev": 0.1547557525033565,
-   "quality": 67,
+   "quality": 71,
    "visits": 1,
-   "depth": 67,
+   "depth": 42,
    "exited": true,
    "inside": false,
    "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 28
-   },
+   "level": null,
    "channel": {
-    "dir": "خنثی",
-    "drift": 0,
-    "posPct": 31
+    "dir": "صعودی",
+    "drift": 2.3,
+    "posPct": 72
    },
-   "adx": 38.6,
+   "adx": 35.2,
    "room": {
-    "r": 0.94,
-    "blocker": "حمایت ×7"
+    "r": 99,
+    "blocker": null
    },
    "swept": {
     "n": 4
    },
    "thin": {
-    "insideRatio": 0.48,
-    "volRatio": 1.46
+    "insideRatio": 0.17,
+    "volRatio": 1.13
    },
    "goOnFirst": true,
    "waitReason": null,
    "skip": null,
    "lastClose": 1788970500000,
    "ob": {
-    "low": 0.0486,
-    "high": 0.0489
+    "low": 0.00968,
+    "high": 0.0098
    },
    "learned": {
-    "boost": -1.052,
+    "boost": 0.201,
     "rules": [
      {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
+      "rule": "جای حرکت بیش از ۱.۵ برابر",
+      "delta": 0.201
+     }
+    ]
+   },
+   "elite": true,
+   "learning": {
+    "verdict": "thin",
+    "n": 9,
+    "hit": 33.3,
+    "ev": 1.036
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "BTCUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 79067.51000000001,
+   "sl": 79368.28266999999,
+   "tp1": 78616.35099500004,
+   "tp2": 78315.57832500007,
+   "rr": 1.5,
+   "price": 78634.01,
+   "conf": null,
+   "ev": null,
+   "quality": 64,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 79004.13,
+    "high": 79130.89
+   },
+   "choch": 0,
+   "barsAgo": 5,
+   "inOB": 0,
+   "nearOB": 1,
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 617,
+    "hit": 37.9,
+    "ev": 0.169
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "XRPUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 1.421,
+   "sl": 1.4266672,
+   "tp1": 1.4124992,
+   "tp2": 1.406832,
+   "rr": 1.5,
+   "price": 1.4159,
+   "conf": null,
+   "ev": null,
+   "quality": 64,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 1.4196,
+    "high": 1.4224
+   },
+   "choch": 0,
+   "barsAgo": 5,
+   "inOB": 0,
+   "nearOB": 1,
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 616,
+    "hit": 30.0,
+    "ev": -0.009
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "PAXGUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 4397.625,
+   "sl": 4411.896099999999,
+   "tp1": 4376.218350000001,
+   "tp2": 4361.947250000003,
+   "rr": 1.5,
+   "price": 4401.22,
+   "conf": null,
+   "ev": null,
+   "quality": 64,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 4396.55,
+    "high": 4398.7
+   },
+   "choch": 0,
+   "barsAgo": 5,
+   "inOB": 0,
+   "nearOB": 1,
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 570,
+    "hit": 29.6,
+    "ev": -0.025
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "TRXUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "LONG",
+   "entry": 0.33899999999999997,
+   "sl": 0.3378833,
+   "tp1": 0.3406750499999999,
+   "tp2": 0.3417917499999999,
+   "rr": 1.5,
+   "price": 0.3397,
+   "conf": null,
+   "ev": null,
+   "quality": 64,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 0.3389,
+    "high": 0.3391
+   },
+   "choch": 0,
+   "barsAgo": 0,
+   "inOB": 0,
+   "nearOB": 1,
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 615,
+    "hit": 44.1,
+    "ev": 0.365
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "FFUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.1517,
+   "sl": 0.15256632999999997,
+   "tp1": 0.15040050500000005,
+   "tp2": 0.14953417500000007,
+   "rr": 1.5,
+   "price": 0.15105,
+   "conf": null,
+   "ev": null,
+   "quality": 64,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 0.15129,
+    "high": 0.15211
+   },
+   "choch": 0,
+   "barsAgo": 2,
+   "inOB": 0,
+   "nearOB": 1,
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 60,
+    "hit": 35.0,
+    "ev": 0.042
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "USD1USDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.999775,
+   "sl": 1.00278937,
+   "tp1": 0.9952534450000001,
+   "tp2": 0.9922390750000001,
+   "rr": 1.5,
+   "price": 0.99972,
+   "conf": null,
+   "ev": null,
+   "quality": 78,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 0.99976,
+    "high": 0.99979
+   },
+   "choch": 1,
+   "barsAgo": 41,
+   "inOB": 0,
+   "nearOB": 1,
+   "learned": {
+    "boost": -0.161,
+    "rules": [
      {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
+      "rule": "CHOCH دارد",
+      "delta": -0.161
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 615,
+    "hit": 0.0,
+    "ev": 0.0
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "RLUSDUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "LONG",
+   "entry": 1.0003,
+   "sl": 0.9971994,
+   "tp1": 1.0049508999999999,
+   "tp2": 1.0080515,
+   "rr": 1.5,
+   "price": 1.0003,
+   "conf": null,
+   "ev": null,
+   "quality": 98,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": true,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 1.0002,
+    "high": 1.0003
+   },
+   "choch": 1,
+   "barsAgo": 17,
+   "inOB": 1,
+   "nearOB": 0,
+   "learned": {
+    "boost": -0.161,
+    "rules": [
      {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": -0.181
+      "rule": "CHOCH دارد",
+      "delta": -0.161
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 615,
+    "hit": 0.0,
+    "ev": 0.0
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "AAVEUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "LONG",
+   "entry": 129.13,
+   "sl": 128.43354,
+   "tp1": 130.17469,
+   "tp2": 130.87115,
+   "rr": 1.5,
+   "price": 129.13,
+   "conf": null,
+   "ev": null,
+   "quality": 98,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": true,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 128.82,
+    "high": 129.21
+   },
+   "choch": 1,
+   "barsAgo": 12,
+   "inOB": 1,
+   "nearOB": 0,
+   "learned": {
+    "boost": -0.161,
+    "rules": [
+     {
+      "rule": "CHOCH دارد",
+      "delta": -0.161
      }
     ]
    },
    "elite": false,
    "learning": {
     "verdict": "good",
-    "n": 69,
-    "hit": 50.7,
-    "ev": 0.684
+    "n": 585,
+    "hit": 47.0,
+    "ev": 0.426
    }
   },
   {
@@ -2224,16 +1970,8 @@
     "high": 0.4503
    },
    "learned": {
-    "boost": -1.052,
+    "boost": -0.181,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.181
@@ -2246,6 +1984,73 @@
     "n": 578,
     "hit": 34.8,
     "ev": 0.38
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "ZKCUSDT",
+   "tf": "15m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.0484,
+   "sl": 0.048934285714285715,
+   "tp1": 0.04743828571428571,
+   "tp2": 0.04666891428571428,
+   "rr": 1.8,
+   "price": 0.0484,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 67,
+   "visits": 1,
+   "depth": 67,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 28
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": 0,
+    "posPct": 31
+   },
+   "adx": 38.6,
+   "room": {
+    "r": 0.94,
+    "blocker": "حمایت ×7"
+   },
+   "swept": {
+    "n": 4
+   },
+   "thin": {
+    "insideRatio": 0.48,
+    "volRatio": 1.46
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1788970500000,
+   "ob": {
+    "low": 0.0486,
+    "high": 0.0489
+   },
+   "learned": {
+    "boost": -0.181,
+    "rules": [
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 69,
+    "hit": 50.7,
+    "ev": 0.684
    }
   },
   {
@@ -2299,16 +2104,8 @@
     "high": 0.1885
    },
    "learned": {
-    "boost": -1.052,
+    "boost": -0.181,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.181
@@ -2691,16 +2488,7 @@
    "barsAgo": 5,
    "inOB": 1,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "bad",
     "n": 615,
@@ -2747,16 +2535,7 @@
    "barsAgo": 4,
    "inOB": 1,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "bad",
     "n": 615,
@@ -2803,16 +2582,7 @@
    "barsAgo": 5,
    "inOB": 0,
    "nearOB": 1,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "bad",
     "n": 630,
@@ -2871,16 +2641,8 @@
     "high": 0.3782
    },
    "learned": {
-    "boost": -1.052,
+    "boost": -0.181,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.181
@@ -2946,16 +2708,8 @@
     "high": 104.11
    },
    "learned": {
-    "boost": -1.052,
+    "boost": -0.181,
     "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": -0.497
-     },
-     {
-      "rule": "بیت‌کوین نزولی",
-      "delta": -0.374
-     },
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": -0.181
@@ -3021,8 +2775,16 @@
     "high": 0.3384
    },
    "learned": {
-    "boost": 0.201,
+    "boost": 1.564,
     "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.753
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
@@ -3087,7 +2849,16 @@
     "low": 0.15084,
     "high": 0.15116
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "bad",
     "n": 38,
@@ -3239,53 +3010,6 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "ZKCUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.048850000000000005,
-   "sl": 0.04904669999999999,
-   "tp1": 0.04855495000000003,
-   "tp2": 0.04835825000000003,
-   "rr": 1.5,
-   "price": 0.0484,
-   "conf": null,
-   "ev": null,
-   "quality": 56,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788971100000,
-   "ob": {
-    "low": 0.0488,
-    "high": 0.0489
-   },
-   "choch": 0,
-   "barsAgo": 17,
-   "inOB": 0,
-   "nearOB": 0,
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 75,
-    "hit": 40.0,
-    "ev": 0.28
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
    "sym": "MATICUSDT",
    "tf": "5m",
    "stage": "ARMED",
@@ -3333,16 +3057,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "LITUSDT",
+   "sym": "HEMIUSDT",
    "tf": "5m",
    "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 0.703,
-   "sl": 0.698897,
-   "tp1": 0.7091544999999999,
-   "tp2": 0.7132574999999999,
+   "dir": "SHORT",
+   "entry": 0.00753,
+   "sl": 0.007572649999999999,
+   "tp1": 0.007466025000000001,
+   "tp2": 0.007423375000000003,
    "rr": 1.5,
-   "price": 0.737,
+   "price": 0.00733,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -3360,21 +3084,68 @@
    "goOnFirst": false,
    "waitReason": "قیمت هنوز به باکس نرسیده",
    "skip": null,
-   "lastClose": 1739155800000,
+   "lastClose": 1788971100000,
    "ob": {
-    "low": 0.701,
-    "high": 0.705
+    "low": 0.00751,
+    "high": 0.00755
    },
    "choch": 0,
-   "barsAgo": 0,
+   "barsAgo": 5,
    "inOB": 0,
    "nearOB": 0,
    "elite": false,
    "learning": {
-    "verdict": "thin",
-    "n": 0,
-    "hit": null,
-    "ev": null
+    "verdict": "bad",
+    "n": 300,
+    "hit": 14.3,
+    "ev": -0.555
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "ZKCUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 0.048850000000000005,
+   "sl": 0.04904669999999999,
+   "tp1": 0.04855495000000003,
+   "tp2": 0.04835825000000003,
+   "rr": 1.5,
+   "price": 0.0484,
+   "conf": null,
+   "ev": null,
+   "quality": 56,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": "قیمت هنوز به باکس نرسیده",
+   "skip": null,
+   "lastClose": 1788971100000,
+   "ob": {
+    "low": 0.0488,
+    "high": 0.0489
+   },
+   "choch": 0,
+   "barsAgo": 17,
+   "inOB": 0,
+   "nearOB": 0,
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 75,
+    "hit": 40.0,
+    "ev": 0.28
    }
   },
   {
@@ -3474,16 +3245,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "HEMIUSDT",
+   "sym": "LITUSDT",
    "tf": "5m",
    "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.00753,
-   "sl": 0.007572649999999999,
-   "tp1": 0.007466025000000001,
-   "tp2": 0.007423375000000003,
+   "dir": "LONG",
+   "entry": 0.703,
+   "sl": 0.698897,
+   "tp1": 0.7091544999999999,
+   "tp2": 0.7132574999999999,
    "rr": 1.5,
-   "price": 0.00733,
+   "price": 0.737,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -3501,21 +3272,21 @@
    "goOnFirst": false,
    "waitReason": "قیمت هنوز به باکس نرسیده",
    "skip": null,
-   "lastClose": 1788971100000,
+   "lastClose": 1739155800000,
    "ob": {
-    "low": 0.00751,
-    "high": 0.00755
+    "low": 0.701,
+    "high": 0.705
    },
    "choch": 0,
-   "barsAgo": 5,
+   "barsAgo": 0,
    "inOB": 0,
    "nearOB": 0,
    "elite": false,
    "learning": {
-    "verdict": "bad",
-    "n": 300,
-    "hit": 14.3,
-    "ev": -0.555
+    "verdict": "thin",
+    "n": 0,
+    "hit": null,
+    "ev": null
    }
   },
   {
@@ -3662,16 +3433,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "RAYUSDT",
+   "sym": "IOSTUSDT",
    "tf": "5m",
    "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 1.3968,
-   "sl": 1.4106192,
-   "tp1": 1.3760712000000002,
-   "tp2": 1.3622520000000002,
+   "dir": "LONG",
+   "entry": 0.0013965,
+   "sl": 0.0013838359999999998,
+   "tp1": 0.001415496,
+   "tp2": 0.0014281600000000004,
    "rr": 1.5,
-   "price": 1.3149,
+   "price": 0.001692,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -3691,11 +3462,11 @@
    "skip": null,
    "lastClose": 1788971100000,
    "ob": {
-    "low": 1.3872,
-    "high": 1.4064
+    "low": 0.001388,
+    "high": 0.001405
    },
    "choch": 0,
-   "barsAgo": 1,
+   "barsAgo": 15,
    "inOB": 0,
    "nearOB": 0,
    "elite": false,
@@ -3850,16 +3621,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "IOSTUSDT",
+   "sym": "RAYUSDT",
    "tf": "5m",
    "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 0.0013965,
-   "sl": 0.0013838359999999998,
-   "tp1": 0.001415496,
-   "tp2": 0.0014281600000000004,
+   "dir": "SHORT",
+   "entry": 1.3968,
+   "sl": 1.4106192,
+   "tp1": 1.3760712000000002,
+   "tp2": 1.3622520000000002,
    "rr": 1.5,
-   "price": 0.001692,
+   "price": 1.3149,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -3879,11 +3650,11 @@
    "skip": null,
    "lastClose": 1788971100000,
    "ob": {
-    "low": 0.001388,
-    "high": 0.001405
+    "low": 1.3872,
+    "high": 1.4064
    },
    "choch": 0,
-   "barsAgo": 15,
+   "barsAgo": 1,
    "inOB": 0,
    "nearOB": 0,
    "elite": false,
@@ -4042,6 +3813,62 @@
     "n": 616,
     "hit": 30.0,
     "ev": -0.009
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "DASHUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 63.96000000000001,
+   "sl": 64.23212,
+   "tp1": 63.55182000000003,
+   "tp2": 63.27970000000004,
+   "rr": 1.5,
+   "price": 63.32,
+   "conf": null,
+   "ev": null,
+   "quality": 78,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": "قیمت هنوز به باکس نرسیده",
+   "skip": null,
+   "lastClose": 1788971100000,
+   "ob": {
+    "low": 63.88,
+    "high": 64.04
+   },
+   "choch": 1,
+   "barsAgo": 15,
+   "inOB": 0,
+   "nearOB": 0,
+   "learned": {
+    "boost": -0.161,
+    "rules": [
+     {
+      "rule": "CHOCH دارد",
+      "delta": -0.161
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 300,
+    "hit": 42.3,
+    "ev": 0.342
    }
   },
   {
@@ -4383,62 +4210,6 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "DASHUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 63.96000000000001,
-   "sl": 64.23212,
-   "tp1": 63.55182000000003,
-   "tp2": 63.27970000000004,
-   "rr": 1.5,
-   "price": 63.32,
-   "conf": null,
-   "ev": null,
-   "quality": 78,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788971100000,
-   "ob": {
-    "low": 63.88,
-    "high": 64.04
-   },
-   "choch": 1,
-   "barsAgo": 15,
-   "inOB": 0,
-   "nearOB": 0,
-   "learned": {
-    "boost": -0.161,
-    "rules": [
-     {
-      "rule": "CHOCH دارد",
-      "delta": -0.161
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 300,
-    "hit": 42.3,
-    "ev": 0.342
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
    "sym": "XPLUSDT",
    "tf": "5m",
    "stage": "ARMED",
@@ -4658,62 +4429,6 @@
     "n": 600,
     "hit": 43.0,
     "ev": 0.342
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "HOLOUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.06720000000000001,
-   "sl": 0.06750189999999999,
-   "tp1": 0.06674715000000003,
-   "tp2": 0.06644525000000007,
-   "rr": 1.5,
-   "price": 0.0656,
-   "conf": null,
-   "ev": null,
-   "quality": 70,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788971100000,
-   "ob": {
-    "low": 0.0671,
-    "high": 0.0673
-   },
-   "choch": 1,
-   "barsAgo": 43,
-   "inOB": 0,
-   "nearOB": 0,
-   "learned": {
-    "boost": -0.161,
-    "rules": [
-     {
-      "rule": "CHOCH دارد",
-      "delta": -0.161
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 45,
-    "hit": 48.9,
-    "ev": 0.622
    }
   },
   {
@@ -4999,6 +4714,62 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
+   "sym": "HOLOUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 0.06720000000000001,
+   "sl": 0.06750189999999999,
+   "tp1": 0.06674715000000003,
+   "tp2": 0.06644525000000007,
+   "rr": 1.5,
+   "price": 0.0656,
+   "conf": null,
+   "ev": null,
+   "quality": 70,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": "قیمت هنوز به باکس نرسیده",
+   "skip": null,
+   "lastClose": 1788971100000,
+   "ob": {
+    "low": 0.0671,
+    "high": 0.0673
+   },
+   "choch": 1,
+   "barsAgo": 43,
+   "inOB": 0,
+   "nearOB": 0,
+   "learned": {
+    "boost": -0.161,
+    "rules": [
+     {
+      "rule": "CHOCH دارد",
+      "delta": -0.161
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 45,
+    "hit": 48.9,
+    "ev": 0.622
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
    "sym": "FORMUSDT",
    "tf": "5m",
    "stage": "ARMED",
@@ -5091,21 +4862,59 @@
    "barsAgo": 11,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "bad",
     "n": 615,
     "hit": 25.2,
     "ev": -0.276
+   }
+  },
+  {
+   "strategy": "ibs",
+   "strategyName": "IBS + پولبک",
+   "sym": "HIFIUSDT",
+   "tf": "15m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 0.1162,
+   "sl": 0.11345859999999999,
+   "tp1": 0.1203121,
+   "tp2": 0.12305350000000001,
+   "rr": 1.5,
+   "price": 0.1347,
+   "conf": null,
+   "ev": null,
+   "quality": 56,
+   "visits": null,
+   "depth": null,
+   "exited": false,
+   "inside": false,
+   "fvg": false,
+   "level": null,
+   "channel": null,
+   "adx": null,
+   "room": null,
+   "swept": null,
+   "thin": null,
+   "goOnFirst": false,
+   "waitReason": "قیمت هنوز به باکس نرسیده",
+   "skip": null,
+   "lastClose": 1758076200000,
+   "ob": {
+    "low": 0.1138,
+    "high": 0.1186
+   },
+   "choch": 0,
+   "barsAgo": 0,
+   "inOB": 0,
+   "nearOB": 0,
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 43059,
+    "hit": 32.3,
+    "ev": 0.056
    }
   },
   {
@@ -5147,16 +4956,7 @@
    "barsAgo": 5,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "flat",
     "n": 43262,
@@ -5203,16 +5003,7 @@
    "barsAgo": 7,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "good",
     "n": 225,
@@ -5223,16 +5014,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "ZKCUSDT",
+   "sym": "RNDRUSDT",
    "tf": "15m",
    "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.049049999999999996,
-   "sl": 0.0493476,
-   "tp1": 0.0486036,
-   "tp2": 0.04830599999999999,
+   "dir": "LONG",
+   "entry": 6.8975,
+   "sl": 6.8603570000000005,
+   "tp1": 6.9532145,
+   "tp2": 6.990357499999998,
    "rr": 1.5,
-   "price": 0.0484,
+   "price": 7.087,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -5250,30 +5041,21 @@
    "goOnFirst": false,
    "waitReason": "قیمت هنوز به باکس نرسیده",
    "skip": null,
-   "lastClose": 1788970500000,
+   "lastClose": 1721615400000,
    "ob": {
-    "low": 0.0489,
-    "high": 0.0492
+    "low": 6.881,
+    "high": 6.914
    },
    "choch": 0,
-   "barsAgo": 11,
+   "barsAgo": 19,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "good",
-    "n": 75,
-    "hit": 40.0,
-    "ev": 0.28
+    "n": 43059,
+    "hit": 32.3,
+    "ev": 0.056
    }
   },
   {
@@ -5315,16 +5097,7 @@
    "barsAgo": 5,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "flat",
     "n": 360,
@@ -5371,16 +5144,7 @@
    "barsAgo": 8,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "good",
     "n": 570,
@@ -5427,16 +5191,7 @@
    "barsAgo": 9,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
     "verdict": "flat",
     "n": 43262,
@@ -5447,16 +5202,16 @@
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
-   "sym": "DOGEUSDT",
+   "sym": "HEMIUSDT",
    "tf": "15m",
    "stage": "ARMED",
    "dir": "SHORT",
-   "entry": 0.09134500000000001,
-   "sl": 0.09176446999999999,
-   "tp1": 0.09071579500000004,
-   "tp2": 0.09029632500000007,
+   "entry": 0.00773,
+   "sl": 0.007833429999999999,
+   "tp1": 0.007574855000000002,
+   "tp2": 0.007471425000000002,
    "rr": 1.5,
-   "price": 0.08883,
+   "price": 0.00733,
    "conf": null,
    "ev": null,
    "quality": 56,
@@ -5476,84 +5231,19 @@
    "skip": null,
    "lastClose": 1788970500000,
    "ob": {
-    "low": 0.0912,
-    "high": 0.09149
+    "low": 0.00765,
+    "high": 0.00781
    },
    "choch": 0,
-   "barsAgo": 7,
+   "barsAgo": 1,
    "inOB": 0,
    "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
+   "elite": false,
    "learning": {
-    "verdict": "good",
-    "n": 630,
-    "hit": 38.7,
-    "ev": 0.168
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "UNIUSDT",
-   "tf": "15m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 6.657,
-   "sl": 6.7331389999999995,
-   "tp1": 6.542791500000001,
-   "tp2": 6.466652500000001,
-   "rr": 1.5,
-   "price": 6.539,
-   "conf": null,
-   "ev": null,
-   "quality": 56,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1788970500000,
-   "ob": {
-    "low": 6.601,
-    "high": 6.713
-   },
-   "choch": 0,
-   "barsAgo": 5,
-   "inOB": 0,
-   "nearOB": 0,
-   "learned": {
-    "boost": 0.325,
-    "rules": [
-     {
-      "rule": "شورت همسو با بیت‌کوین",
-      "delta": 0.325
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "good",
-    "n": 630,
-    "hit": 36.3,
-    "ev": 0.185
+    "verdict": "bad",
+    "n": 300,
+    "hit": 14.3,
+    "ev": -0.555
    }
   }
  ],
