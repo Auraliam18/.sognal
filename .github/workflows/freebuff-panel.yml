@@ -1,0 +1,158 @@
+# پنل فری‌باف ۱ — زنجیرهٔ ۵دقیقه‌ای: ایجنت‌ها + دامیننس + اسنپ‌شات فیوچرز.
+#
+# درس اندازه‌گیری‌شدهٔ این مخزن (pump-radar.yml): کرون */5 گیت‌هاب در ساعت
+# شلوغ شلیک نمی‌شود. پس الگوی همان زنجیرهٔ اثبات‌شده تکرار می‌شود: هر job
+# چند دور ۵دقیقه‌ای می‌چرخد و در پایان خودش را dispatch می‌کند؛ کرون فقط
+# تور ایمنی زنجیرهٔ پاره است.
+#
+# مرز معماری: این ورک‌فلو فقط در freebuff/ و signals/freebuff/ و
+# brain/freebuff/ می‌نویسد — به دفترها و موتور LIAM دست نمی‌زند، تا هر
+# دو خط تولید بدون تداخل هم‌زمان بچرخند (قانون نویسندهٔ یکتا).
+#
+# هیچ‌چیز نباید بتواند زنجیره را متوقف کند:
+#   · هر دور داخل job با || true بسته می‌شود — خطای ایجنت = دور بعدی.
+#   · commit/push با rebase-به-همراه-خروجی‌های-خودمان (الگوی reapply)
+#     و چند تلاش؛ شکست ثبت، دور ادامه می‌دهد.
+#   · dispatch پایانی با always() — حتی اگر ثبت شکست بخورد، زنجیره ادامه.
+name: Freebuff panel 1
+
+on:
+  schedule:
+    # فقط تور ایمنی — سازوکار اصلی، زنجیرهٔ self-dispatch است
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      tavily_key:
+        description: "کلید Tavily (اگر Secret خالی است) — برای وب‌گردی ایجنت‌ها"
+        required: false
+
+permissions:
+  contents: write
+  actions: write        # dispatch زنجیرهٔ خود + بازانتشار Pages
+
+concurrency:
+  group: freebuff-panel
+  cancel-in-progress: false
+
+jobs:
+  chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      # ورودی dispatch هرگز از مسیر ${{ }} وارد env نمی‌شود — گیت‌هاب
+      # بلوک env را در لاگ عمومی چاپ می‌کند (درس ثبت‌شدهٔ pump-radar).
+      - name: ماسک کردن ورودی‌ها
+        run: |
+          v=$(jq -r '.inputs.tavily_key // empty' "$GITHUB_EVENT_PATH")
+          [ -n "$v" ] && echo "::add-mask::$v"
+          true
+
+      - name: فقط یک زنجیره
+        id: guard
+        run: |
+          n=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/freebuff-panel.yml/runs?status=in_progress&per_page=10" \
+            | jq --argjson me ${{ github.run_id }} '[.workflow_runs[] | select(.id != $me)] | length')
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "زنجیرهٔ دیگری در حال چرخیدن است — این اجرا کنار می‌کشد"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: آزمون آفلاین
+        if: steps.guard.outputs.skip != '1'
+        run: |
+          python3 freebuff/test_futures.py
+          python3 freebuff/test_dominance.py
+          python3 freebuff/test_agents.py
+          python3 freebuff/test_snapshot.py
+
+      - name: حلقهٔ ۵ دقیقه‌ای (۴ دور در یک job)
+        if: steps.guard.outputs.skip != '1'
+        id: loop
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          export TAVILY_API_KEY="${TAVILY_API_KEY:-$(jq -r '.inputs.tavily_key // empty' "$GITHUB_EVENT_PATH")}"
+          git config user.name "freebuff-chain"
+          git config user.email "noreply@freebuff.local"
+          for k in 1 2 3 4; do
+            t0=$(date +%s)
+            echo "── دور $k از ۴ · $(date -u '+%H:%M:%S UTC') ──"
+
+            python3 freebuff/agents.py --force || true
+            python3 freebuff/dominance.py || true
+            python3 freebuff/snapshot.py || true
+
+            # ثبت ضدتصادم: درخت به origin/main برمی‌گردد و خروجی‌های خودمان
+            # دوباره می‌نشینند — زنجیرهٔ LIAM موازی همین کار را می‌کند؛
+            # فایل‌های ما از فایل‌های آن‌ها جداست، پس تداخلی وجود ندارد.
+            BK=/tmp/freebuff-bk; mkdir -p "$BK"
+            cp -r signals/freebuff "$BK/" 2>/dev/null || true
+            cp -r brain/freebuff "$BK/" 2>/dev/null || true
+            for i in 1 2 3 4; do
+              git fetch origin main -q
+              git reset --hard origin/main -q
+              mkdir -p signals brain
+              cp -r "$BK/freebuff" signals/ 2>/dev/null || true
+              cp -r "$BK/freebuff" brain/ 2>/dev/null || true
+              git add signals/freebuff brain/freebuff 2>/dev/null || true
+              if git diff --cached --quiet; then echo "چیزی برای ثبت نیست"; break; fi
+              if git commit -q -m "فری‌باف ۱: دور $(date -u '+%H:%M UTC') [skip ci]" \
+                 && git push origin HEAD:main -q; then
+                echo "ثبت شد (تلاش $i)"; break
+              fi
+              sleep $((i * 3))
+            done
+
+            # انتشار روی gh-pages برای پنل
+            if git fetch origin gh-pages -q; then
+              rm -rf /tmp/fbgp
+              if git worktree add /tmp/fbgp origin/gh-pages --detach -q; then
+                mkdir -p /tmp/fbgp/signals/freebuff
+                cp -r signals/freebuff/. /tmp/fbgp/signals/freebuff/ 2>/dev/null || true
+                ( cd /tmp/fbgp
+                  git add signals/freebuff
+                  if ! git diff --cached --quiet; then
+                    git commit -q -m "فری‌باف ۱: انتشار $(date -u '+%H:%M') UTC"
+                    for i in 1 2 3; do
+                      git push origin HEAD:gh-pages -q \
+                        && { echo "deployed=1" >> "$GITHUB_OUTPUT"; break; }
+                      git fetch origin gh-pages -q || true
+                      git rebase origin/gh-pages -q || { git rebase --abort; break; }
+                    done
+                  fi )
+                git worktree remove --force /tmp/fbgp 2>/dev/null || true
+              fi
+            fi
+
+            if [ "$k" -lt 4 ]; then
+              took=$(( $(date +%s) - t0 ))
+              wait=$(( 300 - took )); [ "$wait" -lt 5 ] && wait=5
+              echo "دور $k در ${took}ثانیه — ${wait}ثانیه تا دور بعد"
+              sleep "$wait"
+            fi
+          done
+
+      - name: بازانتشار Pages
+        if: always() && steps.loop.outputs.deployed == '1'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/pages.yml/dispatches" \
+            -d '{"ref":"main"}' || echo "dispatch نشد — کرون نیم‌ساعته جبران می‌کند"
+
+      - name: زنجیرهٔ دور بعد
+        if: always() && steps.guard.outputs.skip != '1'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/freebuff-panel.yml/dispatches" \
+            -d '{"ref":"main"}' \
+            && echo "دور بعدی زنجیره صدا زده شد" \
+            || echo "dispatch نشد — کرون ربع‌ساعته زنجیره را زنده نگه می‌دارد"
