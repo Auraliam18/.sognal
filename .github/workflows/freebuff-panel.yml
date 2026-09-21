@@ -108,14 +108,15 @@ jobs:
               sleep $((i * 3))
             done
 
-            # انتشار روی gh-pages برای پنل
+            # انتشار روی gh-pages برای پنل — خروجی‌ها + خودِ پنل
             if git fetch origin gh-pages -q; then
               rm -rf /tmp/fbgp
               if git worktree add /tmp/fbgp origin/gh-pages --detach -q; then
                 mkdir -p /tmp/fbgp/signals/freebuff
                 cp -r signals/freebuff/. /tmp/fbgp/signals/freebuff/ 2>/dev/null || true
+                cp freebuff/freebuff-panel-1.html /tmp/fbgp/freebuff-panel-1.html 2>/dev/null || true
                 ( cd /tmp/fbgp
-                  git add signals/freebuff
+                  git add signals/freebuff freebuff-panel-1.html
                   if ! git diff --cached --quiet; then
                     git commit -q -m "فری‌باف ۱: انتشار $(date -u '+%H:%M') UTC"
                     for i in 1 2 3; do
