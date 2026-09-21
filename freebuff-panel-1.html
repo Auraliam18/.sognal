@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>پنل فری‌باف ۱</title>
+<style>
+:root{
+  --bg:#0a0e14; --card:#11161f; --card2:#151c27; --line:#1e2836;
+  --tx:#e6edf3; --dim:#8b98a9; --acc:#4fc3f7; --up:#26a69a; --dn:#ef5350;
+  --warn:#ffb74d; --hot:#ff5252;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:Tahoma,"Segoe UI",sans-serif;
+     min-height:100vh;padding:16px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:1.25rem;color:var(--acc)}
+.badge{font-size:.72rem;padding:3px 9px;border-radius:10px;border:1px solid var(--line);
+       background:var(--card);color:var(--dim)}
+.badge.live{color:var(--up);border-color:var(--up)}
+.badge.stale{color:var(--warn);border-color:var(--warn)}
+.badge.dead{color:var(--hot);border-color:var(--hot)}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+nav button{background:var(--card);border:1px solid var(--line);color:var(--dim);
+           padding:8px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.85rem}
+nav button.on{color:var(--acc);border-color:var(--acc);background:var(--card2)}
+main{max-width:1100px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+      padding:14px 16px;margin-bottom:12px}
+.card h2{font-size:.95rem;color:var(--acc);margin-bottom:10px}
+.muted{color:var(--dim);font-size:.8rem;line-height:1.7}
+.flag{border:1px solid var(--hot);color:var(--hot);border-radius:8px;
+      padding:8px 12px;margin-bottom:10px;font-size:.85rem;background:rgba(255,82,82,.06)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{color:var(--dim);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:normal}
+td{padding:6px 8px;border-bottom:1px solid rgba(30,40,54,.5)}
+.up{color:var(--up)} .dn{color:var(--dn)}
+canvas{width:100%;height:220px;display:block}
+.verdict{font-size:.9rem;line-height:1.9}
+.kv{display:flex;justify-content:space-between;padding:4px 0;font-size:.85rem;border-bottom:1px dashed rgba(30,40,54,.6)}
+.kv:last-child{border-bottom:0}
+.kv b{color:var(--tx);font-weight:normal} .kv span{color:var(--dim)}
+.agent{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--card2)}
+.agent h3{font-size:.85rem;display:flex;justify-content:space-between;align-items:center}
+.agent .st{font-size:.7rem;padding:2px 8px;border-radius:8px}
+.st.ok{color:var(--up);border:1px solid var(--up)} .st.err{color:var(--hot);border:1px solid var(--hot)}
+.mem-note{color:var(--dim);font-size:.72rem;margin-top:6px}
+footer{color:var(--dim);font-size:.72rem;text-align:center;margin-top:20px;line-height:1.8}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ پنل فری‌باف ۱</h1>
+  <span class="badge" id="fresh">…</span>
+  <span class="badge" id="webmode">وب‌گردی: …</span>
+  <span class="badge" id="clock"></span>
+</header>
+<nav>
+  <button data-tab="fut" class="on">فیوچرز</button>
+  <button data-tab="dom">دامیننس تتر</button>
+  <button data-tab="ag">ایجنت‌ها</button>
+  <button data-tab="mem">حافظهٔ ایجنت‌ها</button>
+</nav>
+<main id="main"><div class="card muted">در حال بارگذاری…</div></main>
+<footer>
+  پنل فری‌باف ۱ — داده از صرافی‌های فیوچرز (Binance/Bybit/OKX با جایگزینی)، دامیننس از CoinGecko با محرک Tether Treasury و تقویم کلان.<br>
+  عددی که منبع ندارد نمایش داده نمی‌شود؛ دادهٔ کهنه «کهنه» می‌گوید، ساختگی نمی‌شود.
+</footer>
+<script>
+"use strict";
+const FRESH_MS = 20 * 60 * 1000;   // بالای این = کهنه
+let TAB = "fut";
+let CACHE = {};
+
+function $(s){return document.querySelector(s)}
+function esc(s){const d=document.createElement("div");d.textContent=String(s??"—");return d.innerHTML}
+
+async function jget(name){
+  const r = await fetch("./signals/freebuff/"+name+"?t="+Date.now(),{cache:"no-store"});
+  if(!r.ok) throw new Error(name+" "+r.status);
+  return r.json();
+}
+
+function ageBadge(gen){
+  const el = $("#fresh");
+  if(!gen){el.textContent="بدون داده";el.className="badge dead";return}
+  const age = Date.now()-gen;
+  const m = Math.floor(age/60000);
+  el.textContent = "داده "+(m<1?"همین حالا":m+" دقیقه پیش");
+  el.className = "badge "+(age<FRESH_MS?"live":"stale");
+}
+
+function fmt(n,d=2){return (n==null)?"—":Number(n).toLocaleString("en-US",{maximumFractionDigits:d})}
+
+/* ── تب فیوچرز ── */
+function tabFutures(){
+  const d = CACHE.futures;
+  if(!d) return '<div class="card muted">اسنپ‌شات فیوچرز هنوز نیامده است.</div>';
+  let h = "";
+  if(d.errors && d.errors.length)
+    h += `<div class="flag">خطای بخشی: ${d.errors.map(esc).join(" · ")}</div>`;
+  h += '<div class="card"><h2>کندل ۱۵د فیوچرز</h2>';
+  for(const [sym,rows] of Object.entries(d.charts||{})){
+    h += `<div class="muted" style="margin:8px 0 2px">${esc(sym)}</div><canvas id="c-${sym}"></canvas>`;
+  }
+  h += "</div>";
+  if(d.oi){
+    h += `<div class="card"><h2>Open Interest بیت‌کوین</h2>
+      <div class="verdict">${esc(d.oi.pulse?.verdict||"—")} ${d.oi.pulse?.chg_pct!=null?`<b class="${d.oi.pulse.chg_pct>0?'up':'dn'}">(${d.oi.pulse.chg_pct>0?'+':''}${d.oi.pulse.chg_pct}%/۱h)</b>`:""}</div>`;
+    if(d.oi.snapshot){
+      h += '<table>' + d.oi.snapshot.map(x=>`<tr><td>${esc(x.symbol)}</td><td>${fmt(x.oi,0)}</td><td class="muted">${fmt(x.oi_usd/1e9,2)}B$</td></tr>`).join("") + '</table>';
+    } else {
+      h += '<canvas id="c-OI"></canvas>';
+    }
+    h += '</div>';
+  }
+  if(d.funding){
+    const f=d.funding;
+    h += `<div class="card"><h2>فاندینگ</h2><div class="verdict">${esc(f.verdict)}</div>`;
+    if(f.extremes?.length){
+      h += '<table><tr><th>نماد</th><th>نرخ ٪</th></tr>' +
+        f.extremes.map(x=>`<tr><td>${esc(x.symbol)}</td><td class="${x.rate>0?'up':'dn'}">${fmt(x.rate,4)}</td></tr>`).join("") + "</table>";
+    }
+    h += "</div>";
+  }
+  if(d.longshort) h += `<div class="card"><h2>نسبت لانگ/شورت</h2><div class="verdict">${esc(d.longshort)}</div></div>`;
+  h += `<div class="muted" style="margin-top:4px">منبع: ${esc(Object.entries(d.venues||{}).map(([k,v])=>k+"←"+v).join(" · ")||"—")}</div>`;
+  return h;
+}
+
+/* ── تب دامیننس ── */
+function tabDominance(){
+  const d = CACHE.dominance;
+  if(!d) return '<div class="card muted">خوانش دامیننس هنوز نیامده است.</div>';
+  let h = `<div class="card"><h2>USDT.D = ${fmt(d.level?.usdt,3)} · BTC.D = ${fmt(d.level?.btc,2)}</h2>
+    <div class="kv"><span>Δ ۱ساعت (USDT.D)</span><b class="${(d.delta_1h?.usdt||0)>0?'dn':'up'}">${fmt(d.delta_1h?.usdt,3)}</b></div>
+    <div class="kv"><span>Δ ۱ساعت (BTC.D)</span><b>${fmt(d.delta_1h?.btc,3)}</b></div>
+    <div class="kv"><span>Δ ۴ساعت (USDT.D)</span><b>${fmt(d.delta_4h?.usdt,3)}</b></div>
+    <div class="kv"><span>نقاط سری</span><b>${fmt(d.series_points,0)}</b></div></div>`;
+  h += `<div class="card"><h2>حکم اتاق</h2><div class="verdict">${esc(d.verdict)}</div></div>`;
+  const dr = d.drivers||{};
+  h += '<div class="card"><h2>محرک‌ها</h2>';
+  if(dr.tether_treasury){
+    const t=dr.tether_treasury;
+    h += `<div class="kv"><span>چاپ/سوزاندن تتر امروز (خالص)</span><b class="${t.net_usd>0?'up':'dn'}">${fmt(t.net_usd/1e6,1)}M$</b></div>`;
+  } else h += '<div class="kv"><span>خزانهٔ تتر</span><b>در دسترس نیست</b></div>';
+  if(dr.fear_greed) h += `<div class="kv"><span>ترس‌وطمع</span><b>${dr.fear_greed.value} — ${esc(dr.fear_greed.label)}</b></div>`;
+  (dr.macro_48h||[]).slice(0,4).forEach(e=>{
+    h += `<div class="kv"><span>رویداد کلان</span><b>${esc(e.title)} (${fmt(e.in_hours,1)}h)</b></div>`;
+  });
+  h += `</div><div class="muted">منبع: ${esc(d.source||"—")}</div>`;
+  return h;
+}
+
+/* ── تب ایجنت‌ها ── */
+function tabAgents(){
+  const d = CACHE.round;
+  if(!d) return '<div class="card muted">دور ایجنت‌ها هنوز نیامده است.</div>';
+  let h = "";
+  (d.flags||[]).forEach(f=> h += `<div class="flag">🔥 ${esc(f)}</div>`);
+  h += `<div class="card muted">آخرین دور: ${esc(d.generated_iso)} · وب‌گردی: ${esc(d.web_research)}</div>`;
+  for(const [name,a] of Object.entries(d.agents||{})){
+    h += `<div class="agent"><h3><span>${esc(a.desc||name)}</span>
+      <span class="st ${a.ok?'ok':'err'}">${a.ok?"سبز":"خطا"} · ${a.took_s??'—'}s</span></h3>`;
+    if(!a.ok) h += `<div class="muted">${esc(a.error)}</div>`;
+    if(a.rows?.length) h += '<div class="muted" style="margin-top:6px">'+a.rows.map(r=>esc(r)).join("<br>")+"</div>";
+    if(a.summary){
+      const s=a.summary;
+      h += `<div class="muted" style="margin-top:6px">OI: ${esc(s.oi?.verdict)}<br>فاندینگ: ${esc(s.funding?.verdict)}<br>لانگ/شورت: ${esc(s.longshort)}</div>`;
+    }
+    if(a.fear_greed) h += `<div class="muted" style="margin-top:6px">ترس‌وطمع: ${a.fear_greed.value}</div>`;
+    if(a.web?.length) h += `<div class="muted" style="margin-top:6px">وب‌گردی:<br>`+a.web.map(w=>`• <a style="color:var(--acc)" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.title)}</a>`).join("<br>")+"</div>";
+    if(a.memory_added!=null) h += `<div class="mem-note">حافظه: ${a.memory_added} مورد تازه ثبت شد</div>`;
+    h += "</div>";
+  }
+  return h;
+}
+
+/* ── تب حافظه ── */
+function tabMemory(){
+  const names = ["structure","derivatives","news","macro"];
+  let h = '<div class="card"><h2>حافظهٔ دائمی ایجنت‌ها (dedupe با اثر انگشت، سقف ۱۲۰)</h2>';
+  let any = false;
+  for(const n of names){
+    const mem = CACHE["mem-"+n];
+    if(!mem || !mem.length) continue;
+    any = true;
+    h += `<h2 style="margin-top:12px;color:var(--dim)">${esc(n)} — ${mem.length} مورد</h2>`;
+    h += mem.slice(-8).reverse().map(m=>{
+      const t = new Date(m.t).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
+      return `<div class="kv"><span>${esc(JSON.stringify(m.data).slice(0,90))}</span><b>${t}</b></div>`;
+    }).join("");
+  }
+  if(!any) h += '<div class="muted">حافظه‌ای هنوز ثبت نشده.</div>';
+  return h + "</div>";
+}
+
+const TABS = {fut:tabFutures, dom:tabDominance, ag:tabAgents, mem:tabMemory};
+
+/* ── نمودار کندل و خط ── */
+function draw(){
+  const d = CACHE.futures; if(!d) return;
+  for(const [sym,rows] of Object.entries(d.charts||{})){
+    const cv = document.getElementById("c-"+sym); if(!cv||!rows?.length) continue;
+    candles(cv, rows);
+  }
+  if(d.oi?.history?.length){
+    const cv = document.getElementById("c-OI");
+    if(cv) line(cv, d.oi.history.map(x=>x.oi));
+  }  // snapshot OI جدول است، نمودار ندارد
+}
+function setup(cv){
+  const r = cv.getBoundingClientRect();
+  cv.width = r.width*devicePixelRatio; cv.height = 220*devicePixelRatio;
+  const g = cv.getContext("2d"); g.scale(devicePixelRatio,devicePixelRatio);
+  return [g, r.width, 220];
+}
+function candles(cv, rows){
+  const [g,W,H] = setup(cv);
+  const data = rows.slice(-96);
+  const lo = Math.min(...data.map(k=>k[3])), hi = Math.max(...data.map(k=>k[2]));
+  const X = i => (i+0.5)*W/data.length, Y = v => 10+(hi-v)/(hi-lo||1)*(H-20);
+  g.clearRect(0,0,W,H);
+  data.forEach((k,i)=>{
+    const up = k[4]>=k[1], col = up?"#26a69a":"#ef5350";
+    g.strokeStyle = col; g.fillStyle = col;
+    g.beginPath(); g.moveTo(X(i),Y(k[2])); g.lineTo(X(i),Y(k[3])); g.stroke();
+    const bw = Math.max(2, W/data.length*0.6);
+    const y1=Y(Math.max(k[1],k[4])), y2=Y(Math.min(k[1],k[4]));
+    g.fillRect(X(i)-bw/2, y1, bw, Math.max(1,y2-y1));
+  });
+  g.fillStyle = "#8b98a9"; g.font = "11px Tahoma";
+  g.fillText(hi.toFixed(2), 4, 12); g.fillText(lo.toFixed(2), 4, H-2);
+}
+function line(cv, vs){
+  const [g,W,H] = setup(cv);
+  const lo = Math.min(...vs), hi = Math.max(...vs);
+  g.clearRect(0,0,W,H);
+  g.strokeStyle = "#4fc3f7"; g.lineWidth = 1.5; g.beginPath();
+  vs.forEach((v,i)=>{
+    const x = i/(vs.length-1||1)*W, y = 10+(hi-v)/(hi-lo||1)*(H-20);
+    i? g.lineTo(x,y) : g.moveTo(x,y);
+  });
+  g.stroke();
+  g.fillStyle = "#8b98a9"; g.font = "11px Tahoma";
+  g.fillText(hi.toFixed(0), 4, 12); g.fillText(lo.toFixed(0), 4, H-2);
+}
+
+/* ── حلقهٔ پنل ── */
+async function loadAll(){
+  const jobs = [
+    ["futures","futures.json"], ["dominance","dominance.json"],
+    ["round","round-state.json"],
+    ["mem-structure","../brain/freebuff/agent-structure.json"],
+    ["mem-derivatives","../brain/freebuff/agent-derivatives.json"],
+    ["mem-news","../brain/freebuff/agent-news.json"],
+    ["mem-macro","../brain/freebuff/agent-macro.json"],
+  ];
+  await Promise.all(jobs.map(async([k,f])=>{
+    try{ CACHE[k] = await jget(f); }catch(_){ CACHE[k]=null; }
+  }));
+  ageBadge(CACHE.round?.generated || CACHE.futures?.generated || CACHE.dominance?.generated);
+  $("#webmode").textContent = "وب‌گردی: " + (CACHE.round?.web_research?.startsWith("فعال") ? "فعال" : "منابع رایگان");
+  render();
+}
+function render(){
+  $("#main").innerHTML = (TABS[TAB]||tabFutures)();
+  if(TAB==="fut") draw();
+}
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); TAB = b.dataset.tab; render();
+  });
+});
+setInterval(()=>{ $("#clock").textContent = new Date().toLocaleTimeString("fa-IR"); }, 1000);
+loadAll();
+setInterval(loadAll, 60_000);   // پنل هر ۶۰ ثانیه خودش را تازه می‌کند
+</script>
+</body>
+</html>
