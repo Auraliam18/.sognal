@@ -64,11 +64,13 @@ jobs:
 
       - name: آزمون آفلاین
         if: steps.guard.outputs.skip != '1'
-        run: |            python3 freebuff/test_futures.py
+        run: |
+            python3 freebuff/test_futures.py
             python3 freebuff/test_dominance.py
             python3 freebuff/test_agents.py
             python3 freebuff/test_snapshot.py
             python3 freebuff/test_publish.py
+            python3 freebuff/test_workflow.py
 
       - name: حلقهٔ ۵ دقیقه‌ای (۴ دور در یک job)
         if: steps.guard.outputs.skip != '1'
