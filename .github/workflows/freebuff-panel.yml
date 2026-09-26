@@ -64,11 +64,11 @@ jobs:
 
       - name: آزمون آفلاین
         if: steps.guard.outputs.skip != '1'
-        run: |
-          python3 freebuff/test_futures.py
-          python3 freebuff/test_dominance.py
-          python3 freebuff/test_agents.py
-          python3 freebuff/test_snapshot.py
+        run: |            python3 freebuff/test_futures.py
+            python3 freebuff/test_dominance.py
+            python3 freebuff/test_agents.py
+            python3 freebuff/test_snapshot.py
+            python3 freebuff/test_publish.py
 
       - name: حلقهٔ ۵ دقیقه‌ای (۴ دور در یک job)
         if: steps.guard.outputs.skip != '1'
@@ -81,24 +81,26 @@ jobs:
           git config user.email "noreply@freebuff.local"
           for k in 1 2 3 4; do
             t0=$(date +%s)
-            echo "── دور $k از ۴ · $(date -u '+%H:%M:%S UTC') ──"
-
-            python3 freebuff/agents.py --force || true
-            python3 freebuff/dominance.py || true
-            python3 freebuff/snapshot.py || true
+            echo "── دور $k از ۴ · $(date -u '+%H:%M:%S UTC') ──"              python3 freebuff/agents.py --force || true
+              python3 freebuff/dominance.py || true
+              python3 freebuff/snapshot.py || true
+              # بازرسی سلامت: اگر خروجی‌ای نوشته نشد یا کهنه ماند، همین‌جا
+              # در لاگ دیده می‌شود — نه چند روز بعد روی پنل.
+              python3 freebuff/publish.py audit || true
 
             # ثبت ضدتصادم: درخت به origin/main برمی‌گردد و خروجی‌های خودمان
             # دوباره می‌نشینند — زنجیرهٔ LIAM موازی همین کار را می‌کند؛
             # فایل‌های ما از فایل‌های آن‌ها جداست، پس تداخلی وجود ندارد.
-            BK=/tmp/freebuff-bk; mkdir -p "$BK"
-            cp -r signals/freebuff "$BK/" 2>/dev/null || true
-            cp -r brain/freebuff "$BK/" 2>/dev/null || true
+            # ثبت ضدتصادم. هر پوشهٔ خروجی پشتیبانِ مستقل خودش را دارد.
+            # نسخهٔ قبلی با «cp -r ... "$BK/"» هر دو پوشه را روی یک نام
+            # مشترک می‌نشاند و نسخهٔ کهنهٔ brain نوشتهٔ تازهٔ signals را
+            # می‌بلعید — ۵ روز dominance.json کهنه ماند. اثبات و آزمونِ
+            # رگرسیون: freebuff/test_publish.py
+            python3 freebuff/publish.py stage || true
             for i in 1 2 3 4; do
               git fetch origin main -q
               git reset --hard origin/main -q
-              mkdir -p signals brain
-              cp -r "$BK/freebuff" signals/ 2>/dev/null || true
-              cp -r "$BK/freebuff" brain/ 2>/dev/null || true
+              python3 freebuff/publish.py reapply || true
               git add signals/freebuff brain/freebuff 2>/dev/null || true
               if git diff --cached --quiet; then echo "چیزی برای ثبت نیست"; break; fi
               if git commit -q -m "فری‌باف ۱: دور $(date -u '+%H:%M UTC') [skip ci]" \
@@ -112,11 +114,14 @@ jobs:
             if git fetch origin gh-pages -q; then
               rm -rf /tmp/fbgp
               if git worktree add /tmp/fbgp origin/gh-pages --detach -q; then
-                mkdir -p /tmp/fbgp/signals/freebuff
+                mkdir -p /tmp/fbgp/signals/freebuff /tmp/fbgp/brain/freebuff
                 cp -r signals/freebuff/. /tmp/fbgp/signals/freebuff/ 2>/dev/null || true
+                # پنل حافظه را از ../brain/freebuff/ می‌خواند؛ بدون این
+                # سطر تب حافظه همیشه ۴۰۴ می‌داد.
+                cp -r brain/freebuff/. /tmp/fbgp/brain/freebuff/ 2>/dev/null || true
                 cp freebuff/freebuff-panel-1.html /tmp/fbgp/freebuff-panel-1.html 2>/dev/null || true
                 ( cd /tmp/fbgp
-                  git add signals/freebuff freebuff-panel-1.html
+                  git add signals/freebuff brain/freebuff freebuff-panel-1.html
                   if ! git diff --cached --quiet; then
                     git commit -q -m "فری‌باف ۱: انتشار $(date -u '+%H:%M') UTC"
                     for i in 1 2 3; do

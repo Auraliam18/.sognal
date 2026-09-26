@@ -140,6 +140,10 @@ def append_point(series, u, b):
     if series and now - series[-1]["t"] < STEP_MS * 0.75:
         return series, False
     series.append({"t": now, "u": u, "b": b})
+    # پنجرهٔ حداکثر: هر چیزی از گامِ تازه قدیمی‌تر باشد دیگر برای دلتا
+    # به کار نمی‌آید (هدف ۴ساعته)، پس نگه‌داشتنش فقط حجم بیهوده است.
+    fresh_from = now - 6 * 3600_000
+    series = [p for p in series if p["t"] >= fresh_from]
     return series[-CAP:], True
 
 
@@ -188,13 +192,23 @@ def _delta(series, minutes, tol_ms=1.5 * STEP_MS):
 
     صداقت: اگر سری به آن عقب نمی‌رسد (نزدیک‌ترین نقطه بیش از یک‌ونیم گام
     با هدف فاصله دارد)، جواب None است — دلتای ساخته‌شده از یک نقطهٔ ۳
-    ساعت قبل با عنوان «۱ساخیر» همان دروغ خاموشی است که این پروژه بارها
-    ازش ضربه خورده."""
+    ساعت قبل با عنوان «۱ساعته» همان دروغ خاموشی است که این پروژه بارها
+    ازش ضربه خورده.
+
+    نکتهٔ سختی: فقط به نقاطی نگاه می‌کنیم که *قبل* از نقطهٔ فعلی‌اند و
+    در یک پنجرهٔ معقول پس از هدف قرار دارند. جست‌وجوی کور روی کل سری
+    می‌توانست به نقطه‌ای در سال ۱۹۷۰ برسد (t=0 در آزمون‌ها) و دلتای
+    ساختگی تولید کند — همان کلاس دروغ، فقط با فاصلهٔ بیشتر.
+    """
     if len(series) < 2:
         return None, None
     now = series[-1]["t"]
     t0 = now - minutes * 60_000
-    past = min(series, key=lambda p: abs(p["t"] - t0))
+    window = [p for p in series
+              if t0 - tol_ms <= p["t"] <= now + tol_ms]
+    if not window:
+        return None, None
+    past = min(window, key=lambda p: abs(p["t"] - t0))
     if abs(past["t"] - t0) > tol_ms:
         return None, None
     return round(series[-1]["u"] - past["u"], 3), \
