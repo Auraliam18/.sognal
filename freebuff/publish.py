@@ -144,12 +144,17 @@ def load_state(state=None):
 
 
 def reapply(root, stages, *, signals=SIGNALS, memory=MEMORY, force=False):
-    """درخت reset شده را با خروجی‌های خودمان دوباره می‌نشاند."""
+    """درخت reset شده را با خروجی‌های خودمان دوباره می‌نشاند.
+
+    برمی‌گرداند: dict با کلید «signals» و «memory» (نه نام پوشه) — چون هر
+    دو پوشه نامشان «freebuff» است و کلیدِ نام پوشه‌ها روی هم می‌افتاد و
+    شمارش واقعی را پنهان می‌کرد (۵ به‌جای ۸).
+    """
     out = {}
-    for d in (signals, memory):
+    for label, d in (("signals", signals), ("memory", memory)):
         skip = SIGNALS_ONLY_TREE_SKIP if d == signals else ()
-        out[d] = _restore(stages[d], d, force=force, skip=skip)
-    prune_strays(signals)
+        out[label] = _restore(stages[d], d, force=force, skip=skip)
+    out["pruned"] = prune_strays(signals, memory)
     shutil.rmtree(root, ignore_errors=True)
     return out
 
@@ -209,8 +214,9 @@ def main():
             print(f"reapply: پشتیبانی نبود ({e}) — خروجی‌های این دور از دست رفت")
             return 0
         counts = reapply(root, stages)
-        print("reapply:", sum(counts.values()), "فایل نشانده شد،",
-              prune_strays(), "فایل تکراری پاک شد")
+        print("reapply: signals", counts.get("signals", 0),
+              "· brain", counts.get("memory", 0),
+              "· تکراری پاک‌شده", counts.get("pruned", 0))
         return 0
     if cmd == "prune":
         print("prune:", prune_strays(), "فایل تکراری پاک شد")

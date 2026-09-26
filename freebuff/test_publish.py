@@ -87,7 +87,15 @@ with tempfile.TemporaryDirectory() as td:
     (mem / "dominance.json").write_text('{"gen":"OLD","series_points":2}')
 
     counts = publish.reapply(root, stages, signals=sig, memory=mem)
-    check("بازگردانی چیزی برگرداند", sum(counts.values()) > 0, str(counts))
+    check("بازگردانی چیزی برگرداند",
+          counts.get("signals", 0) + counts.get("memory", 0) > 0, str(counts))
+    # رگرسیون: هر دو درخت نامشان «freebuff» است؛ کلیدِ نام پوشه‌ها روی هم
+    # می‌افتاد و لاگ ۵ نشان می‌داد در حالی که ۸ فایل نشانده شده بود.
+    check("شمارش per-tree جدا است (کلید هم‌نام روی هم نیفتد)",
+          "signals" in counts and "memory" in counts, str(sorted(counts)))
+    # _tree() در brain سه فایل می‌سازد: dominance, futures, dominance-series
+    check("شمارش brain درست است (۳ فایل)", counts.get("memory") == 3, str(counts))
+    check("شمارش signals درست است (۲ فایل)", counts.get("signals") == 2, str(counts))
     check("نوشتهٔ تازهٔ signals سر جایش ماند",
           json.loads((sig / "dominance.json").read_text())["series_points"] == 1400)
     check("سری فقط در brain ماند",
@@ -201,6 +209,8 @@ with tempfile.TemporaryDirectory() as td:
     check("state خوانده می‌شود و به همان مسیرها اشاره دارد",
           loaded_root == root and set(map(str, loaded_stages)) == set(map(str, stages)))
     counts = publish.reapply(loaded_root, loaded_stages, signals=sig, memory=mem)
+    check("شمارش بعد از round-trip هم per-tree است",
+          counts.get("memory") == 3, str(counts))
     check("سری بعد از round-trip کامل هنوز در brain هست",
           (mem / "dominance-series.json").exists())
     check("خروجی تازه بعد از round-trip کامل سالم است",
