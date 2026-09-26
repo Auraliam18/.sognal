@@ -139,6 +139,37 @@ with tempfile.TemporaryDirectory() as td:
     check("audit کهنگی را می‌گیرد",
           any("کهنه" in p for p in a["problems"]), str(a["problems"]))
 
+print("── پاک‌سازی فایل‌های تکراری ──")
+with tempfile.TemporaryDirectory() as td:
+    tmp = Path(td)
+    sig, mem = _tree(tmp)
+    # همان حالتی که رانر را متوقف کرد: agent-* و سری در هر دو درخت
+    for n in ("structure", "derivatives", "news", "macro"):
+        (sig / f"agent-{n}.json").write_text('{"m":1}')
+        (mem / f"agent-{n}.json").write_text('{"m":1}')
+    (sig / "dominance-series.json").write_text('[{"t":1}]')
+    a = publish.audit(signals=sig, memory=mem)
+    check("audit تکرار حافظه در signals را می‌گیرد",
+          not a["ok"] and sum("تکراری" in p for p in a["problems"]) >= 5,
+          str(a["problems"][:3]))
+
+    n = publish.prune_strays(signals=sig, memory=mem)
+    # ۵ تا از signals (۴ حافظه + سری) و ۲ تا از brain (dominance/futures که
+    # هیچ ماژولی آنجا نمی‌نویسد) — مجموع ۷
+    check("پاک‌سازی فایل‌های تکراری از هر دو درخت", n == 7, f"پاک شد: {n}")
+    check("نسخهٔ کهنهٔ گزارش‌ها از brain رفت",
+          not (mem / "dominance.json").exists() and
+          not (mem / "futures.json").exists())
+    check("حافظه در brain سالم ماند",
+          all((mem / f"agent-{n}.json").exists()
+              for n in ("structure", "derivatives", "news", "macro")))
+    check("سری در brain سالم ماند", (mem / "dominance-series.json").exists())
+    check("گزارش‌های واقعی signals سالم ماندند",
+          (sig / "dominance.json").exists() and (sig / "futures.json").exists())
+    a = publish.audit(signals=sig, memory=mem)
+    check("بعد از پاک‌سازی audit دیگر تکرار گزارش نمی‌کند",
+          not any("تکراری" in p for p in a["problems"]), str(a["problems"][:3]))
+
 print("── اجرای مستقیم ماژول ──")
 with tempfile.TemporaryDirectory() as td:
     r = subprocess.run([sys.executable, str(HERE / "publish.py"), "audit"],
@@ -151,6 +182,11 @@ with tempfile.TemporaryDirectory() as td:
                        capture_output=True, text=True, timeout=60)
     check("فرمان ناشناخته خطای روشن می‌دهد",
           r.returncode == 2 and "usage" in r.stderr, r.stderr[:200])
+
+    r = subprocess.run([sys.executable, str(HERE / "publish.py"), "prune"],
+                       capture_output=True, text=True, timeout=60)
+    check("فرمان prune اجرا می‌شود", r.returncode == 0 and "prune" in r.stdout,
+          r.stdout[:200])
 
 print("── حالت ذخیره‌شده (پل بین stage و reapply) ──")
 with tempfile.TemporaryDirectory() as td:

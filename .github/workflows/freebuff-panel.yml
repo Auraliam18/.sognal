@@ -98,6 +98,9 @@ jobs:
             # مشترک می‌نشاند و نسخهٔ کهنهٔ brain نوشتهٔ تازهٔ signals را
             # می‌بلعید — ۵ روز dominance.json کهنه ماند. اثبات و آزمونِ
             # رگرسیون: freebuff/test_publish.py
+            # یک‌بار پیش از حلقه: فایل‌های تکراریِ به‌جامانده از رانرهای
+            # پیشین پاک می‌شوند تا audit و git diff هر دو صادق باشند.
+            python3 freebuff/publish.py prune || true
             python3 freebuff/publish.py stage || true
             for i in 1 2 3 4; do
               git fetch origin main -q

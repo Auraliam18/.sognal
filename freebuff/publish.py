@@ -34,13 +34,45 @@ ROOT = HERE.parent
 SIGNALS = ROOT / "signals" / "freebuff"     # گزارش‌های همین دور
 MEMORY = ROOT / "brain" / "freebuff"        # حافظهٔ ایجنت‌ها + سری زمانی
 
-# فایل‌هایی که فقط در brain/ خانه دارند و نباید در signals/ (خروجی
-# همین دور) هم دوباره ساخته شوند. این فیلتر فقط روی درخت signals
-# اعمال می‌شود — اعمالش روی brain باعث می‌شد سری زمانی هرگز کامیت
-# نشود، چون تنها خانهٔ معتبرش همان‌جاست.
-SIGNALS_ONLY_TREE_SKIP = {"dominance-series.json"}
+# فایل‌هایی که فقط در brain/ خانه دارند: حافظهٔ ایجنت‌ها و سری زمانی.
+# این‌ها نباید در signals/ (خروجی همین دور) هم دوباره ساخته شوند —
+# وجودشان آنجا یعنی مرز مسیر شکسته و دلیل «تکراری بین درخت‌ها» در audit.
+# فیلتر فقط روی درخت signals اعمال می‌شود؛ اعمالش روی brain باعث می‌شد
+# سری زمانی هرگز کامیت نشود، چون تنها خانهٔ معتبرش همان‌جاست.
+SIGNALS_ONLY_TREE_SKIP = {"dominance-series.json"} | {
+    f"agent-{n}.json" for n in ("structure", "derivatives", "news", "macro")}
+
+# پاک‌سازی فایل‌هایی که به‌اشتباه در signals/ افتاده‌اند. رانرهای قدیمی
+# با cp -r مشترک این‌ها را هر دو جا کاشتند و همان‌ها باعث می‌شدند
+# audit قرمز بماند و «چیزی برای ثبت نیست» بدهد.
+def prune_strays(signals=SIGNALS, memory=MEMORY):
+    """فایل‌های تکراری هر دو درخت را پاک می‌کند. تعداد پاک‌شده.
+
+    در brain هیچ ماژولی dominance.json / futures.json / round-state.json
+    را نمی‌نویسد (خروجی‌شان signals است)، پس آنجا فقط نسخهٔ کهنهٔ
+    به‌جامانده از رانرهای پیشین بوده‌اند — دقیقاً همان چیزی که هر دور
+    نوشتهٔ تازه را می‌بلعید.
+    """
+    n = 0
+    for d in (signals, memory):
+        if not d.is_dir():
+            continue
+        for f in list(d.iterdir()):
+            if not f.is_file():
+                continue
+            if d == signals and f.name in SIGNALS_ONLY_TREE_SKIP:
+                f.unlink()
+                n += 1
+            elif d == memory and f.name in BRAIN_STRAYS:
+                f.unlink()
+                n += 1
+    return n
 
 STALE_AFTER_S = 30 * 60      # خروجی تازه‌تر از این، «زنده» حساب می‌شود
+
+# فایل‌هایی که فقط در signals خانه دارند؛ نسخهٔ آن‌ها در brain نوازده
+# است و باید پاک شود (هیچ ماژولی آنجا نمی‌نویسد).
+BRAIN_STRAYS = {"dominance.json", "futures.json", "round-state.json"}
 
 
 def stage(dst_dir):
@@ -117,6 +149,7 @@ def reapply(root, stages, *, signals=SIGNALS, memory=MEMORY, force=False):
     for d in (signals, memory):
         skip = SIGNALS_ONLY_TREE_SKIP if d == signals else ()
         out[d] = _restore(stages[d], d, force=force, skip=skip)
+    prune_strays(signals)
     shutil.rmtree(root, ignore_errors=True)
     return out
 
@@ -176,7 +209,11 @@ def main():
             print(f"reapply: پشتیبانی نبود ({e}) — خروجی‌های این دور از دست رفت")
             return 0
         counts = reapply(root, stages)
-        print("reapply:", sum(counts.values()), "فایل نشانده شد")
+        print("reapply:", sum(counts.values()), "فایل نشانده شد،",
+              prune_strays(), "فایل تکراری پاک شد")
+        return 0
+    if cmd == "prune":
+        print("prune:", prune_strays(), "فایل تکراری پاک شد")
         return 0
     if cmd == "audit":
         a = audit()
@@ -187,7 +224,7 @@ def main():
         for p in a["problems"]:
             print("  •", p)
         return 1
-    print("usage: publish.py [stage|reapply|audit]", file=sys.stderr)
+    print("usage: publish.py [stage|reapply|audit|prune]", file=sys.stderr)
     return 2
 
 

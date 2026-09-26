@@ -73,6 +73,7 @@ for needle, desc in [
     ("publish.py audit", "بازرسی کهنگی در همان دور"),
     ("test_publish.py", "آزمون رگرسیون انتشار"),
     ("brain/freebuff", "انتشار حافظه روی gh-pages"),
+    ("publish.py prune", "پاک‌سازی فایل‌های تکراری"),
 ]:
     check(f"مرحلهٔ حیاتی هست: {desc}", needle in text, needle)
 
