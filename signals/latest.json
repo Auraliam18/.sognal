@@ -1,6 +1,6 @@
 {
- "generated": 1790634941398,
- "generatedText": "2026-09-28 22:35 UTC",
+ "generated": 1790635158535,
+ "generatedText": "2026-09-28 22:39 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -1.025
+  "btcChange": -0.94
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -568,8 +568,12 @@
     "high": 0.4841
    },
    "learned": {
-    "boost": 0.201,
+    "boost": 0.811,
     "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
@@ -582,6 +586,77 @@
     "n": 578,
     "hit": 34.8,
     "ev": 0.38
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "DOGEUSDT",
+   "tf": "5m",
+   "stage": "SIGNAL",
+   "dir": "SHORT",
+   "entry": 0.09293,
+   "sl": 0.09333025714285714,
+   "tp1": 0.09216,
+   "tp2": 0.09154400000000001,
+   "rr": 1.92,
+   "price": 0.09293,
+   "conf": 41,
+   "ev": 0.18899059625880432,
+   "quality": 67,
+   "visits": 1,
+   "depth": 50,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 15
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": 0,
+    "posPct": 35
+   },
+   "adx": 30.7,
+   "room": {
+    "r": 0.69,
+    "blocker": "حمایت ×6"
+   },
+   "swept": {
+    "n": 3
+   },
+   "thin": {
+    "insideRatio": 0.21,
+    "volRatio": 1.43
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": null,
+   "lastClose": 1790634600000,
+   "ob": {
+    "low": 0.09316,
+    "high": 0.0933
+   },
+   "learned": {
+    "boost": 0.429,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 620,
+    "hit": 22.7,
+    "ev": -0.032
    }
   },
   {
@@ -1211,37 +1286,6 @@
     "n": 255,
     "hit": 61.6,
     "ev": 0.833
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.7007,
-    "dist_pct": 0.52
-   },
-   "premortem": {
-    "pro": [
-     "روند ۱۵د هم‌جهت (down)"
-    ],
-    "con": [
-     "استاپ 0.39٪ داخل نویز ۱۵د است (ATR 0.42٪) — ویک می‌خورد",
-     "آهن‌ربای نقدینگی خلاف جهت — استخر استاپ آن‌طرف است",
-     "قانون تأییدشدهٔ تاریخی «CHOCH دارد» (-0.16R، n=512، CI ردشده از صفر)",
-     "رژیم ساختاری دامیننس BULLISH — USDT.D ساختار ۱س down · BTC.D ۱س down"
-    ],
-    "pro_w": 2,
-    "con_w": 7,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 2 امتیاز تارگت / 7 امتیاز استاپ — صادر نشد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 0.7007,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": null
    }
   },
   {
@@ -1298,105 +1342,6 @@
     "n": 120,
     "hit": 38.3,
     "ev": 0.133
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.013216,
-    "dist_pct": 0.03
-   },
-   "premortem": {
-    "pro": [
-     "روند ۱۵د هم‌جهت (down)",
-     "RSI ۱۵د سالم (59)"
-    ],
-    "con": [
-     "استاپ 0.45٪ داخل نویز ۱۵د است (ATR 0.65٪) — ویک می‌خورد",
-     "آهن‌ربای نقدینگی خلاف جهت — استخر استاپ آن‌طرف است",
-     "قانون تأییدشدهٔ تاریخی «CHOCH دارد» (-0.16R، n=512، CI ردشده از صفر)",
-     "رژیم ساختاری دامیننس BULLISH — USDT.D ساختار ۱س down · BTC.D ۱س down"
-    ],
-    "pro_w": 3,
-    "con_w": 7,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 3 امتیاز تارگت / 7 امتیاز استاپ — صادر نشد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 0.013216,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": null
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "DOGEUSDT",
-   "tf": "5m",
-   "stage": "SIGNAL",
-   "dir": "SHORT",
-   "entry": 0.09293,
-   "sl": 0.09333025714285714,
-   "tp1": 0.09216,
-   "tp2": 0.09154400000000001,
-   "rr": 1.92,
-   "price": 0.09293,
-   "conf": 41,
-   "ev": 0.18899059625880432,
-   "quality": 67,
-   "visits": 1,
-   "depth": 50,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 15
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": 0,
-    "posPct": 35
-   },
-   "adx": 30.7,
-   "room": {
-    "r": 0.69,
-    "blocker": "حمایت ×6"
-   },
-   "swept": {
-    "n": 3
-   },
-   "thin": {
-    "insideRatio": 0.21,
-    "volRatio": 1.43
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1790634600000,
-   "ob": {
-    "low": 0.09316,
-    "high": 0.0933
-   },
-   "learned": {
-    "boost": -0.181,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": -0.181
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "flat",
-    "n": 620,
-    "hit": 22.7,
-    "ev": -0.032
    }
   },
   {
@@ -1980,8 +1925,12 @@
     "high": 8.718
    },
    "learned": {
-    "boost": 0.201,
+    "boost": 0.811,
     "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
@@ -2587,7 +2536,16 @@
     "low": 86.82,
     "high": 87.09
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "thin",
     "n": 0,
@@ -2645,7 +2603,16 @@
     "low": 10.401,
     "high": 10.431
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "bad",
     "n": 394,
