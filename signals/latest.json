@@ -1,6 +1,6 @@
 {
- "generated": 1790846184483,
- "generatedText": "2026-10-01 09:16 UTC",
+ "generated": 1790846361788,
+ "generatedText": "2026-10-01 09:19 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.488
+  "btcChange": 0.502
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -612,34 +612,6 @@
     "n": 615,
     "hit": 42.6,
     "ev": 0.218
-   },
-   "trend4": "range",
-   "trend1": "range",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.5229,
-    "dist_pct": 0.32
-   },
-   "premortem": {
-    "pro": [
-     "تمرین تاریخی: 35 ریپلی همین ارز/جهت روی کندل واقعی — برد 37.1٪، میانگین +0.52R (بازه بالای صفر)"
-    ],
-    "con": [
-     "استاپ 0.33٪ داخل نویز ۱۵د است (ATR 0.95٪) — ویک می‌خورد"
-    ],
-    "pro_w": 2,
-    "con_w": 2,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 2 امتیاز تارگت / 2 امتیاز استاپ — صادر نشد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 0.5229,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": null
    }
   },
   {
@@ -1684,10 +1656,7 @@
     "n": 43059,
     "hit": 32.3,
     "ev": 0.056
-   },
-   "trend4": "range",
-   "trend1": "down",
-   "trend_mode": "counter-blocked"
+   }
   },
   {
    "strategy": "ibs",
@@ -1734,10 +1703,7 @@
     "n": 43262,
     "hit": 32.1,
     "ev": 0.049
-   },
-   "trend4": null,
-   "trend1": null,
-   "trend_mode": "no-data"
+   }
   },
   {
    "strategy": "ibs",
@@ -2024,8 +1990,12 @@
     "high": 0.005658
    },
    "learned": {
-    "boost": 0.201,
+    "boost": 0.811,
     "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": 0.201
@@ -2602,6 +2572,75 @@
     "n": 405,
     "hit": 26.7,
     "ev": -0.101
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "TRXUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 0.3367,
+   "sl": 0.33752914285714286,
+   "tp1": 0.3343,
+   "tp2": 0.33237999999999995,
+   "rr": 2.89,
+   "price": 0.3367,
+   "conf": 37,
+   "ev": 0.4230320538643757,
+   "quality": 73,
+   "visits": 1,
+   "depth": 100,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "R",
+    "touches": 135
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": -0.2,
+    "posPct": 0
+   },
+   "adx": 24.1,
+   "room": {
+    "r": 0.3,
+    "blocker": "اردر بلاک مقابل"
+   },
+   "swept": null,
+   "thin": {
+    "insideRatio": 0.48,
+    "volRatio": 1.7
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 24.1 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1790845800000,
+   "ob": {
+    "low": 0.3374,
+    "high": 0.3375
+   },
+   "learned": {
+    "boost": 0.429,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "flat",
+    "n": 615,
+    "hit": 21.8,
+    "ev": -0.038
    }
   },
   {
@@ -4592,71 +4631,6 @@
     "n": 0,
     "hit": null,
     "ev": null
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "TRXUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.3367,
-   "sl": 0.33752914285714286,
-   "tp1": 0.3343,
-   "tp2": 0.33237999999999995,
-   "rr": 2.89,
-   "price": 0.3367,
-   "conf": 37,
-   "ev": 0.4230320538643757,
-   "quality": 73,
-   "visits": 1,
-   "depth": 100,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "R",
-    "touches": 135
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": -0.2,
-    "posPct": 0
-   },
-   "adx": 24.1,
-   "room": {
-    "r": 0.3,
-    "blocker": "اردر بلاک مقابل"
-   },
-   "swept": null,
-   "thin": {
-    "insideRatio": 0.48,
-    "volRatio": 1.7
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "ADX 24.1 زیر حد 25 — بازار روند ندارد",
-   "lastClose": 1790845800000,
-   "ob": {
-    "low": 0.3374,
-    "high": 0.3375
-   },
-   "learned": {
-    "boost": -0.181,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": -0.181
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "flat",
-    "n": 615,
-    "hit": 21.8,
-    "ev": -0.038
    }
   },
   {
