@@ -1,6 +1,6 @@
 {
- "generated": 1791908754097,
- "generatedText": "2026-10-13 16:25 UTC",
+ "generated": 1791909002569,
+ "generatedText": "2026-10-13 16:30 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.729
+  "btcChange": 0.825
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -567,7 +567,16 @@
     "low": 1.167,
     "high": 1.17
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "good",
     "n": 255,
@@ -2057,6 +2066,77 @@
     "n": 617,
     "hit": 26.1,
     "ev": -0.179
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "BTCUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 83510.04,
+   "sl": 83631.66974285714,
+   "tp1": 83122.95,
+   "tp2": 82813.278,
+   "rr": 3.18,
+   "price": 83510.04,
+   "conf": 35,
+   "ev": 0.478862279628535,
+   "quality": 88,
+   "visits": 3,
+   "depth": 100,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 28
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": -0.5,
+    "posPct": 62
+   },
+   "adx": 12.9,
+   "room": {
+    "r": 0.77,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 7
+   },
+   "thin": {
+    "insideRatio": 0.07,
+    "volRatio": 1.04
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 12.9 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1791908400000,
+   "ob": {
+    "low": 83538.94,
+    "high": 83616.01
+   },
+   "learned": {
+    "boost": 0.429,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "bad",
+    "n": 370,
+    "hit": 9.5,
+    "ev": -0.524
    }
   },
   {
@@ -3716,73 +3796,6 @@
     "n": 0,
     "hit": null,
     "ev": null
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "BTCUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 83510.04,
-   "sl": 83631.66974285714,
-   "tp1": 83122.95,
-   "tp2": 82813.278,
-   "rr": 3.18,
-   "price": 83510.04,
-   "conf": 35,
-   "ev": 0.478862279628535,
-   "quality": 88,
-   "visits": 3,
-   "depth": 100,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 28
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": -0.5,
-    "posPct": 62
-   },
-   "adx": 12.9,
-   "room": {
-    "r": 0.77,
-    "blocker": "FVG مقابل"
-   },
-   "swept": {
-    "n": 7
-   },
-   "thin": {
-    "insideRatio": 0.07,
-    "volRatio": 1.04
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "ADX 12.9 زیر حد 25 — بازار روند ندارد",
-   "lastClose": 1791908400000,
-   "ob": {
-    "low": 83538.94,
-    "high": 83616.01
-   },
-   "learned": {
-    "boost": -0.181,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": -0.181
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "bad",
-    "n": 370,
-    "hit": 9.5,
-    "ev": -0.524
    }
   },
   {
