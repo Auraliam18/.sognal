@@ -1,6 +1,6 @@
 {
- "generated": 1793215856636,
- "generatedText": "2026-10-28 19:30 UTC",
+ "generated": 1793216099443,
+ "generatedText": "2026-10-28 19:34 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.687
+  "btcChange": 0.826
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -565,7 +565,16 @@
     "low": 1.9405,
     "high": 1.9749
    },
-   "elite": false,
+   "learned": {
+    "boost": 0.61,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     }
+    ]
+   },
+   "elite": true,
    "learning": {
     "verdict": "thin",
     "n": 0,
@@ -1731,38 +1740,6 @@
     "n": 600,
     "hit": 43.0,
     "ev": 0.342
-   },
-   "trend4": "down",
-   "trend1": "down",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 0.20672,
-    "dist_pct": -0.01
-   },
-   "premortem": {
-    "pro": [
-     "روند ۱۵د هم‌جهت (down)",
-     "آهن‌ربای نقدینگی هم‌جهت",
-     "خوشهٔ لیکویید هم‌جهت — سوخت حرکت",
-     "تمرین تاریخی: 31 ریپلی همین ارز/جهت روی کندل واقعی — برد 35.5٪، میانگین +0.68R (بازه بالای صفر)"
-    ],
-    "con": [
-     "استاپ 0.54٪ داخل نویز ۱۵د است (ATR 1.04٪) — ویک می‌خورد",
-     "رژیم ساختاری دامیننس BULLISH — USDT.D ساختار ۱س down · BTC.D ۱س up"
-    ],
-    "pro_w": 6,
-    "con_w": 4,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 6 امتیاز تارگت / 4 امتیاز استاپ — صادر شد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 0.20672,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": null
    }
   },
   {
@@ -2283,6 +2260,75 @@
  ],
  "watch": [
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "BMTUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 0.02829,
+   "sl": 0.028922314285714283,
+   "tp1": 0.02715183428571429,
+   "tp2": 0.02624130171428572,
+   "rr": 1.8,
+   "price": 0.02829,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 53,
+   "visits": 1,
+   "depth": 18,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "R",
+    "touches": 4
+   },
+   "channel": {
+    "dir": "صعودی",
+    "drift": 3,
+    "posPct": 3
+   },
+   "adx": 36,
+   "room": {
+    "r": 0.31,
+    "blocker": "مقاومت ×4"
+   },
+   "swept": null,
+   "thin": {
+    "insideRatio": 0.17,
+    "volRatio": 1.21
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "اتاق یادگیری مخالف است — 158 مورد مشابه، برد 12.7٪، انتظار -0.41R",
+   "lastClose": 1793215500000,
+   "ob": {
+    "low": 0.02878,
+    "high": 0.02889
+   },
+   "learned": {
+    "boost": 0.429,
+    "rules": [
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "bad",
+    "n": 158,
+    "hit": 12.7,
+    "ev": -0.407
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "SKHYBUSDT",
@@ -2336,71 +2382,6 @@
     "n": 420,
     "hit": 7.6,
     "ev": -0.76
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "BMTUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 0.02829,
-   "sl": 0.028922314285714283,
-   "tp1": 0.02715183428571429,
-   "tp2": 0.02624130171428572,
-   "rr": 1.8,
-   "price": 0.02829,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 53,
-   "visits": 1,
-   "depth": 18,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "R",
-    "touches": 4
-   },
-   "channel": {
-    "dir": "صعودی",
-    "drift": 3,
-    "posPct": 3
-   },
-   "adx": 36,
-   "room": {
-    "r": 0.31,
-    "blocker": "مقاومت ×4"
-   },
-   "swept": null,
-   "thin": {
-    "insideRatio": 0.17,
-    "volRatio": 1.21
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "اتاق یادگیری مخالف است — 158 مورد مشابه، برد 12.7٪، انتظار -0.41R",
-   "lastClose": 1793215500000,
-   "ob": {
-    "low": 0.02878,
-    "high": 0.02889
-   },
-   "learned": {
-    "boost": -0.181,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": -0.181
-     }
-    ]
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "bad",
-    "n": 158,
-    "hit": 12.7,
-    "ev": -0.407
    }
   },
   {
