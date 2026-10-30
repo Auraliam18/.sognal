@@ -1,6 +1,6 @@
 {
- "generated": 1793402182882,
- "generatedText": "2026-10-30 23:16 UTC",
+ "generated": 1793402361714,
+ "generatedText": "2026-10-30 23:19 UTC",
  "source": "کندل واقعی بایننس، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": -2.317
+  "btcChange": -2.285
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -847,10 +847,7 @@
     "n": 555,
     "hit": 40.7,
     "ev": 0.333
-   },
-   "trend4": "up",
-   "trend1": "down",
-   "trend_mode": "counter-blocked"
+   }
   },
   {
    "strategy": "ibs",
@@ -1732,47 +1729,6 @@
     "n": 615,
     "hit": 36.7,
     "ev": 0.583
-   },
-   "trend4": "range",
-   "trend1": "range",
-   "trend_mode": "with-trend",
-   "sync": {
-    "price": 1250.21,
-    "dist_pct": -0.0
-   },
-   "premortem": {
-    "pro": [
-     "روند ۱۵د هم‌جهت (up)",
-     "خوشهٔ لیکویید هم‌جهت — سوخت حرکت"
-    ],
-    "con": [
-     "استاپ 0.82٪ داخل نویز ۱۵د است (ATR 0.76٪) — ویک می‌خورد",
-     "آهن‌ربای نقدینگی خلاف جهت — استخر استاپ آن‌طرف است",
-     "اردر بلاک 15m (نزدیک، 6 واکنش) — خلاف جهت، دیوار جلوی راه",
-     "قانون تأییدشدهٔ تاریخی «جای حرکت کمتر از ۱ برابر» (-0.18R، n=974، CI ردشده از صفر)"
-    ],
-    "pro_w": 3,
-    "con_w": 6,
-    "issue": false,
-    "note": "⚖️ بازجویی ۱۵د (وزنی): 3 امتیاز تارگت / 6 امتیاز استاپ — صادر نشد · ⛔ استاپ داخل نویز — وتوی سخت",
-    "price": 1250.21,
-    "patterns": {
-     "by_tf": {},
-     "align": null,
-     "note": null,
-     "best": null
-    },
-    "noise_stop": true,
-    "ob_ctx": {
-     "align": "against",
-     "tf": "15m",
-     "reactions": 6,
-     "hunts": 0,
-     "fresh": false,
-     "note": "اردر بلاک 15m (نزدیک، 6 واکنش)",
-     "low": 1253.86,
-     "high": 1286.16
-    }
    }
   },
   {
@@ -1840,10 +1796,7 @@
     "n": 0,
     "hit": null,
     "ev": null
-   },
-   "trend4": "down",
-   "trend1": "down",
-   "trend_mode": "hard-veto"
+   }
   },
   {
    "strategy": "smc",
@@ -4644,6 +4597,81 @@
    }
   },
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "LINKUSDT",
+   "tf": "15m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 11.361,
+   "sl": 11.227319999999999,
+   "tp1": 11.601624000000005,
+   "tp2": 11.794123200000008,
+   "rr": 1.8,
+   "price": 11.361,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 67,
+   "visits": 1,
+   "depth": 92,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 9
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": 0.4,
+    "posPct": 67
+   },
+   "adx": 23.5,
+   "room": {
+    "r": 0.42,
+    "blocker": "مقاومت ×8"
+   },
+   "swept": {
+    "n": 2
+   },
+   "thin": {
+    "insideRatio": 0.07,
+    "volRatio": 0.77
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 23.5 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1793401200000,
+   "ob": {
+    "low": 11.235,
+    "high": 11.287
+   },
+   "learned": {
+    "boost": 1.182,
+    "rules": [
+     {
+      "rule": "لانگ همسو با بیت‌کوین",
+      "delta": 0.753
+     },
+     {
+      "rule": "بیت‌کوین صعودی",
+      "delta": 0.61
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": -0.181
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 606,
+    "hit": 36.1,
+    "ev": 0.477
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "ZECUSDT",
@@ -5487,53 +5515,6 @@
     "n": 600,
     "hit": 34.7,
     "ev": 0.028
-   }
-  },
-  {
-   "strategy": "ibs",
-   "strategyName": "IBS + پولبک",
-   "sym": "SOXLBUSDT",
-   "tf": "15m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 77.5,
-   "sl": 77.14786,
-   "tp1": 78.02821,
-   "tp2": 78.38035000000002,
-   "rr": 1.5,
-   "price": 77.99,
-   "conf": null,
-   "ev": null,
-   "quality": 56,
-   "visits": null,
-   "depth": null,
-   "exited": false,
-   "inside": false,
-   "fvg": false,
-   "level": null,
-   "channel": null,
-   "adx": null,
-   "room": null,
-   "swept": null,
-   "thin": null,
-   "goOnFirst": false,
-   "waitReason": "قیمت هنوز به باکس نرسیده",
-   "skip": null,
-   "lastClose": 1793401200000,
-   "ob": {
-    "low": 77.38,
-    "high": 77.62
-   },
-   "choch": 0,
-   "barsAgo": 0,
-   "inOB": 0,
-   "nearOB": 0,
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 375,
-    "hit": 33.1,
-    "ev": 0.112
    }
   }
  ],
