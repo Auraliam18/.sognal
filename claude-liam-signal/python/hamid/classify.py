@@ -34,6 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import jsonl_store
 
 ROOT = HERE.parent.parent.parent
 CLOSED = ROOT / "brain" / "paper" / "closed.jsonl"
@@ -55,16 +56,7 @@ def load(path=None):
     """ردیف‌های بسته‌شدهٔ دارای R — تنها چیزی که قابل شمارش است."""
     p = Path(path or CLOSED)
     rows = []
-    if not p.exists():
-        return rows
-    for line in p.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            t = json.loads(line)
-        except Exception:                             # noqa: BLE001 - ردیف خراب رد
-            continue
+    for t in jsonl_store.read(p):
         if t.get("R") is None or t.get("outcome") == "expired":
             continue
         rows.append(t)
@@ -308,3 +300,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

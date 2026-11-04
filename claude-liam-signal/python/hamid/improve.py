@@ -58,6 +58,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import jsonl_store
 
 ROOT = HERE.parent.parent.parent
 CLOSED = ROOT / "brain" / "paper" / "closed.jsonl"
@@ -70,22 +71,8 @@ NOT_TRADES = ("expired",)
 
 
 def _rows():
-    out = []
-    try:
-        for line in CLOSED.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                t = json.loads(line)
-            except Exception:                        # noqa: BLE001 - خط خراب رد
-                continue
-            if t.get("R") is None or t.get("outcome") in NOT_TRADES:
-                continue
-            out.append(t)
-    except FileNotFoundError:
-        pass
-    return out
+    return [t for t in jsonl_store.read(CLOSED)
+            if t.get("R") is not None and t.get("outcome") not in NOT_TRADES]
 
 
 def _boot_ci(vals, alpha, rng, n=2000):
@@ -295,3 +282,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

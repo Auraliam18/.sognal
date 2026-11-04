@@ -111,19 +111,15 @@ def brain_writes_and_reads():
     probe = {"sym": "SELFTEST", "tf": "15m", "dir": "LONG", "strategy": "smc",
              "r": 1.5, "rr": 1.5, "adx": 30, "dom_dir": "UP",
              "reason": "selftest", "outcome": "target2", "win": 1}
-    before = len(brain.read(brain.LEARNING / "experiences.jsonl"))
-    brain.learn(probe)
-    after = len(brain.read(brain.LEARNING / "experiences.jsonl"))
-    # remove the probe so a self-test never pollutes the record
-    p = brain.LEARNING / "experiences.jsonl"
-    lines = [l for l in p.read_text().splitlines() if '"SELFTEST"' not in l]
-    p.write_text("\n".join(lines) + ("\n" if lines else ""))
-    for f in ("positive.jsonl", "negative.jsonl"):
-        q = brain.LEARNING / f
-        if q.exists():
-            ls = [l for l in q.read_text().splitlines() if '"SELFTEST"' not in l]
-            q.write_text("\n".join(ls) + ("\n" if ls else ""))
-    return (after == before + 1), f"{before} → {after}, probe removed"
+    # Probes belong in temporary storage, including after ledger migration.
+    import tempfile
+    from unittest.mock import patch
+    with tempfile.TemporaryDirectory() as directory:
+        with patch.object(brain, "LEARNING", Path(directory)):
+            brain.learn(probe)
+            rows = brain.read(brain.LEARNING / "experiences.jsonl")
+            return rows == [probe], "isolated append/read probe"
+
 
 
 def brain_has_history():
@@ -357,3 +353,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

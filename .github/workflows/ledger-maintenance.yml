@@ -1,0 +1,57 @@
+name: Ledger maintenance and regression checks
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'claude-liam-signal/python/**'
+      - 'scripts/resolve_brain_conflicts.py'
+      - '.github/workflows/**'
+permissions:
+  contents: write
+concurrency:
+  group: ledger-maintenance-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyyaml
+      - name: Storage and consumer regression checks
+        working-directory: claude-liam-signal/python
+        run: |
+          python -m unittest test_jsonl_store -v
+          python -m hamid.test_classify
+          python -m hamid.test_improve
+          python -m hamid.test_trainer
+          python -m hamid.test_resolve
+          python -m hamid.test_workflows
+      - name: Validate engine package
+        run: python scripts/validate_skill_package.py
+      - name: Migrate and verify large ledgers
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        run: python claude-liam-signal/python/jsonl_store.py
+      - name: Publish verified ledger parts
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add brain/learning brain/paper brain/rooms
+          git diff --cached --quiet && exit 0
+          git commit -m 'Keep append-only ledgers in bounded verified parts'
+          for attempt in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch origin main
+            if ! git merge --no-edit origin/main; then
+              python scripts/resolve_brain_conflicts.py || { git merge --abort; exit 1; }
+              git commit --no-edit
+            fi
+            sleep $((attempt * 3))
+          done
+          exit 1
