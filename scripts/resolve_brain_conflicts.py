@@ -64,6 +64,16 @@ def merge_jsonl(path):
                 continue
     rows.sort(key=lambda x: x[0])
     (ROOT / path).write_text("\n".join(l for _, l in rows) + "\n", encoding="utf-8")
+    # Old in-flight jobs can bring a pre-migration ledger back during a merge.
+    # Reconcile it with the bounded parts before committing another large blob.
+    module_dir = ROOT / "claude-liam-signal" / "python"
+    if (module_dir / "jsonl_store.py").exists():
+        sys.path.insert(0, str(module_dir))
+        import jsonl_store
+        target = ROOT / path
+        if jsonl_store.managed(target) and jsonl_store.migrate(target):
+            subprocess.run(["git", "add", "--", str(jsonl_store.parts(target))],
+                           cwd=ROOT, check=True)
     return f"{len(rows)} ردیف یکتا"
 
 
@@ -266,3 +276,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
