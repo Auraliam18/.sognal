@@ -24,6 +24,7 @@ The one thing this must be fast at is the question asked before every signal:
 `recall` answers it off an index rather than by reading the history.
 """
 import json, os, time
+import jsonl_store
 from collections import defaultdict
 from pathlib import Path
 
@@ -43,25 +44,11 @@ def _ensure():
 def append(path, record):
     """One JSON object per line. Append-only, so a torn write costs one line."""
     _ensure()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    jsonl_store.append(path, record)
 
 
 def read(path, limit=None):
-    if not Path(path).exists():
-        return []
-    out = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue                      # a torn last line is not a reason to fail
-    return out[-limit:] if limit else out
+    return jsonl_store.read(path, limit)
 
 
 # ── the events room ───────────────────────────────────────────────────────────
@@ -230,3 +217,4 @@ def stats():
 if __name__ == "__main__":
     _ensure()
     print(json.dumps(stats(), indent=1))
+
