@@ -163,7 +163,7 @@ jobs:
                   git commit -q -m "ضربان $(date -u '+%H:%M') UTC"
                   for a in 1 2 3; do
                     git push origin HEAD:gh-pages -q && break
-                    git fetch --depth=1 origin gh-pages -q || true
+                    git fetch origin gh-pages -q || true
                     git rebase origin/gh-pages -q || { git rebase --abort; break; }
                   done
                 fi )
