@@ -72,7 +72,7 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.guard.outputs.skip != 'true'
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 1 }
       - uses: actions/setup-python@v5
         if: steps.guard.outputs.skip != 'true'
         with: { python-version: "3.11" }
@@ -151,7 +151,7 @@ jobs:
             fi
             # و روی خود پنل. پنل از gh-pages می‌خواند، نه از main — بدون این،
             # چرخه می‌چرخید و حمید یک فایل کهنه می‌دید.
-            git fetch origin gh-pages -q || true
+            git fetch --depth=1 origin gh-pages -q || true
             rm -rf /tmp/ghp
             if git worktree add /tmp/ghp origin/gh-pages --detach -q 2>/dev/null; then
               mkdir -p /tmp/ghp/signals
@@ -163,7 +163,7 @@ jobs:
                   git commit -q -m "ضربان $(date -u '+%H:%M') UTC"
                   for a in 1 2 3; do
                     git push origin HEAD:gh-pages -q && break
-                    git fetch origin gh-pages -q || true
+                    git fetch --depth=1 origin gh-pages -q || true
                     git rebase origin/gh-pages -q || { git rebase --abort; break; }
                   done
                 fi )
@@ -187,3 +187,4 @@ jobs:
       - name: خلاصه
         if: always()
         run: echo "ضربان در $(date -u '+%H:%M UTC') تمام شد" >> $GITHUB_STEP_SUMMARY
+
