@@ -1,0 +1,38 @@
+name: Terminal contracts and browser QA
+on:
+  pull_request:
+    paths: ['terminal/**', 'scripts/build_terminal.py', 'scripts/test_terminal.py', 'runtime/contracts/panel_health.schema.json', '.github/workflows/pages.yml', '.github/workflows/terminal-ci.yml']
+  push:
+    branches: [main]
+    paths: ['terminal/**', 'scripts/build_terminal.py', 'scripts/test_terminal.py', 'runtime/contracts/panel_health.schema.json', '.github/workflows/pages.yml', '.github/workflows/terminal-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: pip install PyYAML==6.0.3 jsonschema==4.26.0
+      - run: python scripts/validate_skill_package.py
+      - run: python -m unittest discover -s scripts -p test_terminal.py -v
+      - run: node --test terminal/lib.test.mjs
+      - run: python scripts/build_terminal.py
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node terminal/browser.test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terminal-browser-proof
+          path: terminal-*.png
