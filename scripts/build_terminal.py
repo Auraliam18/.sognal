@@ -159,12 +159,16 @@ def ledger(root, output, now, page_size=1000):
                 stat["days"][time.strftime("%Y-%m-%d", time.gmtime(closed / 1000))] += r
     rows.sort(key=lambda r: stamp(r.get("closed")) or 0, reverse=True)
     pages = []
-    for offset in range(0, len(rows), page_size):
-        part = rows[offset:offset + page_size]
-        digest = hashlib.sha256(json.dumps(part, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
-        name = f"history/{digest}.json"
-        write_json(output / name, part)
-        pages.append({"url": name, "count": len(part), "books": sorted({r["book"] for r in part}), "symbols": sorted({str(r["sym"]) for r in part if r["sym"]}), "first": part[0].get("closed"), "last": part[-1].get("closed")})
+    # Partition by book before pagination: a 9k-row primary book must not
+    # download a 170k-row mixed research archive just to filter its own rows.
+    for book in BOOKS:
+        book_rows = [row for row in rows if row["book"] == book]
+        for offset in range(0, len(book_rows), page_size):
+            part = book_rows[offset:offset + page_size]
+            digest = hashlib.sha256(json.dumps(part, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+            name = f"history/{digest}.json"
+            write_json(output / name, part)
+            pages.append({"url": name, "count": len(part), "books": [book], "symbols": sorted({str(r["sym"]) for r in part if r["sym"]}), "first": part[0].get("closed"), "last": part[-1].get("closed")})
     for stat in stats.values():
         n = stat["settled"]
         stat["mean_r"] = round(stat["sum_r"] / n, 5) if n else None
