@@ -58,6 +58,7 @@ jobs:
         with: { python-version: "3.11" }
 
       - name: Mine
+        shell: bash
         run: |
           python3 claude-liam-signal/python/mine.py \
             --symbols "${{ github.event.inputs.symbols || '70' }}" \
@@ -117,3 +118,4 @@ jobs:
             sleep $((attempt * 3))
           done
           exit 1
+
