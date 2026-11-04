@@ -4,6 +4,9 @@
 name: Deploy panel to Pages
 
 on:
+  push:
+    branches: [main]
+    paths: ['terminal/**', 'scripts/build_terminal.py', 'runtime/contracts/panel_health.schema.json', '.github/workflows/pages.yml']
   workflow_dispatch:
   schedule:
     # هر ۳۰ دقیقه، نه هر ۶ ساعت — با کرون ۶ساعته، پوش‌های تازهٔ gh-pages تا
@@ -30,12 +33,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
+          path: source
+          fetch-depth: 1
+      - uses: actions/checkout@v4
+        with:
           ref: gh-pages
+          path: site
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate and publish the read-only terminal
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install PyYAML==6.0.3 jsonschema==4.26.0
+          python source/scripts/validate_skill_package.py --repo-root source
+          python -m unittest discover -s source/scripts -p test_terminal.py -v
+          mkdir -p site/terminal
+          cp source/terminal/index.html source/terminal/styles.css source/terminal/app.mjs source/terminal/lib.mjs site/terminal/
+          cp source/lightweight-charts.js site/lightweight-charts.js
+          python source/scripts/build_terminal.py --root source --output site/terminal/data
+          test -s site/terminal/data/snapshot.json
       - uses: actions/configure-pages@v5
         with:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4

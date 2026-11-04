@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import random
+import time
 import sys
 from pathlib import Path
 
@@ -238,6 +239,7 @@ def build(rows=None):
     o_sym = ob_by_symbol(rows)
     tfs = sorted({_tf(t) for t in rows})
     return {
+        "generated": int(time.time() * 1000),
         "n_trades": len(rows),
         "timeframes": tfs,
         "strategy_by_tf": s_tf,
