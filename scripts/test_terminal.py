@@ -33,6 +33,9 @@ class TerminalContract(unittest.TestCase):
             self.assertEqual(result['records'],6)
             self.assertEqual(result['malformed_records'],1)
             self.assertEqual(sum(p['count'] for p in result['pages']),6)
+            self.assertTrue(all(len(p['books']) == 1 for p in result['pages']))
+            primary_pages=[p for p in result['pages'] if 'hamid' in p['books']]
+            self.assertEqual(sum(p['count'] for p in primary_pages),3)
             books={r['book']:r for r in result['books']}
             self.assertEqual(books['hamid']['settled'],2)
             self.assertEqual(books['hamid']['win_pct'],100)
