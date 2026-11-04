@@ -8,7 +8,7 @@ let browser;
 try {
   for(let i=0;i<40;i++){try{if((await fetch('http://127.0.0.1:8765/terminal/')).ok)break;}catch{}await new Promise(r=>setTimeout(r,250));}
   browser=await chromium.launch();
-  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
+  const page=await browser.newPage({viewport:{width:1440,height:1000},serviceWorkers:'block'}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const snapshot=JSON.parse(await fs.readFile('terminal/data/snapshot.json','utf8'));
   const trade={sym:'TESTUSDT',book:'hamid',dir:'LONG',entry:100,sl:99,tp1:102,R:2,outcome:'tp',closed:Date.now(),mode:'paper'};
@@ -42,4 +42,20 @@ try {
   assert.equal(await page.locator('.metric').count(),0,'no fabricated data on initial failure');
   assert.deepEqual(errors,[]);
   console.log('PASS: 8 routes, 26 bindings, chart, history, export, mobile layout, cached and initial failures');
+  // A visitor of the classic panel can already have its root worker active.
+  // Reproduce a cache-poisoned snapshot response, then verify scope takeover.
+  await fs.writeFile('terminal-legacy-test-sw.js', `self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{if(e.request.url.includes('snapshot.json'))e.respondWith(new Response('{"stale_legacy_cache":true}',{headers:{'Content-Type':'application/json'}}));});`);
+  const migration=await browser.newPage();
+  await migration.goto('http://127.0.0.1:8765/terminal/lib.mjs');
+  await migration.evaluate(async()=>{await navigator.serviceWorker.register('/terminal-legacy-test-sw.js',{scope:'/'});await navigator.serviceWorker.ready;});
+  await migration.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await migration.goto('http://127.0.0.1:8765/terminal/');
+  await migration.waitForFunction(()=>navigator.serviceWorker.controller?.scriptURL.endsWith('/terminal/sw.js'));
+  await migration.locator('.metric').first().waitFor();
+  assert.equal(await migration.locator('#connection.error').count(),0);
+  const swData=await migration.evaluate(async()=>await (await fetch('data/snapshot.json')).json());
+  assert.equal(swData.schema_version,1);
+  assert.equal(swData.stale_legacy_cache,undefined);
+  console.log('PASS: classic root service-worker migration and uncached terminal snapshot');
+  await fs.rm('terminal-legacy-test-sw.js');
 } finally {await browser?.close();server.kill();}
