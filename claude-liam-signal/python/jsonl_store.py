@@ -129,11 +129,12 @@ def append(path, record):
 
 def read(path, limit=None):
     rows = []
-    for line in lines(path):
-        try:
-            rows.append(json.loads(line))
-        except (ValueError, UnicodeDecodeError):
-            continue  # same torn-record tolerance as the original readers
+    with _lock:
+        for line in lines(path):
+            try:
+                rows.append(json.loads(line))
+            except (ValueError, UnicodeDecodeError):
+                continue  # same torn-record tolerance as the original readers
     if parts(path).exists():
         def timestamp(row):
             value = (row.get("closed") or row.get("t") or 0) if isinstance(row, dict) else 0
