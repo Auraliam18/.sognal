@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PanelHealth",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "engine_id", "version", "generated", "live_execution", "ok", "checks", "tab_bindings"],
+  "properties": {
+    "contract": {"const": "PanelHealth"},
+    "engine_id": {"const": "E24"},
+    "version": {"type": "string"},
+    "generated": {"type": "integer", "minimum": 1},
+    "live_execution": {"const": false},
+    "ok": {"type": "boolean"},
+    "checks": {"type": "array", "minItems": 3, "items": {"type": "object", "additionalProperties": false, "required": ["name", "ok"], "properties": {"name": {"type": "string"}, "ok": {"type": "boolean"}}}},
+    "tab_bindings": {"type": "object", "minProperties": 8, "additionalProperties": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^E(0[0-9]|1[0-9]|2[0-5])$"}}}
+  }
+}
