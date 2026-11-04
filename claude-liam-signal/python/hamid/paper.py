@@ -41,6 +41,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 import brain                                                  # noqa: E402
+import jsonl_store                                            # noqa: E402
 import sources                                                # noqa: E402
 
 ROOT = HERE.parent.parent.parent
@@ -63,16 +64,7 @@ HOLD_HOURS = 24               # then closed at market
 
 
 def _read(p):
-    if not p.exists():
-        return []
-    out = []
-    for line in p.read_text().splitlines():
-        if line.strip():
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return out
+    return jsonl_store.read(p)
 
 
 def _write(p, rows):
@@ -82,9 +74,7 @@ def _write(p, rows):
 
 
 def _append(p, row):
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a") as f:
-        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    jsonl_store.append(p, row)
 
 
 def experience_index(min_n=12):
@@ -668,3 +658,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
