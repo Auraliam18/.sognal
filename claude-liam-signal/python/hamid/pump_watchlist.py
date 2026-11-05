@@ -180,6 +180,8 @@ def send_ignitions(ignited, kc=None):
     # دروازهٔ روند (۱۷ اوت): شلیک لانگ وقتی ۴س و ۱س هر دو نزولی‌اند ممنوع؛
     # یک تایم مخالف هم بدون تأییدیه‌های کامل رد می‌شود. شلیکِ ردشده به
     # قبرستان نمی‌رود — اگر روند برگردد ممکن است دوباره واجد شود.
+    if kc is None:
+        return 0  # no trend evidence
     if kc is not None:
         kept = []
         for ig in ignited:
@@ -189,6 +191,7 @@ def send_ignitions(ignited, kc=None):
                 if a["ok"]:
                     if a["mode"] == "counter-confirmed":
                         ig["reasons"] = (ig.get("reasons") or []) +                             [trend_gate.caption_line(a)]
+                    ig["trend_assessment"] = a
                     kept.append(ig)
                 else:
                     print(f"  دروازهٔ روند {ig['symbol']}: {a['reason']}",
@@ -210,10 +213,12 @@ def send_ignitions(ignited, kc=None):
         print(msg.replace("<b>", "").replace("</b>", ""))
         if token:
             try:
-                tg._post(token, "sendMessage",
+                resp = tg._post(token, "sendMessage",
                          {"chat_id": chat, "text": msg, "parse_mode": "HTML",
                           "disable_web_page_preview": "true"})
-                tg._log_final({"sym": ig["symbol"], "dir": "LONG", "tf": "15m",
+                tg._log_final({"kind": "watch_alert", "tg_msg_id": ((resp or {}).get("result") or {}).get("message_id"),
+                               "trend4": ig["trend_assessment"]["t4"], "trend1": ig["trend_assessment"]["t1"],
+                               "trend_mode": ig["trend_assessment"]["mode"], "sym": ig["symbol"], "dir": "LONG", "tf": "15m",
                                "entry": ig.get("entry") or ig["price"],
                                "sl": ig.get("sl"), "tp1": None,
                                "strategyName": "دفتر انتظار پامپ 🧠"})

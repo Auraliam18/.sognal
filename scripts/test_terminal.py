@@ -27,6 +27,9 @@ class TerminalContract(unittest.TestCase):
                 {'sym':'SOLUSDT','why':{'stage':'sig-ibs'},'R':1,'outcome':'tp'},
                 {'sym':'XUSDT','R':4,'outcome':'tp','secret':'never export'},
             ]
+            for i,r in enumerate(rows):
+                r.update(opened=10000+i,entry=100.,sl=98.,tp1=104.,dir="LONG")
+                r.setdefault("why",{"stage":"unknown-fixture"})
             rows.append(rows[0].copy())  # repeated evidence must remain repeated
             p.write_text('\n'.join(json.dumps(r) for r in rows)+'\nnot-json\n',encoding='utf-8')
             result = b.ledger(root,root/'out',1700000000100,2)
@@ -37,7 +40,8 @@ class TerminalContract(unittest.TestCase):
             primary_pages=[p for p in result['pages'] if 'hamid' in p['books']]
             self.assertEqual(sum(p['count'] for p in primary_pages),3)
             books={r['book']:r for r in result['books']}
-            self.assertEqual(books['hamid']['settled'],2)
+            self.assertEqual(books['hamid']['settled'],1)
+            self.assertEqual(result['evidence_counts']['repeat'],1)
             self.assertEqual(books['hamid']['win_pct'],100)
             self.assertEqual(books['practice']['sum_r'],-1)
             self.assertEqual(books['other']['records'],1)

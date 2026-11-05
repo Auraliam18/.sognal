@@ -297,11 +297,13 @@ def klines(sym, tf, limit, quiet=True):
             rows = v["parse"](_json(v["url"](sym, tf, limit)))[-limit:]
         except Exception as e:                       # noqa: BLE001 - next venue
             errs.append(f"{v['id']}: {type(e).__name__}")
-            _note_failure(v["id"])
+            # A missing listing or short history affects this pair; it does
+            # not make the exchange unavailable to the next 199 symbols.
+            if isinstance(e, (TimeoutError, OSError)) and getattr(e, "code", None) not in (400,404,422):
+                _note_failure(v["id"])
             continue
         if not sane(rows, limit):
             errs.append(f"{v['id']}: {len(rows)} rows, rejected")
-            _note_failure(v["id"])
             continue
         _note_success(v["id"])
         if _used["klines"] != v["id"]:

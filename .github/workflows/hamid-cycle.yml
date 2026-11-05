@@ -18,6 +18,10 @@ name: Hamid cycle
 on:
   workflow_dispatch:
     inputs:
+      silent:
+        description: Verify and publish without sending messages
+        type: boolean
+        default: false
       mode:
         description: "auto | active | quiet"
         default: auto
@@ -50,12 +54,13 @@ concurrency:
 # نام منبعِ این خط تولید روی پیام‌های تلگرام (دستور حمید ۱۶ اوت).
 # پنل دیگر نام خودش را دارد؛ بدون این، دو منبع در کانال قاتی می‌شوند.
 env:
+  PYTHONUNBUFFERED: "1"
   PANEL_NAME: aura liam mAx
 
 jobs:
   cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         id: checkout
@@ -123,15 +128,16 @@ jobs:
           # empty, so the job is safe to run before they exist — but leaving
           # them out of the workflow entirely meant adding the secrets would
           # have changed nothing, silently.
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
-          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
+          TELEGRAM_BOT_TOKEN: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN || '' }}
+          TELEGRAM_CHAT_ID: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID || '' }}
+          TELEGRAM_BOT_TOKEN_2: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN_2 || '' }}
+          TELEGRAM_CHAT_ID_2: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID_2 || '' }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
           CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
         run: |
+          set -o pipefail
           python3 -m hamid.cycle \
             --mode "${{ github.event.inputs.mode || 'auto' }}" \
             --symbols "${{ github.event.inputs.symbols || '200' }}" \
@@ -141,7 +147,7 @@ jobs:
       # قبل از رسیدن قیمت. رویداد داخلی است، سیگنال نیست — تلگرام ندارد.
       - name: رادار هوش اردر بلاک
         working-directory: claude-liam-signal/python
-        run: python3 -m hamid.ob_intel --symbols 40 || true
+        run: python3 -m hamid.ob_intel --symbols 40
 
       - name: Summary
         if: always() && steps.checkout.outcome == 'success'
@@ -252,20 +258,22 @@ jobs:
         working-directory: claude-liam-signal/python
         env:
           WATCHDOG_AFTER_PUBLISH: "1"
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
-          TELEGRAM_CHAT_ID_2: ${{ secrets.TELEGRAM_CHAT_ID_2 }}
+          TELEGRAM_BOT_TOKEN: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN || '' }}
+          TELEGRAM_CHAT_ID: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID || '' }}
+          TELEGRAM_BOT_TOKEN_2: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN_2 || '' }}
+          TELEGRAM_CHAT_ID_2: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID_2 || '' }}
         run: python3 -m hamid.watchdog --alert
 
+
+      - name: Pack changed outputs with their original filenames
+        if: failure() || cancelled()
+        run: python3 scripts/archive_unpublished.py
 
       - name: Preserve unpublished results on failure
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: unpublished-${{ github.workflow }}-${{ github.run_id }}
-          path: |
-            signals/
-            brain/
-            claude-liam-signal/backtests/
+          path: ${{ runner.temp }}/unpublished.tar.gz
+          if-no-files-found: error
           retention-days: 7

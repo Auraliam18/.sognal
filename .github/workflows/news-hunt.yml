@@ -31,20 +31,11 @@ jobs:
         run: |
           python3 -m hamid.intel --deep --quiet
           python3 - <<'PY'
-          import json, sys, time
-          sys.path.insert(0, ".")
-          from hamid import discovery
-          d = json.load(open("../../brain/intel/latest.json"))
-          hot = (d.get("news") or {}).get("hot") or []
-          cls = discovery.classify_news(hot)
-          out = {"generated": int(time.time() * 1000),
-                 "verdict": d.get("verdict"),
-                 "classified": cls[:10],
-                 "calendar": (d.get("calendar") or {}).get("next_48h") or [],
-                 "deep_topics": len(d.get("deep") or [])}
-          open("../../signals/news.json", "w").write(
-              json.dumps(out, ensure_ascii=False, indent=1))
-          print(f"{len(hot)} تیتر داغ، {len(out['calendar'])} رویداد ۴۸س")
+          import json, time
+          from pathlib import Path
+          packet=json.loads(Path("../../signals/news.json").read_text())
+          if not packet.get("source_count") or not 0 <= time.time()*1000-packet["generated"] < 600000:
+              raise SystemExit("No new source-backed news observation")
           PY
       - name: ثبت روی main
         run: |
@@ -53,18 +44,28 @@ jobs:
           git add brain signals/news.json 2>/dev/null || true
           if ! git diff --cached --quiet 2>/dev/null; then
             git commit -q -m "شکار خبر $(date -u '+%H:%M') UTC"
-            for i in 1 2 3; do git push origin HEAD:main -q && break; git pull --rebase origin main -q || true; sleep $((i*2)); done
+            for i in 1 2 3 4 5; do
+              git push origin HEAD:main && exit 0
+              python3 scripts/fetch_for_merge.py main
+              if ! git merge --no-edit origin/main; then
+                python3 scripts/resolve_brain_conflicts.py || { git merge --abort; exit 1; }
+                git commit --no-edit
+              fi
+              sleep $((i*2))
+            done
+            exit 1
           fi
       - name: انتشار روی پنل
         run: |
-          git fetch origin gh-pages -q || exit 0
+          git fetch origin gh-pages -q
           rm -rf /tmp/ghn
-          git worktree add /tmp/ghn origin/gh-pages --detach -q || exit 0
+          git worktree add /tmp/ghn origin/gh-pages --detach -q
           mkdir -p /tmp/ghn/signals
-          cp signals/news.json /tmp/ghn/signals/ 2>/dev/null || true
+          cp signals/news.json /tmp/ghn/signals/
           cd /tmp/ghn
           git add signals
           if ! git diff --cached --quiet; then
             git commit -q -m "شکار خبر $(date -u '+%H:%M') UTC"
-            for i in 1 2 3; do git push origin HEAD:gh-pages -q && break; git fetch origin gh-pages -q||true; git rebase origin/gh-pages -q||{ git rebase --abort; break; }; done
+            for i in 1 2 3; do git push origin HEAD:gh-pages -q && exit 0; git fetch origin gh-pages -q||true; git rebase origin/gh-pages -q||{ git rebase --abort; exit 1; }; done
+            exit 1
           fi

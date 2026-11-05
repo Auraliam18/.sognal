@@ -57,7 +57,7 @@ def load(path=None):
     """ردیف‌های بسته‌شدهٔ دارای R — تنها چیزی که قابل شمارش است."""
     p = Path(path or CLOSED)
     rows = []
-    for t in jsonl_store.read(p):
+    for t in jsonl_store.analysis_read(p):
         if t.get("R") is None or t.get("outcome") == "expired":
             continue
         rows.append(t)

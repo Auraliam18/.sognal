@@ -71,7 +71,7 @@ NOT_TRADES = ("expired",)
 
 
 def _rows():
-    return [t for t in jsonl_store.read(CLOSED)
+    return [t for t in jsonl_store.analysis_read(CLOSED)
             if t.get("R") is not None and t.get("outcome") not in NOT_TRADES]
 
 

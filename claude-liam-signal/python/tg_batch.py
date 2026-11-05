@@ -189,7 +189,7 @@ def collect():
     for s in h.get("setups", []):
         if s.get("waiting"):
             continue
-        out.append({"key": f"hamid|{s['symbol']}|{s['dir']}", "analyzed_at": h.get("generated"),
+        out.append({**s, "key": f"hamid|{s['symbol']}|{s['dir']}", "analyzed_at": h.get("generated"),
                     "sym": s["symbol"], "dir": s["dir"], "tf": "15m",
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": "روش حمید — پولبک دوم", "elite": False, "usdt": usdt})
@@ -198,7 +198,7 @@ def collect():
     except Exception:                                  # noqa: BLE001
         r = {}
     for s in r.get("signals", []):
-        out.append({"key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}", "analyzed_at": r.get("generated"),
+        out.append({**s, "key": f"{s.get('strategy')}|{s['sym']}|{s['tf']}|{s['dir']}", "analyzed_at": r.get("generated"),
                     "sym": s["sym"], "dir": s["dir"], "tf": s.get("tf", "15m"),
                     "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"), "tp2": s.get("tp2"),
                     "name": s.get("strategyName", ""), "elite": bool(s.get("elite")),
@@ -207,66 +207,21 @@ def collect():
 
 
 def main():
-    tok = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-    if not tok or not chat:
-        print("توکن یا chat id نیست — تا Secret ثبت نشود این اجرا کاری نمی‌کند")
-        return
-    sent = []
-    if SENT.exists():
-        try:
-            sent = json.loads(SENT.read_text())
-        except Exception:                              # noqa: BLE001
-            sent = []
-    seen = set(sent)
-    log = []
-    if TGLOG.exists():
-        try:
-            log = json.loads(TGLOG.read_text()).get("sent", [])
-        except Exception:                              # noqa: BLE001
-            log = []
-    new = [s for s in collect() if s["key"] not in seen]
-    # ردهٔ مسابقه اول می‌رود — بهترین‌ها نباید پشت سقف ارسال بمانند
-    new.sort(key=lambda s: (not s["elite"],))
-    delivered = 0
-    for s in new[:CAP]:
-        cap = ("🏷 لیام تریدر ۹\n"
-               f"{'🏆 ' if s['elite'] else ''}🚨 {s['sym']} — "
-               f"{'خرید' if s['dir'] == 'LONG' else 'فروش'} ({s['tf']})\n"
-               f"استراتژی: {s['name']}\n"
-               f"ورود: {s['entry']}\nاستاپ: {s['sl']}\n"
-               f"تارگت۱: {s['tp1']}" + (f"\nتارگت۲: {s['tp2']}" if s.get("tp2") else "") +
-               (f"\nدامیننس تتر: {s['usdt']}٪" if s.get("usdt") else "") +
-               f"\n🕐 تحلیل {tehran(s.get('analyzed_at'))} · ارسال {tehran()} — به وقت ایران" +
-               f"\n\nپنل: auraliam18.github.io/.sognal")
-        try:
-            # چارت ۵ دقیقه — خواستهٔ حمید؛ کندل‌های ضمیمه فقط جایگزین اضطراری
-            cd = klines(s["sym"], "5m") or s.get("candles") or []
-            png = chart(s["sym"], cd[-96:], s["entry"], s["sl"], s.get("tp1"), s.get("tp2"), s["dir"])
-            j = tg("sendPhoto", {"chat_id": chat, "caption": cap},
-                   {"photo": (f"{s['sym']}.png", png, "image/png")}, tok)
-        except Exception as e:                         # noqa: BLE001 - fall back to text-only
-            print(f"  چارت {s['sym']} نشد ({type(e).__name__}) — متنی می‌فرستم")
-            try:
-                j = tg("sendMessage", {"chat_id": chat, "text": cap}, tok=tok)
-            except Exception as e2:                    # noqa: BLE001
-                print(f"  ارسال {s['sym']} شکست: {type(e2).__name__}")
-                continue
-        if j.get("ok"):
-            seen.add(s["key"])
-            delivered += 1
-            log.insert(0, {"at": int(time.time() * 1000),
-                           "sym": s["sym"], "dir": s["dir"], "tf": s["tf"],
-                           "entry": s["entry"], "sl": s["sl"], "tp1": s.get("tp1"),
-                           "tp2": s.get("tp2"), "name": s["name"], "elite": s["elite"]})
-            print(f"✓ {s['sym']} {s['dir']} رفت")
-        else:
-            print(f"✗ {s['sym']}: {j.get('description')}")
-    SENT.parent.mkdir(parents=True, exist_ok=True)
-    SENT.write_text(json.dumps(list(seen)[-500:], ensure_ascii=False))
-    TGLOG.write_text(json.dumps({"generated": int(time.time() * 1000),
-                                 "sent": log[:40]}, ensure_ascii=False, indent=1))
-    print(f"{delivered} سیگنال فرستاده شد · {len(new) - delivered if len(new) > CAP else 0} ماند برای اجرای بعد")
+    # A manual batch uses the same trend, price, macro, pre-mortem,
+    # idempotency and paper-book path as a scheduled signal.
+    import telegram
+    from hamid.cycle import _tg_chart
+    now = time.time()*1000
+    candidates = []
+    for s in collect():
+        stamp = s.get("analyzed_at") or 0
+        if not 0 <= now-stamp <= 3600000:
+            continue
+        s["strategyName"] = s.get("name") or s.get("strategyName")
+        s["strategy"] = s["key"].split("|")[0]
+        candidates.append(s)
+    candidates.sort(key=lambda s: not s.get("elite"))
+    return telegram.send_signals(candidates, _tg_chart, limit=CAP)
 
 
 if __name__ == "__main__":

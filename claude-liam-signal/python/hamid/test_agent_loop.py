@@ -227,8 +227,17 @@ tg._post = _fake_post
 _opened = []
 
 PX = {"PASSEDUSDT": 0.97, "FARUSDT": 1.06, "OKUSDT": 1.0}
-_sources.klines = lambda sym, tf, n, **kw: [
-    [i * 300000, 1, 1.001, 0.999, PX.get(sym, 1.0), 1.0] for i in range(n)]
+def recent_fixture(sym,tf,n,**kw):
+    import time
+    step={"5m":300000,"15m":900000,"1h":3600000,"4h":14400000}[tf]
+    end=int(time.time()*1000)//step*step
+    px=PX.get(sym,1.) if tf=="5m" else 1.
+    return [[end-(n-1-i)*step,px,px*1.001,px*.999,px,1.] for i in range(n)]
+_sources.klines=recent_fixture
+import time as _clock
+_tick=int(_clock.time()*1000)
+(_tmp2/"dominance.json").write_text(_json.dumps({"generated":_tick,"usdt_dominance":6.8,"structure":{"regime":"RANGE"}}))
+(_tmp2/"btc-patterns.json").write_text(_json.dumps({"generated":_tick,"btc":{"4h":[],"1h":[]}}))
 _pm2.review = lambda s, c15: {"pro": ["x"], "con": [], "issue": True,
                               "note": "⚖️", "price": 1.0}
 _paper2.open_from = lambda setups, ctx: _opened.extend(setups) or 0
@@ -247,7 +256,7 @@ check("ردشده از ورود و دورافتاده صادر نشدند، هم
 check("قیمت لحظهٔ ارسال و فاصله در پیام است",
       "⏱" in posts[0] and "فاصله تا ورود" in posts[0])
 check("شناسهٔ پیام برای ریپلای نتیجه ثبت شد (درس TAO)",
-      _opened and _opened[0].get("tg_msg_id") == 777)
+      _opened and _opened[0].get("tg_msg_id") == 777 and _opened[0]["signal_id"] == _json.loads(tg.TGLOG.read_text())["sent"][0]["signal_id"] and _opened[0]["signal_id"] in posts[0])
 _led = _json.loads(tg.SENT.read_text())
 check("ردشده‌ها سهمیه نمی‌خورند (کلید skip جدا)",
       len([k for k in _led if not k.startswith(("any|", "skip|"))]) == 1

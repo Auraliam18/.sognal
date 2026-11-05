@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: ابزار چارت و ارسال
-        run: pip -q install matplotlib requests
+        run: pip -q install matplotlib requests pyyaml
 
       # ورودی dispatch هرگز از مسیر ${{ }} وارد env نمی‌شود — گیت‌هاب مقدار env
       # را در لاگ عمومی چاپ می‌کند و یک بار توکن همین‌طور افشا شد (لاگ‌ها پاک
@@ -69,7 +69,7 @@ jobs:
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          git add brain/telegram-sent.json signals/telegram-log.json 2>/dev/null || true
+          git add -- brain signals
           if ! git diff --cached --quiet 2>/dev/null; then
             git commit -m "تلگرام: دفترچهٔ ارسال $(date -u '+%Y-%m-%d %H:%M UTC')"
             for i in 1 2 3; do
