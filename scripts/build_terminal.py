@@ -203,7 +203,7 @@ def engine_packets(root, feeds, history, now):
             missing = [field for field in required if at(evidence["data"], field) is None]
             if status == "fresh" and missing:
                 status = "partial"
-            if feed == "hamid" and at(evidence["data"], "coverage.complete") is False and status == "fresh":
+            if feed in {"hamid","blocks"} and at(evidence["data"], "coverage.complete") is False and status == "fresh":
                 status = "partial"
             if status == "fresh" and feed == "conformance" and at(evidence["data"], "ok") is False:
                 status = "attention"

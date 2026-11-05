@@ -262,7 +262,7 @@ def handler_for(path):
     if path.startswith("signals/"):
         # Delivery is an accumulating log handled separately by merge_sent.
         # Only timestamped point-in-time feeds use chronological selection.
-        if path in {"signals/latest.json", "signals/hamid-latest.json", "signals/dominance.json", "signals/pump-radar.json"}:
+        if path in {"signals/latest.json", "signals/hamid-latest.json", "signals/dominance.json", "signals/pump-radar.json", "signals/news.json", "signals/ob-radar.json", "signals/conformance.json", "signals/classify.json"}:
             return latest_snapshot
         return take_ours
     # آرشیو بک‌تست — ۱۷ اوت: heartbeat و hamid-backtest هر دو این پوشه را
