@@ -15,13 +15,23 @@ export function validateSnapshot(s) {
   for (const p of s.ledger.pages) if (!/^history\/[a-f0-9]{16}\.json$/.test(p.url)) throw new Error('مسیر آرشیو معتبر نیست.');
   return s;
 }
-export function engineState(e, feeds, ledger, now = Date.now()) {
+export function engineState(e, feeds, ledger, now = Date.now(), engines = null, trail = []) {
+  const own = ownState(e, feeds, ledger, now);
+  if (own !== 'fresh') return own;
+  if (trail.includes(e.id)) return 'partial';
+  if (engines && (e.dependencies || []).some(id => {
+    const d = engines.find(x => x.id === id);
+    return !d || engineState(d,feeds,ledger,now,engines,[...trail,e.id]) !== 'fresh';
+  })) return 'partial';
+  return !engines && e.blocked_dependencies?.length ? 'partial' : own;
+}
+function ownState(e, feeds, ledger, now) {
   if (e.feed === 'ledger') return !ledger.available ? 'missing' : freshness({data:ledger,generated:ledger.computed_at,ttl:3600},now);
   if (e.feed === 'terminal') return 'fresh';
   const state = freshness(feeds[e.feed], now);
   if (state !== 'fresh') return state;
   if (e.feed === 'conformance' && feeds[e.feed]?.data?.ok === false) return 'attention';
-  return e.missing?.length ? 'partial' : 'fresh';
+  return e.own_state === "partial" || e.missing?.length ? 'partial' : 'fresh';
 }
 export function historyPages(pages, book, symbol) {
   const sym = symbol.trim().toUpperCase();
