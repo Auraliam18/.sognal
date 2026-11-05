@@ -31,6 +31,7 @@ degraded scan, it is a different one, and it would not announce itself.
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; hamid-signal)"}
@@ -65,7 +66,9 @@ def _note_success(vid):
 
 
 def _json(url):
-    req = urllib.request.Request(url, headers=UA)
+    # Exchange tickers can contain Unicode. Keep query separators and existing
+    # percent escapes intact while encoding non-ASCII path/query bytes.
+    req = urllib.request.Request(urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%"), headers=UA)
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         return json.load(r)
 
