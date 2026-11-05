@@ -512,7 +512,9 @@ def settle_books(report):
     و ایندکس دانش تازه می‌شود — بعد چرخه با دانشِ همین لحظه تصمیم می‌گیرد."""
     from hamid import paper
     t_mark = int(time.time() * 1000)
+    print("settlement: starting ledger reconciliation", flush=True)
     still, closed = paper.mark()
+    print(f"settlement completed in {(time.time()*1000-t_mark)/1000:.1f}s: {still} open, {closed} newly closed", flush=True)
     try:
         just = [t for t in paper._read(paper.CLOSED)
                 if (t.get("closed") or 0) >= t_mark
@@ -1192,6 +1194,10 @@ def main():
             report["sent_live"] = sorted(_live["syms"])
         report["market"] = first
         report["reads"] = len(reads)
+        read_syms = {x.symbol for x in reads if hasattr(x, "symbol")}
+        report["coverage"] = {"requested":a.symbols, "selected":len(syms), "completed":len(reads),
+                              "unread":len(syms)-len(reads), "complete":len(reads)>=a.symbols,
+                              "symbols":syms, "missing_symbols":[s for s in syms if s not in read_syms] if len(read_syms)==len(reads) else None}
         report["money_flow"] = flows
         act(f"{len(reads)} ارز خوانده شد؛ {len(setups)} ارز ساختار اردر بلاک دارند")
         if flows:
