@@ -14,12 +14,13 @@ ROOT=Path(__file__).resolve().parents[1]
 PY=ROOT/'claude-liam-signal/python'
 OUT=ROOT/'audit-results'
 OUT.mkdir(exist_ok=True)
-env=dict(os.environ, PYTHONUTF8='1', LIVE_EXECUTION='false', PYTHONPATH=str(PY))
+env=dict(os.environ, PYTHONUTF8='1', LIVE_EXECUTION='false', PYTHONPATH=os.pathsep.join([str(PY),str(ROOT)]))
 for key in list(env):
     if any(word in key.upper() for word in ('TOKEN','API_KEY','CHAT_ID','SECRET')):
         env.pop(key)
 modules=['test_sources', 'test_jsonl_store', 'hamid.selfcheck']
 modules += ['hamid.'+p.stem for p in sorted((PY/'hamid').glob('test_*.py')) if p.stem != 'test_signal_pattern']
+modules += ['freebuff.'+p.stem for p in sorted((ROOT/'freebuff').glob('test_*.py'))]
 results=[]
 for module in modules:
     started=time.monotonic()

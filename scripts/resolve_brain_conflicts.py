@@ -160,6 +160,25 @@ def take_ours(path):
     return "عکس‌فوری تازهٔ همین اجرا"
 
 
+def latest_snapshot(path):
+    """A long-running writer is not necessarily newer than the remote writer."""
+    candidates = []
+    for stage in (2, 3):
+        raw = _stage(stage, path)
+        try:
+            value = json.loads(raw)
+            stamp = value.get("generated")
+            if isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and stamp > 0:
+                candidates.append((stamp, stage, raw))
+        except (TypeError, ValueError, AttributeError):
+            pass
+    if not candidates:
+        return take_ours(path)
+    _, stage, raw = max(candidates)
+    (ROOT / path).write_text(raw, encoding="utf-8")
+    return f"timestamp-verified latest snapshot (stage {stage})"
+
+
 EXACT = {
     "brain/memory/lessons.json": merge_lessons,
     "brain/learning/index.json": rebuild_index,
@@ -209,6 +228,10 @@ def handler_for(path):
     if path.startswith("brain/research/") and path.endswith("last-seen.json"):
         return merge_frontier                         # {url: وضعیت} — کلیدها جمع
     if path.startswith("signals/"):
+        # Delivery is an accumulating log handled separately by merge_sent.
+        # Only timestamped point-in-time feeds use chronological selection.
+        if path in {"signals/latest.json", "signals/hamid-latest.json", "signals/dominance.json", "signals/pump-radar.json"}:
+            return latest_snapshot
         return take_ours
     # آرشیو بک‌تست — ۱۷ اوت: heartbeat و hamid-backtest هر دو این پوشه را
     # commit می‌کنند ولی resolver برایش handler نداشت؛ اولین تصادم واقعی
