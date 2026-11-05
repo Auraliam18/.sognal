@@ -53,6 +53,11 @@ def _available(vid):
     return time.time() >= until
 
 
+def preferred_retry_in():
+    """Time until the first configured candle venue is eligible again."""
+    return max(0.0, _STOOD_DOWN.get(VENUES[0]["id"], 0) - time.time())
+
+
 def _note_failure(vid):
     _FAILS[vid] = _FAILS.get(vid, 0) + 1
     if _FAILS[vid] >= FAILS_BEFORE_STAND_DOWN:
