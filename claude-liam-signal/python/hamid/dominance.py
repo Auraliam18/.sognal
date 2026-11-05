@@ -173,7 +173,15 @@ def run():
         series = json.loads(SERIES.read_text()).get("points") or []
     except Exception:                            # noqa: BLE001
         series = []
-    series.append({"t": int(time.time() * 1000), "u": u, "b": b})
+    tick = int(time.time()*1000)
+    seed = SERIES.with_name("dominance-seed.json")
+    if seed.is_file() and len(_bars(series, "u", 14400000)) < MIN_BARS_4H and series:
+        archived = json.loads(seed.read_text(encoding="utf-8"))["points"]
+        # Never replace an actual current point; recovery data has immutable
+        # source provenance and cannot be used as today's dominance reading.
+        begin = min(point["t"] for point in series)
+        series = [point for point in archived if tick-15*86400000 <= point["t"] < begin] + series
+    series.append({"t": tick, "u": u, "b": b})
     # Protect at least 60 closed 4h bars independent of collector cadence.
     # Keep older hourly OHLC extrema (not synthetic observations) for 15 days.
     cutoff = series[-1]["t"] - 15 * 86400000
