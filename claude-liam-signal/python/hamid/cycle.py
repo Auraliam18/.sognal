@@ -220,19 +220,29 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
     recovery = [(s, tf, i, need) for s in symbols if len(higher.get(s, ())) >= 200
                 for tf,i,need in (("1h",0,200), ("15m",1,60))
                 if len(fetched[s][i]) < need]
-    recovered = 0
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        retries = [(s,i,need,pool.submit(candles,s,tf,need+1)) for s,tf,i,need in recovery]
-        for s,i,need,future in retries:
-            bars = future.result()
-            if len(bars) >= need:
-                pair = list(fetched[s]); pair[i] = bars; fetched[s] = tuple(pair)
-                recovered += 1
-    first["history_recovery"] = {"attempted_frames": len(recovery), "recovered_frames": recovered,
-                                 "source_errors": dict(sorted(fetch_errors.items()))}
+    pending = {r[0] for r in recovery}
+    stats = {"attempted_frames": len(recovery), "recovered_frames": 0, "cooldown_seconds": 0}
+    first["history_recovery"] = stats
+    def read_order():
+        # Never make ready decisions wait for a different market's retry.
+        yield from (s for s in symbols if s not in pending)
+        if recovery:
+            delay = min(sources.STAND_DOWN_SECONDS, sources.preferred_retry_in())
+            if delay > 0:
+                stats["cooldown_seconds"] = round(delay, 1)
+                time.sleep(delay + .05)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                retries = [(s,i,need,pool.submit(candles,s,tf,need+1)) for s,tf,i,need in recovery]
+                for s,i,need,future in retries:
+                    bars = future.result()
+                    if len(bars) >= need:
+                        pair = list(fetched[s]); pair[i] = bars; fetched[s] = tuple(pair)
+                        stats["recovered_frames"] += 1
+            yield from (s for s in symbols if s in pending)
+        stats["source_errors"] = dict(sorted(fetch_errors.items()))
     reads, setups, inds = [], [], []
     first["symbol_history"] = {}
-    for sym in symbols:
+    for sym in read_order():
         c1h, c15 = fetched.get(sym, ([], []))
         c4h = higher.get(sym, [])
         first["symbol_history"][sym] = {"4h":len(c4h),"1h":len(c1h),"15m":len(c15)}
