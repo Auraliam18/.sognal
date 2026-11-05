@@ -21,6 +21,30 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sources                                       # noqa: E402
+from io import BytesIO
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
+import scan
+
+_step = 3_600_000
+_now = 600000 * _step + 1000
+_book = [[_now - 1000 - i*_step,1,1,1,1,1,0,10] for i in reversed(range(49))]
+_book[-1][7] = 900000  # forming candle has no place in the 48-hour ranking
+assert scan.current_volume_48h(_book, _now) == 480
+for _rows, _at in ((_book, _now + 415*86400000), (_book[:23]+_book[24:],_now)):
+    try:
+        scan.current_volume_48h(_rows, _at)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("retired or gapped market entered today's ranking")
+
+# Verify the request that actually reaches the HTTP transport.
+with patch.object(sources.urllib.request, "urlopen", return_value=BytesIO(b"[]")) as transport:
+    sources._json("https://example.org/candles?symbol=龙虾USDT&existing=A%2BB")
+    outbound = transport.call_args.args[0].full_url
+    assert outbound.isascii() and "%25" not in outbound
+    assert parse_qs(urlsplit(outbound).query) == {"symbol": ["龙虾USDT"], "existing": ["A+B"]}
 
 RECORDED = {
     "mexc": [
@@ -136,7 +160,7 @@ for vid, c in seen:
 print("\nهر منبع باید همهٔ تایم‌فریم‌ها را بشناسد:")
 for v in sources.VENUES:
     bad = []
-    for tf in ("5m", "15m", "1h", "1d"):
+    for tf in ("5m", "15m", "1h", "4h", "1d"):
         try:
             u = v["url"]("BTCUSDT", tf, 420)
             if not u.startswith("https://"):
@@ -175,6 +199,19 @@ for name, ok in checks:
     print(f"  {'✓' if ok else '✗'} {name}")
     if not ok:
         failed += 1
+
+from unittest.mock import patch
+step = 14400000
+end = 1800000000000 // step * step
+good = [[end-i*step,1,2,.5,1,2] for i in reversed(range(201))]
+fixture = {"thin":good[-191:], "stale":[[r[0]-5*step,*r[1:]] for r in good],
+           "gap":good[:40]+good[41:], "full":good}
+venues = [dict(id=k,label=k,url=lambda s,t,n,k=k:k,parse=lambda rows:rows) for k in fixture]
+with patch.object(sources,"VENUES",venues), patch.object(sources,"_json",side_effect=fixture.__getitem__), patch.object(sources.time,"time",return_value=end/1000+30):
+    result = sources.klines("TESTUSDT","4h",201)
+    if result != good or sources.used()["klines"] != "full":
+        failed += 1
+        print("4h failover selected incomplete market evidence")
 
 print(f"\n{f'{failed} ایراد' if failed else 'همهٔ پارسرهای پایتون درست‌اند'}")
 sys.exit(1 if failed else 0)

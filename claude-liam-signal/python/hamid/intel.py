@@ -224,6 +224,22 @@ SOURCES = [
 ]
 
 
+def publish_news(data, now_ms):
+    """Refresh only after an observed news read; don't fresh-stamp an outage."""
+    from hamid import discovery
+    news = data.get("news") or {}
+    if not news.get("count") or not news.get("headlines"):
+        return False
+    out = {"generated":now_ms, "source_count":news["count"], "verdict":data.get("verdict"),
+           "classified":discovery.classify_news(news.get("hot") or [])[:10],
+           "calendar":(data.get("calendar") or {}).get("next_48h"),
+           "deep_topics":len(data.get("deep") or []), "failed_sources":data.get("failed",[])}
+    target = ROOT/"signals/news.json"
+    target.parent.mkdir(parents=True,exist_ok=True)
+    target.write_text(json.dumps(out,ensure_ascii=False,indent=1),encoding="utf-8")
+    return True
+
+
 def gather(deep=False, quiet=False):
     t0 = time.time()
     data, failed = {}, []
@@ -264,6 +280,7 @@ def gather(deep=False, quiet=False):
     data["verdict"] = verdict
     data["gathered"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     data["failed"] = failed
+    publish_news(data, int(time.time()*1000))
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "latest.json").write_text(json.dumps(data, ensure_ascii=False, indent=1))

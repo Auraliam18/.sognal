@@ -31,6 +31,7 @@ degraded scan, it is a different one, and it would not announce itself.
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; hamid-signal)"}
@@ -52,6 +53,11 @@ def _available(vid):
     return time.time() >= until
 
 
+def preferred_retry_in():
+    """Time until the first configured candle venue is eligible again."""
+    return max(0.0, _STOOD_DOWN.get(VENUES[0]["id"], 0) - time.time())
+
+
 def _note_failure(vid):
     _FAILS[vid] = _FAILS.get(vid, 0) + 1
     if _FAILS[vid] >= FAILS_BEFORE_STAND_DOWN:
@@ -65,7 +71,9 @@ def _note_success(vid):
 
 
 def _json(url):
-    req = urllib.request.Request(url, headers=UA)
+    # Exchange tickers can contain Unicode. Keep query separators and existing
+    # percent escapes intact while encoding non-ASCII path/query bytes.
+    req = urllib.request.Request(urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%"), headers=UA)
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         return json.load(r)
 
@@ -123,7 +131,7 @@ def venue(vid, label, url):
 
 @venue("mexc", "MEXC",
        lambda s, tf, n: f"https://api.mexc.com/api/v3/klines?symbol={s}"
-                        f"&interval={ {'5m':'5m','15m':'15m','1h':'60m','1d':'1d'}[tf] }&limit={n}")
+                        f"&interval={ {'5m':'5m','15m':'15m','1h':'60m','4h':'4h','1d':'1d'}[tf] }&limit={n}")
 def _mexc(r):
     # [openTime_ms, o, h, l, c, vol, closeTime] — oldest first, Binance's own shape
     return [_k(x[0], x[1], x[2], x[3], x[4], x[5]) for x in _rows(r)]
@@ -131,8 +139,9 @@ def _mexc(r):
 
 @venue("kucoin", "KuCoin",
        lambda s, tf, n: f"https://api.kucoin.com/api/v1/market/candles"
-                        f"?type={ {'5m':'5min','15m':'15min','1h':'1hour','1d':'1day'}[tf] }"
-                        f"&symbol={_dash(s)}")
+                        f"?type={ {'5m':'5min','15m':'15min','1h':'1hour','4h':'4hour','1d':'1day'}[tf] }"
+                        f"&symbol={_dash(s)}&endAt={int(time.time())}"
+                        f"&startAt={int(time.time()) - (min(n,1500)+2)*{'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400}[tf]}")
 def _kucoin(r):
     # [t_s, open, CLOSE, HIGH, LOW, vol, turnover] — newest first, seconds.
     # Close and high swap places against Binance; that is the trap here.
@@ -141,7 +150,7 @@ def _kucoin(r):
 
 @venue("okx", "OKX",
        lambda s, tf, n: f"https://www.okx.com/api/v5/market/candles?instId={_dash(s)}"
-                        f"&bar={ {'5m':'5m','15m':'15m','1h':'1H','1d':'1D'}[tf] }&limit=300")
+                        f"&bar={ {'5m':'5m','15m':'15m','1h':'1H','4h':'4H','1d':'1D'}[tf] }&limit=300")
 def _okx(r):
     # [t_ms, o, h, l, c, vol, volCcy] — newest first
     return [_k(int(x[0]), x[1], x[2], x[3], x[4], x[5]) for x in reversed(_rows(r))]
@@ -149,7 +158,7 @@ def _okx(r):
 
 @venue("bitget", "Bitget",
        lambda s, tf, n: f"https://api.bitget.com/api/v2/spot/market/candles?symbol={s}"
-                        f"&granularity={ {'5m':'5min','15m':'15min','1h':'1h','1d':'1day'}[tf] }"
+                        f"&granularity={ {'5m':'5min','15m':'15min','1h':'1h','4h':'4h','1d':'1day'}[tf] }"
                         f"&limit={min(n, 1000)}")
 def _bitget(r):
     # [t_ms, o, h, l, c, baseVol, quoteVol] — oldest first
@@ -159,7 +168,7 @@ def _bitget(r):
 @venue("gate", "Gate.io",
        lambda s, tf, n: f"https://api.gateio.ws/api/v4/spot/candlesticks"
                         f"?currency_pair={_under(s)}"
-                        f"&interval={ {'5m':'5m','15m':'15m','1h':'1h','1d':'1d'}[tf] }"
+                        f"&interval={ {'5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d'}[tf] }"
                         f"&limit={min(n, 1000)}")
 def _gate(r):
     # [t_s, QUOTEVOL, close, high, low, open, baseVol] — oldest first, seconds.
@@ -171,7 +180,7 @@ def _gate(r):
 @venue("bingx", "BingX",
        lambda s, tf, n: f"https://open-api.bingx.com/openApi/spot/v2/market/kline"
                         f"?symbol={_dash(s)}"
-                        f"&interval={ {'5m':'5m','15m':'15m','1h':'1h','1d':'1d'}[tf] }"
+                        f"&interval={ {'5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d'}[tf] }"
                         f"&limit={min(n, 1000)}")
 def _bingx(r):
     # [t_ms, o, h, l, c, vol, closeTime] — newest first
@@ -181,7 +190,7 @@ def _bingx(r):
 @venue("bitmart", "BitMart",
        lambda s, tf, n: f"https://api-cloud.bitmart.com/spot/quotation/v3/klines"
                         f"?symbol={_under(s)}"
-                        f"&step={ {'5m':5,'15m':15,'1h':60,'1d':1440}[tf] }&limit={min(n, 500)}")
+                        f"&step={ {'5m':5,'15m':15,'1h':60,'4h':240,'1d':1440}[tf] }&limit={min(n, 500)}")
 def _bitmart(r):
     # [t_s, o, h, l, c, baseVol, quoteVol] — oldest first, seconds
     return [_k(int(x[0]) * 1000, x[1], x[2], x[3], x[4], x[5]) for x in _rows(r)]
@@ -189,7 +198,7 @@ def _bitmart(r):
 
 @venue("htx", "HTX",
        lambda s, tf, n: f"https://api.huobi.pro/market/history/kline?symbol={s.lower()}"
-                        f"&period={ {'5m':'5min','15m':'15min','1h':'60min','1d':'1day'}[tf] }"
+                        f"&period={ {'5m':'5min','15m':'15min','1h':'60min','4h':'4hour','1d':'1day'}[tf] }"
                         f"&size={min(n, 2000)}")
 def _htx(r):
     # {id_s, open, close, low, high, amount} — newest first, seconds
@@ -199,7 +208,7 @@ def _htx(r):
 
 @venue("coinex", "CoinEx",
        lambda s, tf, n: f"https://api.coinex.com/v2/spot/kline?market={s}"
-                        f"&period={ {'5m':'5min','15m':'15min','1h':'1hour','1d':'1day'}[tf] }"
+                        f"&period={ {'5m':'5min','15m':'15min','1h':'1hour','4h':'4hour','1d':'1day'}[tf] }"
                         f"&limit={min(n, 1000)}")
 def _coinex(r):
     # {created_at_ms, open, close, high, low, volume} — oldest first, already ms
@@ -297,11 +306,17 @@ def klines(sym, tf, limit, quiet=True):
             rows = v["parse"](_json(v["url"](sym, tf, limit)))[-limit:]
         except Exception as e:                       # noqa: BLE001 - next venue
             errs.append(f"{v['id']}: {type(e).__name__}")
-            _note_failure(v["id"])
+            # A missing listing or short history affects this pair; it does
+            # not make the exchange unavailable to the next 199 symbols.
+            if isinstance(e, (TimeoutError, OSError)) and getattr(e, "code", None) not in (400,404,422):
+                _note_failure(v["id"])
             continue
-        if not sane(rows, limit):
+        step = {"5m":300000,"15m":900000,"1h":3600000,"4h":14400000,"1d":86400000}.get(tf)
+        if (not sane(rows, limit)
+            or (step and (not 0 <= time.time()*1000 - rows[-1][0] < 2*step
+                          or any(b[0]-a[0] != step for a,b in zip(rows,rows[1:]))))
+            or (tf == "4h" and limit >= 201 and sum(row[0]+step <= time.time()*1000 for row in rows) < 200)):
             errs.append(f"{v['id']}: {len(rows)} rows, rejected")
-            _note_failure(v["id"])
             continue
         _note_success(v["id"])
         if _used["klines"] != v["id"]:

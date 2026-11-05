@@ -156,7 +156,7 @@ spec = importlib.util.spec_from_file_location("rbc", SCRIPT)
 rbc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rbc)
 check("دفتر jsonl تازه خودکار پوشش داده می‌شود",
-      rbc.handler_for("brain/paper/open.jsonl") is rbc.merge_jsonl)
+      rbc.handler_for("brain/paper/open.jsonl") is rbc.merge_open)
 check("هر jsonl زیر brain (مثلاً learning) هم پوشش دارد",
       rbc.handler_for("brain/learning/experiences.jsonl") is rbc.merge_jsonl)
 check("signals عکس‌فوری می‌گیرد نه اجتماع",
@@ -213,7 +213,7 @@ check("نماد فقط-در-خودمان هم نمی‌افتد", _st.get("B") =
 # سنجیده می‌شوند، نه محتویات دیسک — با فهرست ثابتِ نمونه‌های بحرانی.
 CRITICAL = {
     "brain/paper/closed.jsonl": rbc.merge_jsonl,
-    "brain/paper/open.jsonl": rbc.merge_jsonl,
+    "brain/paper/open.jsonl": rbc.merge_open,
     "brain/learning/experiences.jsonl": rbc.merge_jsonl,
     "brain/memory/lessons.json": rbc.merge_lessons,
     "brain/learning/index.json": rbc.rebuild_index,

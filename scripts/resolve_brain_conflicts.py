@@ -77,6 +77,32 @@ def merge_jsonl(path):
     return f"{len(rows)} ردیف یکتا"
 
 
+def merge_delivery(path):
+    rows, generated = {}, 0
+    for stage in (2,3):
+        data = json.loads(_stage(stage,path) or "{}")
+        generated = max(generated,data.get("generated") or 0)
+        for r in data.get("sent",[]):
+            # Multiple watch candidates can share a single message.
+            k = (r.get("tg_msg_id"),r.get("sym"),r.get("dir"),r.get("kind")) if r.get("tg_msg_id") else json.dumps(r,sort_keys=True)
+            if k not in rows or r.get("at",0) > rows[k].get("at",0):
+                rows[k] = r
+    latest = sorted(rows.values(),key=lambda r:r.get("at",0),reverse=True)[:40]
+    (ROOT/path).write_text(json.dumps({"generated":generated,"sent":latest},ensure_ascii=False,indent=1),encoding="utf-8")
+    return f"{len(latest)} delivery records"
+
+
+def merge_open(path):
+    module_dir = Path(__file__).resolve().parents[1] / "claude-liam-signal" / "python"
+    sys.path.insert(0, str(module_dir))
+    from hamid.position_state import merge_open as reconcile
+    def rows(st):
+        return [json.loads(line) for line in (_stage(st, path) or "").splitlines() if line.strip()]
+    result = reconcile(rows(1), rows(2), rows(3))
+    (ROOT / path).write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in result), encoding="utf-8")
+    return f"{len(result)} active positions"
+
+
 def merge_lessons(path):
     o, t = _stage(2, path), _stage(3, path)
     o, t = json.loads(o), json.loads(t)
@@ -215,6 +241,12 @@ DERIVED_SNAPSHOTS = {
 
 def handler_for(path):
     """کدام معنا برای کدام مسیر — ترتیب مهم است."""
+    if path == "signals/telegram-log.json":
+        return merge_delivery
+    if path == "signals/sent.json":
+        return merge_frontier
+    if path == "brain/paper/open.jsonl":
+        return merge_open
     if path in EXACT:
         return EXACT[path]
     if path == "brain/telegram-sent.json":
@@ -230,7 +262,7 @@ def handler_for(path):
     if path.startswith("signals/"):
         # Delivery is an accumulating log handled separately by merge_sent.
         # Only timestamped point-in-time feeds use chronological selection.
-        if path in {"signals/latest.json", "signals/hamid-latest.json", "signals/dominance.json", "signals/pump-radar.json"}:
+        if path in {"signals/latest.json", "signals/hamid-latest.json", "signals/dominance.json", "signals/pump-radar.json", "signals/news.json", "signals/ob-radar.json", "signals/conformance.json", "signals/classify.json"}:
             return latest_snapshot
         return take_ours
     # آرشیو بک‌تست — ۱۷ اوت: heartbeat و hamid-backtest هر دو این پوشه را

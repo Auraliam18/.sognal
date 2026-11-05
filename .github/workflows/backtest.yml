@@ -116,13 +116,15 @@ jobs:
           echo "could not push the report after five attempts"
           exit 1
 
+      - name: Pack changed outputs with their original filenames
+        if: failure() || cancelled()
+        run: python3 scripts/archive_unpublished.py
+
       - name: Preserve unpublished results on failure
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: unpublished-${{ github.workflow }}-${{ github.run_id }}
-          path: |
-            signals/
-            brain/
-            claude-liam-signal/backtests/
+          path: ${{ runner.temp }}/unpublished.tar.gz
+          if-no-files-found: error
           retention-days: 7

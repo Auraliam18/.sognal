@@ -951,16 +951,16 @@ def send_telegram(source, picks, blocks, kc=None):
     if key in sent:
         print("تلگرام: همین نتیجه قبلاً رفته — تکرار نمی‌کنیم")
         return False
-    msg = tg_message(source, picks, blocks)
+    msg = "👁 پایش رادار؛ مجوز ورود نیست.\n" + tg_message(source, picks, blocks)
     buf = _pick_chart(kc, picks[0]) if (kc and picks) else None
     try:
         if buf and len(msg) <= 1024:
             # سقف کپشن تلگرام ۱۰۲۴ است — پیام کوتاه با خود عکس می‌رود
-            tg._post(token, "sendPhoto",
+            resp = tg._post(token, "sendPhoto",
                      {"chat_id": chat, "caption": msg, "parse_mode": "HTML"},
                      {"photo": (f"{picks[0]['symbol']}.png", buf.read())})
         else:
-            tg._post(token, "sendMessage",
+            resp = tg._post(token, "sendMessage",
                      {"chat_id": chat, "text": msg,
                       "parse_mode": "HTML", "disable_web_page_preview": "true"})
             if buf:
@@ -976,7 +976,8 @@ def send_telegram(source, picks, blocks, kc=None):
     SENT.parent.mkdir(exist_ok=True)
     SENT.write_text(json.dumps(sent, indent=1))
     for p in picks:
-        tg._log_final({"sym": p["symbol"], "dir": "LONG", "tf": "15m",
+        tg._log_final({"kind": "watch_alert", "tg_msg_id": ((resp or {}).get("result") or {}).get("message_id"),
+                       "sym": p["symbol"], "dir": "LONG", "tf": "15m",
                        "entry": p["entry"], "sl": p["sl"], "tp1": None,
                        "strategyName": "پامپ رادار خوشه‌ای"})
     print(f"تلگرام: گزینه‌های پامپ ({len(picks)} انتخاب) فرستاده شد")

@@ -18,6 +18,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "claude-liam-signal/python"))
+from hamid.settled_evidence import Outcomes
 import jsonl_store
 import yaml
 
@@ -49,7 +50,7 @@ ENGINE_BINDINGS = [
     ("scan", "اندیکاتورها", "strategy_api", ["signals"], ["E02"]),
     ("hamid", "نقدینگی و مشتقات", "liquidity", ["world.funding"], ["E02"]),
     ("scan", "مسیریاب استراتژی", "cycle", ["per_strategy"], ["E03", "E07", "E08"]),
-    ("radar", "پیش‌رو و دنباله‌رو", "pump_study", ["coins", "verdict"], ["E02"]),
+    ("radar", "پیش‌رو و دنباله‌رو", "pump_study", ["universe_n", "coins", "recommendation"], ["E02"]),
     ("learning", "همتای تاریخی", "coin_history", ["symbols_profiled"], ["E18"]),
     ("news", "خبر و رویداد", "intel", ["classified", "calendar"], ["E02"]),
     ("scan", "پایش و آلارم", "watchdog", ["alarms"], ["E07", "E08"]),
@@ -112,7 +113,7 @@ def book_of(row):
 
 def public_trade(row, index):
     # Explicit allowlist: the public export never serializes arbitrary metadata.
-    fields = ("sym", "dir", "tf", "entry", "sl", "tp1", "tp2", "R", "outcome", "opened", "closed", "filled", "exit", "strategy", "signal_id")
+    fields = ("sym", "dir", "tf", "entry", "sl", "tp1", "tp2", "R", "outcome", "opened", "closed", "filled", "exit", "strategy", "signal_id", "tg_msg_id")
     out = {k: row.get(k) for k in fields}
     out["tf"] = row.get("tf") or (row.get("why") or {}).get("tf")
     out["book"] = book_of(row)
@@ -133,6 +134,7 @@ def ledger(root, output, now, page_size=1000):
     exists = path.exists() or jsonl_store.parts(path).exists()
     stats = {b: {"book": b, "name": label, "records": 0, "settled": 0, "wins": 0, "sum_r": 0, "outcomes": Counter(), "days": defaultdict(float)} for b, label in BOOKS.items()}
     rows, bad, last = [], 0, None
+    evidence, grades = Outcomes(), Counter()
     for i, line in enumerate(jsonl_store.lines(path)):
         try:
             row = json.loads(line)
@@ -141,7 +143,9 @@ def ledger(root, output, now, page_size=1000):
         except (ValueError, UnicodeDecodeError):
             bad += 1
             continue
+        ident = evidence.observe(row, i)
         row = public_trade(row, i)
+        row["_ident"] = ident
         rows.append(row)
         stat = stats[row["book"]]
         stat["records"] += 1
@@ -149,6 +153,14 @@ def ledger(root, output, now, page_size=1000):
         closed = stamp(row.get("closed"))
         if closed:
             last = max(last or 0, closed)
+    for row in rows:
+        grade = evidence.status(row.pop("_ident"),row["record"])
+        row["evidence"] = grade
+        grades[grade] += 1
+        if grade != "unique":
+            continue
+        stat = stats[row["book"]]
+        closed = stamp(row.get("closed"))
         r = number(row.get("R"))
         # Expiry and unavailable prices are not filled, settled trades.
         if r is not None and row.get("outcome") not in {"expired", "no_data", "no_fill", None}:
@@ -176,7 +188,7 @@ def ledger(root, output, now, page_size=1000):
         stat["sum_r"] = round(stat["sum_r"], 5)
         stat["days"] = [{"date": d, "r": round(r, 5)} for d, r in sorted(stat["days"].items())]
     opened = [public_trade(r, i) for i, r in enumerate(jsonl_store.read(root / "brain/paper/open.jsonl")) if isinstance(r, dict)]
-    return {"available": exists, "computed_at": now, "last_result_at": last, "mode": "paper", "records": len(rows), "malformed_records": bad, "books": list(stats.values()), "open": opened, "recent": rows[:100], "pages": pages, "source": "brain/paper/closed.jsonl + .parts", "limitations": "پیپر و بازپخش روی کندل واقعی؛ فیل صرافی، لغزش و سرمایهٔ واقعی نیست. دفترها جدا محاسبه می‌شوند."}
+    return {"available": exists, "computed_at": now, "last_result_at": last, "mode": "paper", "records": len(rows), "malformed_records": bad, "evidence_counts": dict(grades), "books": list(stats.values()), "open": opened, "recent": rows[:100], "pages": pages, "source": "brain/paper/closed.jsonl + .parts", "limitations": "پیپر و بازپخش روی کندل واقعی؛ فیل صرافی، لغزش و سرمایهٔ واقعی نیست. فقط یک نتیجهٔ سازگار با قیمت‌های معتبر برای هر موقعیت در آمار می‌آید؛ همهٔ ردیف‌های خام برای بررسی محفوظ‌اند."}
 
 
 def engine_packets(root, feeds, history, now):
@@ -189,9 +201,20 @@ def engine_packets(root, feeds, history, now):
             evidence = feeds[feed]
             status = evidence["state"]
             missing = [field for field in required if at(evidence["data"], field) is None]
+            if feed == "radar" and not (number(at(evidence["data"], "universe_n")) or 0) > 0:
+                missing.append("observed market universe")
+            if feed == "delivery" and isinstance(at(evidence["data"], "sent"), list):
+                for row in evidence["data"]["sent"]:
+                    if (not isinstance(row, dict) or not row.get("tg_msg_id")
+                        or row.get("kind") not in {"trade_signal", "watch_alert"}
+                        or (row["kind"] == "trade_signal" and not row.get("signal_id"))):
+                        missing.append("linked delivery evidence")
+                        break
             if status == "fresh" and missing:
                 status = "partial"
-            if feed == "conformance" and at(evidence["data"], "ok") is False:
+            if feed in {"hamid","blocks"} and at(evidence["data"], "coverage.complete") is False and status == "fresh":
+                status = "partial"
+            if status == "fresh" and feed == "conformance" and at(evidence["data"], "ok") is False:
                 status = "attention"
             ts = evidence["generated"]
             path = evidence["path"]
@@ -199,6 +222,17 @@ def engine_packets(root, feeds, history, now):
             status = "fresh" if feed == "terminal" or history["available"] else "missing"
             ts, path = now, "terminal/data/snapshot.json" if feed == "terminal" else history["source"]
         result.append({"id": definition["id"], "name": name, "output": definition["output"], "state": status, "observed_at": ts, "source": path, "feed": feed, "required": required, "missing": missing, "dependencies": deps, "version": registry["version"], "module": f"hamid/{module}.py" if module else "scripts/build_terminal.py", "claim": "وضعیت شواهدِ منتشرشده؛ تضمین عملکرد یا اثبات اجرای مدل نیست"})
+    by_id = {e["id"]:e for e in result}
+    def blocked(e, trail=()):
+        if e["id"] in trail:
+            return True
+        return e["own_state"] != "fresh" or any(blocked(by_id[d],trail+(e["id"],)) for d in e["dependencies"])
+    for e in result:
+        e["own_state"] = e["state"]
+    for e in result:
+        e["blocked_dependencies"] = [d for d in e["dependencies"] if blocked(by_id[d])]
+        if e["own_state"] == "fresh" and e["blocked_dependencies"]:
+            e["state"] = "partial"
     return result
 
 

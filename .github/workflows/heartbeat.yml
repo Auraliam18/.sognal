@@ -115,7 +115,7 @@ jobs:
             DEEP=""
             [ $((N % 6)) -eq 1 ] && DEEP="--deep"
             python3 -m hamid.intel $DEEP --quiet || true
-            python3 -m hamid.cycle --mode auto --symbols 100
+            python3 -u -m hamid.cycle --mode auto --symbols 200 || { echo "::error::Cycle $N failed; partial output preserved in artifact"; exit 1; }
             echo "── انتشار"
             cd "$GITHUB_WORKSPACE"
             git add signals brain claude-liam-signal/backtests 2>/dev/null
@@ -151,6 +151,7 @@ jobs:
               if [ "$PUBLISHED" -ne 1 ]; then
                 PUBLISH_FAILURES=$((PUBLISH_FAILURES + 1))
                 echo "::error::Cycle $N was computed but publication failed; local result retained"
+                exit 1
               fi
             else
               echo "چیزی تغییر نکرد"
@@ -196,13 +197,15 @@ jobs:
         run: echo "ضربان در $(date -u '+%H:%M UTC') تمام شد" >> $GITHUB_STEP_SUMMARY
 
 
+      - name: Pack changed outputs with their original filenames
+        if: failure() || cancelled()
+        run: python3 scripts/archive_unpublished.py
+
       - name: Preserve unpublished results on failure
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: unpublished-${{ github.workflow }}-${{ github.run_id }}
-          path: |
-            signals/
-            brain/
-            claude-liam-signal/backtests/
+          path: ${{ runner.temp }}/unpublished.tar.gz
+          if-no-files-found: error
           retention-days: 7

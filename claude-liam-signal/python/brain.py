@@ -48,7 +48,7 @@ def append(path, record):
 
 
 def read(path, limit=None):
-    return jsonl_store.read(path, limit)
+    return jsonl_store.analysis_read(path, limit)
 
 
 # ── the events room ───────────────────────────────────────────────────────────

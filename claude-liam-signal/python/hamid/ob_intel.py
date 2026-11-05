@@ -331,7 +331,6 @@ def radar_for(sym, fetch):
     """نقشهٔ اردر بلاک یک نماد — همان ده قلمی که سند بند ۱۶ می‌خواهد.
 
     fetch(sym, tf, n) -> کندل dict — تزریق‌پذیر برای تست آفلاین."""
-    from hamid.lagcorr import _to4h
     c15 = fetch(sym, "15m", 320)
     c1h = fetch(sym, "1h", 320)
     maps = {}
@@ -339,9 +338,12 @@ def radar_for(sym, fetch):
         maps["15m"] = analyze(c15, "15m")
     if len(c1h) >= 60:
         maps["1h"] = analyze(c1h, "1h")
-        c4h = _to4h(c1h)
-        if len(c4h) >= 60:
-            maps["4h"] = analyze(c4h, "4h")
+    c4h = fetch(sym, "4h", 240)
+    if len(c4h) >= 200:
+        maps["4h"] = analyze(c4h, "4h")
+    if not (c15 or c1h):
+        return {"px": None, "observed_frames": sorted(maps), "n_valid": 0,
+                "status": "no_recent_price", "approaching": None}
     px = (c15 or c1h)[-1]["c"]
     allb = [b for tf in maps for b in maps[tf] if b["grade"] != "REJECT"
             and b["state"] not in ("INVALIDATED", "CONSUMED")]
@@ -358,7 +360,7 @@ def radar_for(sym, fetch):
     nested = _nested(maps)
     near_strong = _n([b for b in allb if b["grade"] in ("A_PLUS", "A")])
     approaching = bool(near_strong and 0 < near_strong["dist_atr"] <= 1.5)
-    return {"px": px,
+    return {"px": px, "observed_frames": sorted(maps),
             "nearest_bull_below": _n(bull), "nearest_bear_above": _n(bear),
             "strongest_bull": _s([b for b in allb if b["move"] == "up"]),
             "strongest_bear": _s([b for b in allb if b["move"] == "down"]),
@@ -396,7 +398,7 @@ def main():
     def fetch(sym, tf, n):
         try:
             return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4],
-                     "v": k[5]} for k in sources.klines(sym, tf, n)]
+                     "v": k[5]} for k in sources.klines(sym, tf, n) if k[0] + {"4h":14400000,"1h":3600000,"15m":900000}[tf] <= time.time()*1000]
         except Exception:                            # noqa: BLE001
             return []
 
@@ -406,10 +408,17 @@ def main():
     except Exception:                                # noqa: BLE001
         prev_states = {}
     out, states, events = {}, {}, []
-    for sym in top_by_48h(a.symbols):
+    from concurrent.futures import ThreadPoolExecutor
+    symbols = top_by_48h(a.symbols)
+    def calculate(sym):
         try:
-            r = radar_for(sym, fetch)
-        except Exception as e:                       # noqa: BLE001
+            return radar_for(sym,fetch), None
+        except Exception as exc:
+            return None, exc
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        packets = list(pool.map(calculate,symbols))
+    for sym,(r,e) in zip(symbols,packets):
+        if e is not None:                       # noqa: BLE001
             print(f"  {sym}: {type(e).__name__}")
             continue
         out[sym] = r
@@ -426,7 +435,12 @@ def main():
                            "dist_atr": b["dist_atr"],
                            "zone": [b["low"], b["high"]], "move": b["move"]})
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps({"generated": int(time.time() * 1000),
+    if not any(r.get("px") and r.get("observed_frames") for r in out.values()):
+        raise RuntimeError("No observed order-block markets; keep previous snapshot")
+    complete = sum(len(v["observed_frames"])==3 for v in out.values())
+    missing = {sym: sorted({"15m","1h","4h"}-set(out.get(sym,{}).get("observed_frames", [])))
+               for sym in symbols if len(out.get(sym,{}).get("observed_frames",[])) != 3}
+    OUT.write_text(json.dumps({"coverage":{"requested":a.symbols,"ranked":len(symbols),"completed":complete,"complete":complete>=a.symbols,"missing_frames":missing}, "generated": int(time.time() * 1000),
                                "symbols": out, "events": events,
                                "states": states}, ensure_ascii=False))
     print(f"رادار OB: {len(out)} نماد، {len(events)} رویداد OB_APPROACHING")

@@ -40,6 +40,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+from concurrent.futures import ThreadPoolExecutor
+from itertools import accumulate
+from hamid import position_state
 import brain                                                  # noqa: E402
 import jsonl_store                                            # noqa: E402
 import sources                                                # noqa: E402
@@ -64,7 +67,7 @@ HOLD_HOURS = 24               # then closed at market
 
 
 def _read(p):
-    return jsonl_store.read(p)
+    return jsonl_store.analysis_read(p)
 
 
 def _write(p, rows):
@@ -138,6 +141,9 @@ def open_from(setups, context):
         base = s["symbol"][:-4] if s["symbol"].endswith("USDT") else s["symbol"]
         if base in STABLES or base in WRAPPED:
             continue
+        if not position_state.geometry(s.get("dir"), s.get("entry"), s.get("sl"), s.get("tp1"), s.get("tp2")):
+            print(f"paper: rejected invalid geometry for {s.get('symbol')}")
+            continue
         key = (s["symbol"], float(s["entry"]),
                s.get("stage_tag") or ("second" if not s.get("waiting") else "first"))
         if key in have:
@@ -165,6 +171,7 @@ def open_from(setups, context):
             "tp1": float(s["tp1"]), "tp2": float(s.get("tp2") or 0) or None,
             "opened": int(time.time() * 1000),
             "filled": None,
+            **{k: s[k] for k in ("signal_id", "tg_msg_id") if s.get(k)},
             "why": {
                 "trend_4h": s.get("trend_4h"),
                 "returns": (s.get("block") or {}).get("returns"),
@@ -208,11 +215,23 @@ def mark():
     if not positions:
         print("دفتر باز خالی است")
         return 0, 0
+    before = len(positions)
+    positions = position_state.reconcile(positions, (json.loads(line) for line in jsonl_store.lines(CLOSED) if line.strip()))
+    oldest = {}
+    for pos in positions:
+        sym = pos["sym"]
+        oldest[sym] = min(oldest.get(sym, pos["opened"]), pos["opened"])
+    if OPEN.parent == BOOK and BOOK.name == "paper":
+        (BOOK/"reconciliation.json").write_text(json.dumps({"checked_at":int(time.time()*1000),"open_before":before,"exact_closed_matches":before-len(positions),"remaining_before_mark":len(positions),"market_reads":len(oldest)}),encoding="utf-8")
+    print(f"paper: {before} open rows; {before-len(positions)} exact closed matches; {len(oldest)} market reads", flush=True)
+    # One snapshot per symbol; preserve the original per-order decision window.
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        candles = dict(zip(oldest, pool.map(_candles_since, oldest, oldest.values())))
     still, closed = [], 0
     now = time.time() * 1000
 
     for p in positions:
-        cd = [c for c in _candles_since(p["sym"], p["opened"])
+        cd = [c for c in candles[p["sym"]]
               if c["t"] >= p["opened"] and c["t"] + 900_000 <= now]
         if not cd:
             # عیب‌یابی ۱۳ اوت: نماد بی‌کندل (دیلیست‌شده یا غایب از منبع) تا
@@ -488,23 +507,25 @@ def _boot_diff(a, b, n=3000, alpha=0.05, days_a=None, days_b=None):
     if len(a) < 8 or len(b) < 8:
         return None
 
-    def draw(vals, days):
+    def mean_sampler(vals, days):
+        size = len(vals)
         if not days or len(set(days)) < 3:
-            return [random.choice(vals) for _ in range(len(vals))]
-        byday = {}
-        for v, d in zip(vals, days):
-            byday.setdefault(d, []).append(v)
-        keys = list(byday)
-        out = []
-        while len(out) < len(vals):
-            out += byday[random.choice(keys)]
-        return out[:len(vals)]
-
-    diffs = []
-    for _ in range(n):
-        sa = draw(a, days_a)
-        sb = draw(b, days_b)
-        diffs.append(sum(sa) / len(sa) - sum(sb) / len(sb))
+            return lambda: sum(random.choice(vals) for _ in range(size)) / size
+        groups = {}
+        for value, day in zip(vals, days):
+            groups.setdefault(day, []).append(value)
+        blocks = [list(accumulate(group)) for group in groups.values()]
+        def draw():
+            remaining, total = size, 0.
+            while remaining:
+                block = random.choice(blocks)
+                take = min(len(block), remaining)
+                total += block[take-1]
+                remaining -= take
+            return total / size
+        return draw
+    draw_a, draw_b = mean_sampler(a, days_a), mean_sampler(b, days_b)
+    diffs = [draw_a() - draw_b() for _ in range(n)]
     diffs.sort()
     return diffs[int(n * alpha / 2)], diffs[int(n * (1 - alpha / 2))]
 

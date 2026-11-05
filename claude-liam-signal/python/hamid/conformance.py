@@ -146,6 +146,10 @@ def check(now_ms=None):
     tg_log = _read("signals/telegram-log.json") or {}
     for e in (tg_log.get("sent") or [])[-40:]:
         t4, t1, d = e.get("trend4"), e.get("trend1"), e.get("dir")
+        if e.get("kind") == "watch_alert":
+            continue
+        if e.get("kind") == "trade_signal" and (not e.get("signal_id") or not e.get("tg_msg_id") or not t4 or not t1 or not d):
+            v.append(dict(rule="C6", sev="high", sym=e.get("sym"), msg="Trade delivery evidence missing: identity or higher-timeframe decision"))
         if not t4 or not t1 or not d:
             continue
         opp = lambda t: (d == "LONG" and t == "down") or (d == "SHORT" and t == "up")

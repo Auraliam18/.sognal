@@ -31,6 +31,8 @@ jobs:
       - run: python scripts/validate_skill_package.py
       - name: Capture monitored state before test fixtures run
         run: python scripts/capture_audit_state.py
+      - name: Compare all open positions to the complete closed ledger
+        run: python scripts/audit_active_positions.py | tee audit-results/active-positions.json
       - name: Every offline engine test module
         run: python scripts/system_audit.py
       - name: Panel contracts, full ledger and eight routes

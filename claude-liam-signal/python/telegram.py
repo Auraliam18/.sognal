@@ -32,6 +32,27 @@ def _counter_note(s):
     return ("\n" + s["counter_trend_note"]) if s.get("counter_trend_note") else ""
 
 
+def decision_context(sym, directory, now):
+    """Capture prior BTC and dominance reads; an empty pattern list is a real observation."""
+    def feed(name):
+        data = json.loads((directory / name).read_text(encoding="utf-8"))
+        if type(data.get("generated")) not in (int, float) or not 0 <= now-data["generated"] <= 3600000:
+            raise ValueError("stale " + name)
+        return data
+    dom = feed("dominance.json")
+    structure = dom.get("structure") or {}
+    d = dom.get("usdt_dominance")
+    if type(d) not in (int, float) or not 0 < d < 100 or structure.get("regime") not in {"BULLISH","BEARISH","RANGE"}:
+        raise ValueError("unapproved or unavailable macro regime")
+    result = {"dominance_at": dom["generated"], "usdt_dominance": d, "regime": structure["regime"]}
+    if sym != "BTCUSDT":
+        btc = feed("btc-patterns.json")
+        if not all(isinstance(btc["btc"].get(tf), list) for tf in ("4h","1h")):
+            raise ValueError("missing BTC timeframe")
+        result.update(btc_at=btc["generated"], btc_4h=btc["btc"]["4h"], btc_1h=btc["btc"]["1h"])
+    return result
+
+
 def _log_final(s):
     """«سیگنال نهایی» — هر چه واقعاً به تلگرام رفت، برای نمایش در پنل هم ثبت
     می‌شود. یک فایل مشترک با tg_batch، که پنل یک منبع حقیقت داشته باشد."""
@@ -43,10 +64,12 @@ def _log_final(s):
     # (کیل‌سوییچ/کارمزد/سایز) هم بگذرد، قصد اجرا در exec-outbox می‌نشیند.
     try:
         from hamid import execution_gate
-        execution_gate.push(s)
+        if s.get("kind", "trade_signal") == "trade_signal" and type(s.get("tg_msg_id")) is int and s["tg_msg_id"] > 0:
+            execution_gate.push(s)
     except Exception:                                  # noqa: BLE001
         pass
-    log.insert(0, {"at": int(time.time() * 1000),
+    log.insert(0, {**{k: s[k] for k in ("kind", "signal_id", "tg_msg_id", "trend_mode", "trend_evidence", "sync", "macro_evidence") if s.get(k) is not None},
+                   "at": int(time.time() * 1000),
                    "sym": s.get("sym"), "dir": s.get("dir"), "tf": s.get("tf"),
                    "trend4": s.get("trend4"), "trend1": s.get("trend1"),
                    "entry": s.get("entry"), "sl": s.get("sl"),
@@ -242,7 +265,8 @@ def caption(s):
     # شناسهٔ یکتای سیگنال (دستور حمید ۱۳ اوت) — قابل ارجاع در نتیجه/گفتگو
     sid = time.strftime(f"{PANEL_CODE}-%m%d-%H%M",
                         time.gmtime(time.time() + 3.5 * 3600))
-    L = [f"{BRAND} · 🆔 <code>{sid}-{s['sym'].replace('USDT','')}</code>",
+    sid = s.get("signal_id") or f"{sid}-{s['sym'].replace('USDT','')}"
+    L = [f"{BRAND} · 🆔 <code>{sid}</code>",
          f"<b>{dir_fa} — {s['sym']}</b>  <code>{s['tf']}</code>"]
     # Which strategy produced this. Two strategies run side by side and a signal
     # that does not say which one it came from cannot be judged or learned from.
@@ -391,11 +415,26 @@ def send_signals(signals, render_chart, limit=8):
         try:
             import sources as _src0
             _k5 = _src0.klines(s["sym"], "5m", 3)
+            import math
+            from hamid.position_state import geometry
+            if not geometry(s.get("dir"), s.get("entry"), s.get("sl"), s.get("tp1"), s.get("tp2")):
+                print(f"telegram: invalid price geometry for {s.get('sym')}"); continue
+            bar_start = int(_k5[-1][0])
             _px = float(_k5[-1][4])
+            if not math.isfinite(_px) or _px <= 0 or not 0 <= time.time()*1000 - bar_start < 600000:
+                raise ValueError("invalid or stale 5m price")
         except Exception as e:                        # noqa: BLE001
             _px = None
             print(f"  قیمت لحظهٔ {s['sym']} در دسترس نبود ({type(e).__name__}) — "
                   f"دروازهٔ هم‌زمانی رد شد", flush=True)
+        if _px is None:
+            continue
+        try:
+            macro = decision_context(s["sym"], TGLOG.parent, int(time.time()*1000))
+        except (ValueError, TypeError, OSError, KeyError, AttributeError) as e:
+            print(f"telegram: incomplete macro evidence for {s['sym']}: {e}", flush=True)
+            continue
+        s["macro_evidence"] = macro
         # دروازهٔ روند (دستور حمید ۱۷ اوت): سیگنال خلاف چارت ممنوع.
         # هر دو تایم بالا مخالف → وتو؛ یکی مخالف → فقط با تمام تأییدیه‌ها.
         try:
@@ -410,6 +449,7 @@ def send_signals(signals, render_chart, limit=8):
                 evidence=s)
             s["trend4"], s["trend1"] = _ta["t4"], _ta["t1"]
             s["trend_mode"] = _ta["mode"]
+            s["trend_evidence"] = {k: _ta[k] for k in ("last_4h_close", "last_1h_close", "count4", "count1") if k in _ta}
             if not _ta["ok"]:
                 print(f"  دروازهٔ روند {s['sym']} {s['dir']}: {_ta['reason']}",
                       flush=True)
@@ -437,7 +477,7 @@ def send_signals(signals, render_chart, limit=8):
                       f"است؛ سیگنال ناهم‌زمان نمی‌فرستیم", flush=True)
                 sent[f"skip|{_key(s)}"] = now_ms
                 continue
-            s["sync"] = {"price": _px, "dist_pct": round(_signed * 100, 2)}
+            s["sync"] = {"price": _px, "bar_open": bar_start, "observed_at": int(time.time()*1000), "dist_pct": round(_signed * 100, 2)}
         # بازجویی پیش از صدور — قانون حمید: اول در ۱۵ دقیقه ببین چه چیزهایی
         # می‌تواند استاپت کند؛ فقط با دلایلِ تارگتِ بیشتر صادر کن. سیگنالِ
         # ردشده به دفتر vetoed می‌رود تا خود دروازه نمره بگیرد. خطای زیرساخت
@@ -447,11 +487,16 @@ def send_signals(signals, render_chart, limit=8):
             from hamid import premortem as _pm
             _c15 = [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
                     for k in _src.klines(s["sym"], "15m", 120)]
-            pm = _pm.review(s, _c15) if len(_c15) >= 40 else None
+            _now15 = time.time()*1000
+            _c15 = [c for c in _c15 if c["t"]+900000 <= _now15]
+            pm = _pm.review(s, _c15) if len(_c15) >= 40 and _now15-_c15[-1]["t"] < 1800000 else None
         except Exception as e:                        # noqa: BLE001
             pm = None
             print(f"  بازجویی {s['sym']} در دسترس نبود ({type(e).__name__}) — "
-                  f"سیگنال بدون دروازه می‌رود", flush=True)
+                  f"بدون بازجویی سیگنال صادر نمی‌شود", flush=True)
+        if not pm or pm.get("issue") not in (True, False):
+            print(f"telegram: missing pre-mortem on {s.get('sym')}; no signal", flush=True)
+            continue
         if pm:
             s["premortem"] = pm
             if not pm["issue"]:
@@ -476,6 +521,8 @@ def send_signals(signals, render_chart, limit=8):
                 except Exception:                     # noqa: BLE001
                     pass
                 continue
+        import hashlib
+        s["signal_id"] = "S-" + hashlib.sha256(f"{_key(s)}|{bar_start}|{s['entry']}|{s['sl']}|{s['tp1']}".encode()).hexdigest()[:20]
         png = None
         try:
             png = render_chart(s, str(tmp / f"{s['sym']}-{s['tf']}.png"))
@@ -497,9 +544,17 @@ def send_signals(signals, render_chart, limit=8):
             # می‌نشیند تا فراخوان (مثل مسیر آلارم در چرخه) در دفتر خودش ثبت
             # کند — درس TAO: دفتر آلارم شناسه نداشت و نتیجه ریپلای نشد.
             tg_mid = ((resp or {}).get("result") or {}).get("message_id")
+            s["kind"] = "trade_signal"
             s["tg_msg_id"] = tg_mid
             sent[_key(s)] = time.time() * 1000
             sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = time.time() * 1000
+            if type(tg_mid) is not int or tg_mid <= 0:
+                # A post may have reached the recipient. Keep its dedupe key
+                # and audit trail, but never count or execute an unproved send.
+                s["tg_msg_id"] = None
+                _log_final(s)
+                print(f"telegram: response had no valid message receipt for {s['sym']}", flush=True)
+                continue
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
             _log_final(s)
@@ -512,7 +567,7 @@ def send_signals(signals, render_chart, limit=8):
                                    "entry": s["entry"], "sl": s["sl"],
                                    "tp1": s.get("tp1") or s["entry"], "tp2": s.get("tp2"),
                                    "stage_tag": f"sig-{s.get('strategy', '?')}",
-                                   "tg_msg_id": tg_mid}],
+                                   "tg_msg_id": tg_mid, "signal_id": s.get("signal_id")}],
                                  {"sent_at": int(time.time() * 1000),
                                   "tg_msg_id": tg_mid,
                                   "pattern_align": ((s.get("premortem") or {}).get("patterns") or {}).get("align"),

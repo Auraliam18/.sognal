@@ -25,7 +25,10 @@ def candles(direction, n=240, base=100.0):
 
 def kget_for(t4, t1):
     def kget(sym, tf, n):
-        return candles(t4 if tf == "4h" else t1, n)
+        from time import time
+        duration = 14400000 if tf == "4h" else 3600000
+        stop = int(time()*1000)//duration*duration
+        return [dict(c, t=stop-(n-i)*duration) for i,c in enumerate(candles(t4 if tf == "4h" else t1, n))]
     return kget
 
 

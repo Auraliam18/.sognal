@@ -155,11 +155,26 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
     """
     brain.room_log("market", "شروع چرخهٔ فعال", "cycle")
 
+    # Do not burst all short-frame requests into one exchange at once. Leave
+    # network I/O parallel while spacing request starts across this scan.
+    import threading
+    slot_lock = threading.Lock()
+    next_slot = 0.0
+    fetch_errors = {}
     def candles(sym, tf, n):
+        nonlocal next_slot
+        with slot_lock:
+            now = time.monotonic()
+            slot = max(now, next_slot)
+            next_slot = slot + 0.16
+        if slot > now:
+            time.sleep(slot-now)
         try:
             rows = sources.klines(sym, tf, n)
-        except Exception:                            # noqa: BLE001 - one symbol failing is not fatal
+        except Exception as exc:                     # one failed listing cannot stop the scan
+            fetch_errors[f"{sym}:{tf}"] = str(exc)[:360]
             return []
+        fetch_errors.pop(f"{sym}:{tf}", None)
         step = {"4h": 14_400_000, "1h": 3_600_000, "15m": 900_000}[tf]
         cutoff = int(time.time() * 1000)
         return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
@@ -167,17 +182,21 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
 
     btc4 = candles("BTCUSDT", "4h", max(200, limit_4h) + 1)
 
-    # USDT.D and BTC.D are index series, not pairs — CoinGecko has the level but
-    # not the history, so the channel work Hamid does on them needs a series we
-    # do not yet store. Reported honestly rather than faked from a proxy.
+    # Read the actual closed index series gathered by the dominance workflow
+    # before visiting an alt. A spot quote cannot establish an index trend.
+    from hamid import dominance as index_feed
     try:
-        g = research.global_market()
-        dom = {"btc_dominance": g["btc_dominance"], "usdt_dominance": g["usdt_dominance"],
-               "note": "سطح لحظه‌ای — سری زمانی برای کشیدن کانال هنوز ذخیره نمی‌شود"}
-    except Exception as e:                           # noqa: BLE001 - carry on without it
-        dom = {"note": f"دامیننس در دسترس نبود: {type(e).__name__}"}
-
-    first = market_first(btc4, None, None)
+        points = json.loads(index_feed.SERIES.read_text(encoding="utf-8"))["points"]
+        now_ms = int(time.time()*1000)
+        if not points or not 0 <= now_ms-points[-1]["t"] <= 3600000:
+            raise ValueError("stale index series")
+        usdt_bars, btc_d_bars = (index_feed._bars(points, k) for k in ("u","b"))
+        dom = {"btc_dominance":points[-1]["b"],"usdt_dominance":points[-1]["u"],
+               "observed_at":points[-1]["t"],"timeframe":"1h"}
+    except (KeyError, ValueError, TypeError, OSError, IndexError) as exc:
+        usdt_bars,btc_d_bars = None,None
+        dom = {"note":f"دامیننس قابل تأیید نیست: {type(exc).__name__}"}
+    first = market_first(btc4, usdt_bars, btc_d_bars)
     first["dominance"] = dom
     brain.room_log("market", f"خوانش بازار: {first.get('verdict')}", "read")
 
@@ -195,10 +214,38 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
         fetched = {sym: (a.result(), b.result()) for sym, (a, b) in jobs.items()}
         higher = {sym: future.result() for sym, future in higher.items()}
 
+    # The 300-bar window is a preference, not the strategy floor. Retry only
+    # missing lower frames of markets with confirmed 4h history, once, with
+    # two workers after the initial pass. Venue cooldowns still apply.
+    recovery = [(s, tf, i, need) for s in symbols if len(higher.get(s, ())) >= 200
+                for tf,i,need in (("1h",0,200), ("15m",1,60))
+                if len(fetched[s][i]) < need]
+    pending = {r[0] for r in recovery}
+    stats = {"attempted_frames": len(recovery), "recovered_frames": 0, "cooldown_seconds": 0}
+    first["history_recovery"] = stats
+    def read_order():
+        # Never make ready decisions wait for a different market's retry.
+        yield from (s for s in symbols if s not in pending)
+        if recovery:
+            delay = min(sources.STAND_DOWN_SECONDS, sources.preferred_retry_in())
+            if delay > 0:
+                stats["cooldown_seconds"] = round(delay, 1)
+                time.sleep(delay + .05)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                retries = [(s,i,need,pool.submit(candles,s,tf,need+1)) for s,tf,i,need in recovery]
+                for s,i,need,future in retries:
+                    bars = future.result()
+                    if len(bars) >= need:
+                        pair = list(fetched[s]); pair[i] = bars; fetched[s] = tuple(pair)
+                        stats["recovered_frames"] += 1
+            yield from (s for s in symbols if s in pending)
+        stats["source_errors"] = dict(sorted(fetch_errors.items()))
     reads, setups, inds = [], [], []
-    for sym in symbols:
+    first["symbol_history"] = {}
+    for sym in read_order():
         c1h, c15 = fetched.get(sym, ([], []))
         c4h = higher.get(sym, [])
+        first["symbol_history"][sym] = {"4h":len(c4h),"1h":len(c1h),"15m":len(c15)}
         if len(c4h) < 200 or len(c1h) < 200 or len(c15) < 60:
             brain.room_log("market", f"{sym}: incomplete closed HTF history — NO_SIGNAL", "no-data")
             continue
@@ -512,7 +559,9 @@ def settle_books(report):
     و ایندکس دانش تازه می‌شود — بعد چرخه با دانشِ همین لحظه تصمیم می‌گیرد."""
     from hamid import paper
     t_mark = int(time.time() * 1000)
+    print("settlement: starting ledger reconciliation", flush=True)
     still, closed = paper.mark()
+    print(f"settlement completed in {(time.time()*1000-t_mark)/1000:.1f}s: {still} open, {closed} newly closed", flush=True)
     try:
         just = [t for t in paper._read(paper.CLOSED)
                 if (t.get("closed") or 0) >= t_mark
@@ -1192,6 +1241,10 @@ def main():
             report["sent_live"] = sorted(_live["syms"])
         report["market"] = first
         report["reads"] = len(reads)
+        read_syms = {x.symbol for x in reads if hasattr(x, "symbol")}
+        report["coverage"] = {"requested":a.symbols, "selected":len(syms), "completed":len(reads),
+                              "unread":len(syms)-len(reads), "complete":len(reads)>=a.symbols,
+                              "symbols":syms, "missing_symbols":[s for s in syms if s not in read_syms] if len(read_syms)==len(reads) else None}
         report["money_flow"] = flows
         act(f"{len(reads)} ارز خوانده شد؛ {len(setups)} ارز ساختار اردر بلاک دارند")
         if flows:
@@ -1367,9 +1420,9 @@ def main():
         # رسیدن به ۲۰ معامله (کف نتیجه‌گیری) هفته‌ها طول می‌کشید. ثبت کاغذی
         # هزینه‌ای ندارد و هیچ پیامی برای حمید نمی‌سازد.
         report["paper_candidates"] = ready + vetoed + [x for x in waiting]
-        st["signals"] += take
+        report["selected_for_delivery"] = take
         print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ، "
-              f"{take} سیگنال فرستاده شد"
+              f"{take} ستاپ برای بررسی ارسال انتخاب شد"
               + (f"، {held} تای دیگر نگه داشته شد (سهمیهٔ روز)" if held else ""))
     else:
         act("بازار آرام است — به‌جای اسکن کامل، تقویم اقتصادی و نامزدهای پامپ بررسی می‌شوند")
@@ -1522,6 +1575,7 @@ def main():
                 s_["analyzed_at"] = report["generated"]
             sent = telegram.send_signals(outs, _tg_chart)   # چارت ۵د + واترمارک
             report["telegram"] = sent
+            st["signals"] += sent
             if sent:
                 act(f"{sent} سیگنال با چارت به تلگرام فرستاده شد")
         except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
@@ -1633,6 +1687,8 @@ def main():
             if sigs:
                 import telegram
                 sent_al = telegram.send_signals(sigs, _tg_chart)
+                st["signals"] += sent_al
+                report["alarm_deliveries"] = sent_al
                 from hamid import paper as _pp
                 _pp.open_from([{"symbol": x["sym"], "dir": x["dir"],
                                 "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],

@@ -20,6 +20,8 @@
 
 روند هر تایم از structure.trend (سوینگ‌محور، قطعی) با ۲۴۰ کندل.
 """
+import time
+import math
 from hamid.structure import trend
 
 COUNTER_NEEDS = ("inOB", "swept", "choch", "fvg", "quality>=70")
@@ -40,8 +42,22 @@ def assess(sym, direction, kget, evidence=None):
     out = dict(sym=sym, dir=direction, t4=None, t1=None,
                mode="with-trend", ok=True, missing=[], reason="")
     try:
-        c4 = kget(sym, "4h", _TF_N)
-        c1 = kget(sym, "1h", _TF_N)
+        if direction not in {"LONG", "SHORT"}:
+            raise ValueError("direction")
+        now = int(time.time()*1000)
+        def closed(tf, duration):
+            last = [c for c in kget(sym, tf, _TF_N) if 0 < c["t"] <= now-duration][-200:]
+            if len(last) < 200 or now - (last[-1]["t"] + duration) >= duration:
+                raise ValueError("insufficient or stale closed HTF bars")
+            if any(b["t"] - a["t"] != duration for a,b in zip(last, last[1:])):
+                raise ValueError("non-contiguous HTF bars")
+            if any(not all(math.isfinite(float(c[k])) and float(c[k]) > 0 for k in ("o","h","l","c")) or
+                   not c["l"] <= min(c["o"],c["c"]) <= max(c["o"],c["c"]) <= c["h"] for c in last):
+                raise ValueError("invalid OHLC")
+            return last
+        c4, c1 = closed("4h", 14400000), closed("1h", 3600000)
+        out.update(last_4h_close=c4[-1]["t"]+14400000, last_1h_close=c1[-1]["t"]+3600000,
+                   count4=len(c4), count1=len(c1))
     except Exception as e:                           # noqa: BLE001
         out.update(ok=False, mode="no-data",
                    reason=f"روند ۴س/۱س خواندنی نیست ({type(e).__name__}) — "
