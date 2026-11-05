@@ -212,7 +212,8 @@ def mark():
     now = time.time() * 1000
 
     for p in positions:
-        cd = _candles_since(p["sym"], p["opened"])
+        cd = [c for c in _candles_since(p["sym"], p["opened"])
+              if c["t"] >= p["opened"] and c["t"] + 900_000 <= now]
         if not cd:
             # عیب‌یابی ۱۳ اوت: نماد بی‌کندل (دیلیست‌شده یا غایب از منبع) تا
             # ابد در دفتر باز می‌ماند و هر دور دوباره فچ می‌شود — ۲۷ اردر با
@@ -240,6 +241,8 @@ def mark():
 
         if p["filled"] is None:
             for c in cd:
+                if c["t"] >= p["opened"] + FILL_HOURS * 3600_000:
+                    break
                 if c["l"] <= p["entry"] <= c["h"]:
                     p["filled"] = c["t"]
                     # برچسب برای بازبینی: پر شدن بعد از ۶ ساعت — تا اثر باز
@@ -259,7 +262,16 @@ def mark():
                     still.append(p)
                 continue
 
-        after = [c for c in cd if c["t"] >= p["filled"]]
+        after = [c for c in cd if p["filled"] <= c["t"] < p["filled"] + HOLD_HOURS * 3600_000]
+        if not after:
+            # Do not invent a timeout price when the held period is missing.
+            if now - p["filled"] > 2 * HOLD_HOURS * 3600_000:
+                p.update(outcome="no_data", R=None, R_net=None, closed=int(now))
+                _append(CLOSED, p)
+                closed += 1
+            else:
+                still.append(p)
+            continue
         done = None
         # MFE/MAE — منشور LIAM بند ۲۲: هر معامله باید بگوید تا کجا به نفعش
         # رفت و تا کجا علیه‌اش، تا بازبینی بفهمد «جهت درست بود و تایم غلط» یا
@@ -337,9 +349,10 @@ def mark():
         w["mfe"] = round(mfe, 2)
         w["mae"] = round(-mae, 2)
         w["mfe_bar"], w["mae_bar"] = mfe_bar, mae_bar
-        # R خالص با کارمزد+لغزش ~۰.۰۵٪ هر طرف — روی استاپ تنگ چند دهم R است
+        # Net R uses the same configured costs as the entry gate and replay.
         try:
-            fee_r = 0.001 * p["entry"] / abs(p["entry"] - p["sl"])
+            from hamid.fees import cost_in_r
+            fee_r = cost_in_r(p["entry"], p["sl"], p["sym"])
             p["fee_r"] = round(fee_r, 4)
             p["R_net"] = round(p["R"] - fee_r, 4)
         except Exception:                            # noqa: BLE001
