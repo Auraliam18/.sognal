@@ -45,6 +45,7 @@ jobs:
 
       - name: Backtest
         working-directory: claude-liam-signal/python
+        shell: bash
         run: |
           python3 -m hamid.backtest \
             --symbols "${{ github.event.inputs.symbols || '25' }}" \

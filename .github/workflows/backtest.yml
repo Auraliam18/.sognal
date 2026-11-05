@@ -58,6 +58,7 @@ jobs:
           python-version: "3.11"
 
       - name: Run the backtest
+        shell: bash
         run: |
           python3 claude-liam-signal/python/backtest.py \
             --symbols "${{ github.event.inputs.symbols || '60' }}" \
