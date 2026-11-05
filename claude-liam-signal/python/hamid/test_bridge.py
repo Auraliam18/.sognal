@@ -418,8 +418,8 @@ try:
     paper._append(paper.OPEN, {
         "sym": "TSTUSDT", "dir": "LONG", "entry": 100.0, "sl": 95.0,
         "tp1": 104.0, "tp2": None,
-        "opened": int(__import__("time").time() * 1000) - 3600_000,
-        "filled": int(__import__("time").time() * 1000) - 3600_000,
+        "opened": int(__import__("time").time() * 1000) - 6 * 900_000,
+        "filled": int(__import__("time").time() * 1000) - 6 * 900_000,
         "why": {"stage": "alarm", "dir": "LONG"}})
     paper.mark()
     got = paper._read(paper.CLOSED)

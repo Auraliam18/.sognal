@@ -74,8 +74,8 @@ def fetch(sym, bars):
     """15m and 1H for one symbol. Both are needed: the 4H comes from resampling
     the 1H, and cutting 1H by timestamp is what keeps an unclosed candle out."""
     import backtest as historical
-    c15 = rows_to_candles(historical.klines(sym, "15m", bars))
-    c1h = rows_to_candles(historical.klines(sym, "1h", max(1000, bars // 4 + 800)))
+    c15 = historical.klines(sym, "15m", bars)
+    c1h = historical.klines(sym, "1h", max(1000, bars // 4 + 800))
     return c15, c1h
 
 
@@ -115,12 +115,12 @@ def walk(sym, c15, c1h, bars_needed=140):
         # 1H bars that had actually closed by this 15m bar. Index-based slicing
         # here would hand the engine a candle from the future.
         h = [c for c in c1h if c["t"] + 3_600_000 <= now]
-        if len(h) < 80:
+        if len(h) < 200:
             continue
         c4 = closed_4h(h, now)
-        if len(c4) < 30:
+        if len(c4) < 200:
             continue
-        r = stack.read(sym, c4, h, c15[:i + 1])
+        r = stack.read(sym, c4[-200:], h[-300:], c15[max(0, i-299):i + 1])
         if not r.setup or r.setup.get("waiting"):
             continue
         cost = fees.cost_in_r(r.setup["entry"], r.setup["sl"], sym)

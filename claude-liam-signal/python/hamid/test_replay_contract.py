@@ -65,6 +65,12 @@ class ReplayContract(unittest.TestCase):
     def test_bootstrap_reproducible(self):
         self.assertEqual(backtest.boot([1,-1]*12,100), backtest.boot([1,-1]*12,100))
 
+    def test_paginated_adapter_preserves_candle_objects(self):
+        import backtest as historical
+        series=[bar(0),bar(1)]
+        with patch.object(historical,'klines',return_value=series):
+            self.assertEqual(backtest.fetch('BTCUSDT',3000),(series,series))
+
     def paper_result(self, candles, now, **overrides):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

@@ -221,7 +221,7 @@ CRITICAL = {
     "brain/paper/trainer-state.json": rbc.merge_frontier,
     "brain/telegram-sent.json": rbc.merge_key_list,
     "brain/health.json": rbc.take_ours,
-    "signals/latest.json": rbc.take_ours,
+    "signals/latest.json": rbc.latest_snapshot,
 }
 _wrong = {p: rbc.handler_for(p).__name__ for p, fn in CRITICAL.items()
           if rbc.handler_for(p) is not fn}

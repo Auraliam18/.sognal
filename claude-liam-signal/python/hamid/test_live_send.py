@@ -73,7 +73,8 @@ def fake_read(sym, c4h, c1h, c15m):
 class FakeSources:
     @staticmethod
     def klines(sym, tf, n):
-        return [[i * 900000, 1, 1.01, 0.99, 1, 10] for i in range(80)]
+        step = {"4h": 14_400_000, "1h": 3_600_000, "15m": 900_000}[tf]
+        return [[i * step, 1, 1.01, 0.99, 1, 10] for i in range(n)]
 
 
 class FakeBrain:
@@ -98,7 +99,7 @@ if sent:
     check("ارز اول رفت وقتی ارز سوم هنوز خوانده نشده بود",
           order.index(("send", "AUSDT")) < order.index(("read", "CUSDT")))
 else:
-    print("    (حلقهٔ شبیه‌سازی اجرا نشد — بررسی ایستا معتبر است)")
+    check("runtime simulation must enter the immediate-send path", False)
 
 print()
 if fail:
