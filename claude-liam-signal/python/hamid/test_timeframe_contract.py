@@ -12,6 +12,8 @@ class TimeframeContract(unittest.TestCase):
         def candles(sym, tf, n):
             step={'4h':14_400_000,'1h':3_600_000,'15m':900_000}[tf]
             calls.append((sym,tf,n))
+            if sym == 'BUSDT' and tf in ('1h','15m') and n==300:
+                raise RuntimeError("preferred window unavailable")
             start=now//step*step
             count=80 if sym=='THINUSDT' and tf=='4h' else n
             return [[start-i*step,100,101,99,100,1] for i in reversed(range(count))]
@@ -27,6 +29,9 @@ class TimeframeContract(unittest.TestCase):
              patch.object(cycle,'money_flow',return_value=[]):
             cycle.run_active(['AUSDT','BUSDT','THINUSDT'],on_ready=lambda sym,r:order.append(('send',sym)))
         self.assertIn(('BTCUSDT','4h',201),calls)
+        self.assertIn(('BUSDT','1h',201),calls)
+        self.assertIn(('BUSDT','15m',61),calls)
+        self.assertNotIn(('THINUSDT','1h',201),calls)
         self.assertEqual([r[0] for r in seen],['AUSDT','BUSDT'])
         for _,c4,c1,c15 in seen:
             self.assertGreaterEqual(len(c4),200)
