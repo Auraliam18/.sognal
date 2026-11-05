@@ -143,6 +143,39 @@ def read(path, limit=None):
     return rows[-limit:] if limit else rows
 
 
+_analysis_cache = {}
+
+
+def analysis_read(path, limit=None):
+    """Semantic paper results for analytics; read()/lines() remain lossless archival APIs."""
+    path = Path(path)
+    if path.parts[-3:] != ("brain", "paper", "closed.jsonl"):
+        return read(path, limit)
+    from copy import deepcopy
+    from hamid.settled_evidence import Outcomes
+    files = ([path] if path.exists() else []) + sorted(parts(path).glob("*.jsonl"))
+    version = tuple((f.name,st.st_size,st.st_mtime_ns) for f in files for st in [f.stat()])
+    cached = _analysis_cache.get(path)
+    if cached and version == cached[0]:
+        rows = cached[1]
+        return deepcopy(rows[-limit:] if limit else rows)
+    evidence, selected = Outcomes(), {}
+    for i, line in enumerate(lines(path)):
+        try:
+            row = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if not isinstance(row, dict):
+            continue
+        ident = evidence.observe(row, i)
+        if ident is not None and evidence.first[ident][2] == i:
+            selected[ident] = i,row
+    records = [r for k,(i,r) in selected.items() if evidence.status(k,i) == "unique"]
+    records.sort(key=lambda r:r.get("closed") or 0)
+    _analysis_cache[path] = version,records
+    return deepcopy(records[-limit:] if limit else records)
+
+
 if __name__ == "__main__":
     root = Path(__file__).resolve().parents[2]
     for ledger in sorted((root / "brain").rglob("*.jsonl")):
