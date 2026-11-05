@@ -176,5 +176,18 @@ for name, ok in checks:
     if not ok:
         failed += 1
 
+from unittest.mock import patch
+step = 14400000
+end = 1800000000000 // step * step
+good = [[end-i*step,1,2,.5,1,2] for i in reversed(range(201))]
+fixture = {"thin":good[-191:], "stale":[[r[0]-5*step,*r[1:]] for r in good],
+           "gap":good[:40]+good[41:], "full":good}
+venues = [dict(id=k,label=k,url=lambda s,t,n,k=k:k,parse=lambda rows:rows) for k in fixture]
+with patch.object(sources,"VENUES",venues), patch.object(sources,"_json",side_effect=fixture.__getitem__), patch.object(sources.time,"time",return_value=end/1000+30):
+    result = sources.klines("TESTUSDT","4h",201)
+    if result != good or sources.used()["klines"] != "full":
+        failed += 1
+        print("4h failover selected incomplete market evidence")
+
 print(f"\n{f'{failed} ایراد' if failed else 'همهٔ پارسرهای پایتون درست‌اند'}")
 sys.exit(1 if failed else 0)

@@ -304,7 +304,10 @@ def klines(sym, tf, limit, quiet=True):
                 _note_failure(v["id"])
             continue
         step = {"5m":300000,"15m":900000,"1h":3600000,"4h":14400000,"1d":86400000}.get(tf)
-        if not sane(rows, limit) or (step and any(b[0]-a[0] != step for a,b in zip(rows,rows[1:]))):
+        if (not sane(rows, limit)
+            or (step and (not 0 <= time.time()*1000 - rows[-1][0] < 2*step
+                          or any(b[0]-a[0] != step for a,b in zip(rows,rows[1:]))))
+            or (tf == "4h" and limit >= 201 and sum(row[0]+step <= time.time()*1000 for row in rows) < 200)):
             errs.append(f"{v['id']}: {len(rows)} rows, rejected")
             continue
         _note_success(v["id"])
