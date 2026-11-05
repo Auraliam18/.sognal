@@ -23,6 +23,10 @@ on:
       chat_id:
         description: "شناسهٔ چت (اگر Secret خالی است)"
         required: false
+      verify_once:
+        description: Publish one market observation without messages or redispatch
+        type: boolean
+        default: false
       min_pct:
         description: "حداقل رشد ۲۴س برای گینر"
         default: "5"
@@ -101,10 +105,16 @@ jobs:
           MIN=$(jq -r '.inputs.min_pct // empty' "$GITHUB_EVENT_PATH")
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
-          for k in 1 2 3 4 5 6 7 8; do
+          ROUNDS=8
+          if [ "${{ inputs.verify_once }}" = "true" ]; then
+            unset TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_BOT_TOKEN_2 TELEGRAM_CHAT_ID_2
+            ROUNDS=1
+          fi
+          for k in $(seq 1 "$ROUNDS"); do
             t0=$(date +%s)
             echo "── دور $k از ۸ · $(date -u '+%H:%M:%S UTC') ──"
-            (cd claude-liam-signal/python && python3 -m hamid.pump_radar --min-pct "${MIN:-5}") || true
+            (cd claude-liam-signal/python && timeout 420 python3 -u -m hamid.pump_radar --min-pct "${MIN:-5}")
+            python3 -c 'import json,sys; d=json.load(open("signals/pump-radar.json")); assert d.get("generated",0) >= 1000*int(sys.argv[1]), "no new radar observation"' "$t0"
 
             # ثبت روی main (ضدتصادم)
             BK=/tmp/pump-radar-backup; mkdir -p "$BK"
@@ -124,8 +134,10 @@ jobs:
             # (هر دو خط تولید مستقل به همین تشخیص رسیدند — اجتماعِ mergeِ ۱۷ اوت.)
             cp brain/pump-watchlist.json "$BK/" 2>/dev/null || true
             cp brain/pump-weakness-seen.json "$BK/" 2>/dev/null || true
+            PUBLISHED=0
             for i in 1 2 3 4; do
-              git fetch origin main -q
+              echo "Fetching the current main snapshot for round $k, attempt $i"
+              timeout 100 git fetch --no-tags --no-recurse-submodules --depth=1 origin +refs/heads/main:refs/remotes/origin/main -q || continue
               git reset --hard origin/main -q
               (cd claude-liam-signal/python && python3 -m hamid.pump_radar --reapply "$BK")
               # دامیننس سوار همین زنجیره — کرون dominance.yml قحطی‌زده بود
@@ -151,14 +163,16 @@ jobs:
                 (cd claude-liam-signal/python && python3 -m hamid.merge_sent /tmp/scan-sent.json ../../signals/sent.json) || true
               fi
               git add signals brain 2>/dev/null || true
-              git diff --cached --quiet && { echo "چیزی برای ثبت نیست"; break; }
+              git diff --cached --quiet && { PUBLISHED=1; echo "چیزی برای ثبت نیست"; break; }
               git commit -q -m "پامپ رادار $(date -u '+%Y-%m-%d %H:%M UTC')"
-              git push origin HEAD:main -q && { echo "ثبت شد (تلاش $i)"; break; }
+              timeout 100 git push origin HEAD:main -q && { PUBLISHED=1; echo "ثبت شد (تلاش $i)"; break; }
               sleep $((i*2))
             done
 
+            [ "$PUBLISHED" = 1 ] || { echo "::error::Radar observation was not published on main"; exit 1; }
+
             # انتشار روی پنل (gh-pages)
-            if git fetch origin gh-pages -q; then
+            if timeout 100 git fetch --no-tags --no-recurse-submodules --depth=1 origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages -q; then
               rm -rf /tmp/ghp
               if git worktree add /tmp/ghp origin/gh-pages --detach -q; then
                 mkdir -p /tmp/ghp/signals
@@ -187,7 +201,7 @@ jobs:
             # ۱۸۰ ثانیه طول بکشد، حلقه بدون مکث پشت‌سرهم می‌چرخد — یعنی
             # سریع‌ترین کادنسی که این زیرساخت واقعاً می‌دهد؛ عددش از لاگ
             # قابل‌اندازه‌گیری است، نه از ادعا. (دور آخر صبر ندارد)
-            if [ "$k" -lt 8 ]; then
+            if [ "$k" -lt "$ROUNDS" ]; then
               took=$(( $(date +%s) - t0 ))
               wait=$(( 180 - took )); [ "$wait" -lt 5 ] && wait=5
               echo "دور $k در ${took}ثانیه — ${wait}ثانیه تا دور بعد"
@@ -207,7 +221,7 @@ jobs:
 
       # زنجیره: حلقهٔ بعدی را خودمان صدا می‌زنیم — کرون گیت‌هاب قابل اتکا نیست
       - name: زنجیرهٔ حلقهٔ بعد
-        if: always() && steps.guard.outputs.skip != '1'
+        if: always() && steps.guard.outputs.skip != '1' && !inputs.verify_once
         run: |
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
@@ -216,3 +230,15 @@ jobs:
             -d '{"ref":"main"}' \
             && echo "حلقهٔ بعد صدا زده شد" \
             || echo "dispatch نشد — کرون ربع‌ساعته و مدیک زنده‌اش می‌کنند"
+
+
+      - name: Archive unpublished radar output
+        if: failure() || cancelled()
+        run: python3 scripts/archive_unpublished.py
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: unpublished-radar-${{ github.run_id }}
+          path: ${{ runner.temp }}/unpublished.tar.gz
+          if-no-files-found: error
+          retention-days: 7
