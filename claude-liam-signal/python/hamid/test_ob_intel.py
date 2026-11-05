@@ -138,6 +138,8 @@ def fetch(sym, tf, n):
 
 
 r = ob.radar_for("TESTUSDT", fetch)
+empty = ob.radar_for("UNREADUSDT", lambda *_: [])
+assert empty["px"] is None and empty["observed_frames"] == [] and empty["approaching"] is None
 check("رادار همهٔ قلم‌ها را دارد",
       all(k in r for k in ("nearest_bull_below", "nearest_bear_above",
                            "strongest_bull", "strongest_bear", "nearest_fresh",

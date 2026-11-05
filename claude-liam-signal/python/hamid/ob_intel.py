@@ -341,6 +341,9 @@ def radar_for(sym, fetch):
     c4h = fetch(sym, "4h", 240)
     if len(c4h) >= 200:
         maps["4h"] = analyze(c4h, "4h")
+    if not (c15 or c1h):
+        return {"px": None, "observed_frames": sorted(maps), "n_valid": 0,
+                "status": "no_recent_price", "approaching": None}
     px = (c15 or c1h)[-1]["c"]
     allb = [b for tf in maps for b in maps[tf] if b["grade"] != "REJECT"
             and b["state"] not in ("INVALIDATED", "CONSUMED")]
@@ -432,9 +435,12 @@ def main():
                            "dist_atr": b["dist_atr"],
                            "zone": [b["low"], b["high"]], "move": b["move"]})
     OUT.parent.mkdir(exist_ok=True)
-    if not out:
+    if not any(r.get("px") and r.get("observed_frames") for r in out.values()):
         raise RuntimeError("No observed order-block markets; keep previous snapshot")
-    OUT.write_text(json.dumps({"coverage":{"requested":a.symbols,"completed":sum(len(v["observed_frames"])==3 for v in out.values()),"complete":sum(len(v["observed_frames"])==3 for v in out.values())>=a.symbols}, "generated": int(time.time() * 1000),
+    complete = sum(len(v["observed_frames"])==3 for v in out.values())
+    missing = {sym: sorted({"15m","1h","4h"}-set(out.get(sym,{}).get("observed_frames", [])))
+               for sym in symbols if len(out.get(sym,{}).get("observed_frames",[])) != 3}
+    OUT.write_text(json.dumps({"coverage":{"requested":a.symbols,"ranked":len(symbols),"completed":complete,"complete":complete>=a.symbols,"missing_frames":missing}, "generated": int(time.time() * 1000),
                                "symbols": out, "events": events,
                                "states": states}, ensure_ascii=False))
     print(f"رادار OB: {len(out)} نماد، {len(events)} رویداد OB_APPROACHING")
