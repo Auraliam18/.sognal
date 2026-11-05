@@ -5,6 +5,9 @@ on:
     paths: ['claude-liam-signal/python/**', 'scripts/system_audit.py', 'scripts/test_audit_publish.py', '.github/workflows/system-audit.yml']
 permissions:
   contents: read
+concurrency:
+  group: system-audit-${{ github.ref }}
+  cancel-in-progress: true
 env:
   LIVE_EXECUTION: 'false'
   PYTHONUTF8: '1'
