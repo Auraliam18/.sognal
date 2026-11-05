@@ -99,6 +99,29 @@ def run():
     assert m["_graveyard"]["XUSDT"] == 100 and "NEWUSDT" in m and "OLDUSDT" in m
     print("۸ ✅ merge_state: قبرستان از reset جان به در می‌برد، منقضی برنمی‌گردد")
 
+    # A real published-state mismatch: a fresh candidate was erased by an
+    # old tombstone retained by another writer, after the 24h cooldown ended.
+    tomb = now - 25 * 3600_000
+    pw._save({"_graveyard": {"AAAUSDT": tomb}})
+    wl, added = pw.add_candidates([], picks, now_ms=now)
+    assert added == ["AAAUSDT"]
+    stale = {"_graveyard": {"AAAUSDT": tomb},
+             "AAAUSDT": {"added_at": tomb - 1000}}
+    for merged in (pw.merge_state(wl, stale), pw.merge_state(stale, wl)):
+        assert merged["AAAUSDT"]["added_at"] == now, merged
+    print("۱۰ ✅ ثبت معتبر بعد از ۲۴س در هر جهت ادغام حفظ می‌شود")
+
+    recent = {"_graveyard": {"AAAUSDT": now - 3600_000}}
+    assert "AAAUSDT" not in pw.merge_state(wl, recent)
+    print("۱۱ ✅ حذف جدیدتر و مهلت فعال هنوز از بازگشت زودهنگام جلوگیری می‌کند")
+
+    extended = [{**picks[0], "expires_at": now + 10 * 3600_000}]
+    _, added = pw.add_candidates([], extended, now_ms=now + 1000)
+    assert not added and pw._load()["AAAUSDT"]["expires_at"] == extended[0]["expires_at"]
+    for merged in (pw.merge_state(wl, pw._load()), pw.merge_state(pw._load(), wl)):
+        assert merged["AAAUSDT"]["expires_at"] == extended[0]["expires_at"]
+    print("۱۲ ✅ تمدید پنجره بدون عضو جدید ذخیره می‌شود و در ادغام نمی‌افتد")
+
     # پیام «دیر رسیدیم» هرگز به تلگرام نمی‌رود (دستور ۱۷ اوت — ۱۰۰ بار)
     import inspect
     from hamid import pump_radar as pr
@@ -107,7 +130,7 @@ def run():
     assert '_tg._post' not in seg, "مسیر تلگرامِ حکم late برگشته!"
     print("۹ ✅ حکم «دیر رسیدیم» هیچ مسیری به تلگرام ندارد")
 
-    print("\nهمهٔ ۹ آزمون گذشت — دفتر انتظار درست کار می‌کند")
+    print("\nهمهٔ ۱۲ آزمون گذشت — قراردادهای دفتر انتظار پاس شدند")
 
 
 if __name__ == "__main__":

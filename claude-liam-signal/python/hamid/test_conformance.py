@@ -46,6 +46,21 @@ def run():
     assert any(x["rule"] == "C1" for x in rep["violations"])
     print("۲ ✅ C1: پیشنهاد پامپِ پریده گرفته شد")
 
+    # The production producer publishes recommendation/coins, not the older
+    # picks/blocks fixture. Both formats must actually exercise C1.
+    for change, expected in ((9.0, True), (1.0, False)):
+        w(root, "signals/pump-radar.json",
+          {"generated": now, "recommendation": [{"symbol": "BBBUSDT"}],
+           "coins": [{"symbol": "BBBUSDT", "change_24h_pct": change,
+                      "change_60m_pct": 0.5, "change_30m_pct": 0.2}]})
+        assert any(x["rule"] == "C1" for x in cf.check(now)["violations"]) == expected
+    w(root, "signals/pump-radar.json",
+      {"generated": now, "recommendation": [], "coins": [],
+       "picks": [{"symbol": "OLDUSDT"}],
+       "blocks": [{"symbol": "OLDUSDT", "change_24h_pct": 20.0}]})
+    assert not any(x["rule"] == "C1" for x in cf.check(now)["violations"])
+    print("۸ ✅ C1 قالب واقعی recommendation/coins و اولویت نسخهٔ جدید را می‌خواند")
+
     # C2 — دیر بدون دفتر
     w(root, "signals/pump-radar.json",
       {"generated": now, "picks": [], "blocks": [],
@@ -90,7 +105,7 @@ def run():
     assert not any(x["rule"] == "C6" for x in rep["violations"])
     print("۷ ✅ C6: شورت روی چارت دوطرفه-صعودی گرفته شد؛ یک‌طرفه رد نشد")
 
-    print("\nهمهٔ ۷ آزمون پاسبان گذشت")
+    print("\nهمهٔ ۸ آزمون پاسبان گذشت")
 
 
 if __name__ == "__main__":

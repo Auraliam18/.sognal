@@ -160,10 +160,12 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
             rows = sources.klines(sym, tf, n)
         except Exception:                            # noqa: BLE001 - one symbol failing is not fatal
             return []
+        step = {"4h": 14_400_000, "1h": 3_600_000, "15m": 900_000}[tf]
+        cutoff = int(time.time() * 1000)
         return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4], "v": k[5]}
-                for k in rows]
+                for k in rows if k[0] + step <= cutoff]
 
-    btc4 = candles("BTCUSDT", "1h", limit_4h)        # 1h stands in for 4h below
+    btc4 = candles("BTCUSDT", "4h", max(200, limit_4h) + 1)
 
     # USDT.D and BTC.D are index series, not pairs — CoinGecko has the level but
     # not the history, so the channel work Hamid does on them needs a series we
@@ -185,21 +187,23 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
     # minutes when a venue started rate-limiting.
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=8) as pool:
+        higher = {sym: pool.submit(candles, sym, "4h", max(200, limit_4h) + 1)
+                  for sym in symbols}
         jobs = {sym: (pool.submit(candles, sym, "1h", limit_1h),
                       pool.submit(candles, sym, "15m", limit_15m))
                 for sym in symbols}
         fetched = {sym: (a.result(), b.result()) for sym, (a, b) in jobs.items()}
+        higher = {sym: future.result() for sym, future in higher.items()}
 
     reads, setups, inds = [], [], []
     for sym in symbols:
         c1h, c15 = fetched.get(sym, ([], []))
-        if len(c1h) < 60 or len(c15) < 60:
+        c4h = higher.get(sym, [])
+        if len(c4h) < 200 or len(c1h) < 200 or len(c15) < 60:
+            brain.room_log("market", f"{sym}: incomplete closed HTF history — NO_SIGNAL", "no-data")
             continue
-        # 4H is built from 1H by taking every fourth bar's aggregate — the venues
-        # that serve this pipeline do not all offer a 4h interval, and resampling
-        # from 1H gives the same candles rather than a different vendor's idea
-        # of where the 4H boundary falls.
-        c4h = resample(c1h, 4)
+        # Use the source's actual closed 4h history. 300 hourly bars cannot
+        # supply the charter's minimum 200 four-hour bars.
         r = read(sym, c4h, c1h, c15)
         reads.append(r)
         if r.setup:

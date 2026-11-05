@@ -1,0 +1,90 @@
+name: Strategy replay and system audit
+on:
+  workflow_dispatch:
+    inputs:
+      replay:
+        description: Run real-candle research in addition to deterministic checks
+        type: boolean
+        default: true
+  pull_request:
+    paths: ['claude-liam-signal/python/**', 'scripts/system_audit.py', 'scripts/test_audit_publish.py', '.github/workflows/system-audit.yml']
+permissions:
+  contents: read
+concurrency:
+  group: system-audit-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  LIVE_EXECUTION: 'false'
+  PYTHONUTF8: '1'
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: pip install PyYAML==6.0.3 jsonschema==4.26.0 matplotlib
+      - run: python scripts/validate_skill_package.py
+      - name: Capture monitored state before test fixtures run
+        run: python scripts/capture_audit_state.py
+      - name: Every offline engine test module
+        run: python scripts/system_audit.py
+      - name: Panel contracts, full ledger and eight routes
+        if: always()
+        run: |
+          python -m unittest discover -s scripts -p 'test_*audit*.py' -v
+          python -m unittest discover -s scripts -p test_terminal.py -v
+          node --test terminal/lib.test.mjs
+          python scripts/build_terminal.py
+          npm ci
+          npx playwright install --with-deps chromium
+          node terminal/browser.test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: system-audit-evidence
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            audit-results/
+            terminal-*.png
+          retention-days: 30
+  replay:
+    # Real candle research is explicitly dispatched; routine PR changes only
+    # repeat deterministic/browser checks, avoiding duplicate heavy work.
+    if: github.event_name == 'workflow_dispatch' && inputs.replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 1, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Hamid second pullback component on real candles
+        shell: bash
+        run: |
+          mkdir -p audit-results/hamid
+          python -m pip install PyYAML==6.0.3
+          PYTHONPATH=claude-liam-signal/python python -m hamid.backtest --symbols 25 --bars 3000 --isolated --out audit-results/hamid | tee audit-results/hamid.log
+      - name: Both shipped JS strategies on 15m and 5m
+        if: always()
+        shell: bash
+        run: |
+          python claude-liam-signal/python/backtest.py --symbols 12 --bars 2000 --tf 15m,5m --cores 2 | tee audit-results/historical.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-candle-replay-evidence
+          if-no-files-found: error
+          path: |
+            audit-results/
+            claude-liam-signal/backtests/
+            claude-liam-signal/python/.klines-cache/
+          include-hidden-files: true
+          retention-days: 30

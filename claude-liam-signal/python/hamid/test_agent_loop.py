@@ -33,6 +33,8 @@ import sources                                                # noqa: E402
 _MEM_TMP = Path(tempfile.mkdtemp(prefix="agentloop-mem-"))
 _memguard.LESSONS = _MEM_TMP / "lessons.json"
 _memguard.HISTORY = _MEM_TMP / "history-stats.json"
+from hamid import execution_gate as _intent_guard
+_intent_guard.OUTBOX = _MEM_TMP / "exec-outbox.json"
 
 # عکس اولیه، برای نگهبان پایانی — تفاوت سنجیده می‌شود نه پاکیِ مطلق
 import subprocess as _spg                                     # noqa: E402

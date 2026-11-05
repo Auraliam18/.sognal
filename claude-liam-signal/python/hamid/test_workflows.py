@@ -54,20 +54,61 @@ StrictLoader.add_constructor(
 
 
 def _raw_dup_if(text):
-    """کلید if تکراری داخل یک گام، حتی اگر YAML آن را بپذیرد."""
-    bad, cur = [], None
-    for i, line in enumerate(text.split("\n"), 1):
-        s = line.strip()
-        if s.startswith(("- name:", "- uses:", "- if:")):
-            cur = {"ifs": 1 if s.startswith("- if:") else 0}
-        elif cur is not None and s.startswith("if:"):
-            cur["ifs"] += 1
-            if cur["ifs"] > 1:
-                bad.append(i)
+    """Inspect step mappings, keeping duplicate keys and their source lines.
+
+    A job-level if or a shell-script line is not part of the previous step.
+    compose preserves mapping pairs instead of silently keeping the last key.
+    """
+    def child(node, key):
+        if isinstance(node, yaml.MappingNode):
+            return next((v for k, v in node.value if k.value == key), None)
+        return None
+
+    bad = []
+    jobs = child(yaml.compose(text, Loader=yaml.BaseLoader), "jobs")
+    if not isinstance(jobs, yaml.MappingNode):
+        return bad
+    for _, job in jobs.value:
+        steps = child(job, "steps")
+        if not isinstance(steps, yaml.SequenceNode):
+            continue
+        for step in steps.value:
+            if not isinstance(step, yaml.MappingNode):
+                continue
+            keys = [k for k, _ in step.value if k.value == "if"]
+            bad.extend(k.start_mark.line + 1 for k in keys[1:])
     return bad
 
 
 print("── سلامت ورک‌فلوها ──")
+
+check("شرط job بعدی به گام قبلی نسبت داده نمی‌شود", not _raw_dup_if("""
+jobs:
+  first:
+    steps:
+      - run: echo one
+        if: always()
+  second:
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - run: echo two
+"""))
+check("شرط تکراری واقعی داخل گام شناسایی می‌شود", bool(_raw_dup_if("""
+jobs:
+  one:
+    steps:
+      - run: echo test
+        if: success()
+        if: always()
+""")))
+check("متن اسکریپت کلید شرط YAML نیست", not _raw_dup_if("""
+jobs:
+  one:
+    steps:
+      - if: always()
+        run: |
+          if: script text
+"""))
 
 files = sorted(WF.glob("*.yml")) + sorted(WF.glob("*.yaml"))
 check(f"ورک‌فلو پیدا شد ({len(files)})", len(files) > 0)
