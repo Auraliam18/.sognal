@@ -50,7 +50,7 @@ ENGINE_BINDINGS = [
     ("scan", "اندیکاتورها", "strategy_api", ["signals"], ["E02"]),
     ("hamid", "نقدینگی و مشتقات", "liquidity", ["world.funding"], ["E02"]),
     ("scan", "مسیریاب استراتژی", "cycle", ["per_strategy"], ["E03", "E07", "E08"]),
-    ("radar", "پیش‌رو و دنباله‌رو", "pump_study", ["coins", "verdict"], ["E02"]),
+    ("radar", "پیش‌رو و دنباله‌رو", "pump_study", ["universe_n", "coins", "recommendation"], ["E02"]),
     ("learning", "همتای تاریخی", "coin_history", ["symbols_profiled"], ["E18"]),
     ("news", "خبر و رویداد", "intel", ["classified", "calendar"], ["E02"]),
     ("scan", "پایش و آلارم", "watchdog", ["alarms"], ["E07", "E08"]),
@@ -201,6 +201,15 @@ def engine_packets(root, feeds, history, now):
             evidence = feeds[feed]
             status = evidence["state"]
             missing = [field for field in required if at(evidence["data"], field) is None]
+            if feed == "radar" and not (number(at(evidence["data"], "universe_n")) or 0) > 0:
+                missing.append("observed market universe")
+            if feed == "delivery" and isinstance(at(evidence["data"], "sent"), list):
+                for row in evidence["data"]["sent"]:
+                    if (not isinstance(row, dict) or not row.get("tg_msg_id")
+                        or row.get("kind") not in {"trade_signal", "watch_alert"}
+                        or (row["kind"] == "trade_signal" and not row.get("signal_id"))):
+                        missing.append("linked delivery evidence")
+                        break
             if status == "fresh" and missing:
                 status = "partial"
             if feed in {"hamid","blocks"} and at(evidence["data"], "coverage.complete") is False and status == "fresh":

@@ -21,6 +21,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sources                                       # noqa: E402
+from io import BytesIO
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
+
+# Verify the request that actually reaches the HTTP transport.
+with patch.object(sources.urllib.request, "urlopen", return_value=BytesIO(b"[]")) as transport:
+    sources._json("https://example.org/candles?symbol=龙虾USDT&existing=A%2BB")
+    outbound = transport.call_args.args[0].full_url
+    assert outbound.isascii() and "%25" not in outbound
+    assert parse_qs(urlsplit(outbound).query) == {"symbol": ["龙虾USDT"], "existing": ["A+B"]}
 
 RECORDED = {
     "mexc": [
