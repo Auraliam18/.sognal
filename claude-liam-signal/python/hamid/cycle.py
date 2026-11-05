@@ -167,17 +167,21 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
 
     btc4 = candles("BTCUSDT", "4h", max(200, limit_4h) + 1)
 
-    # USDT.D and BTC.D are index series, not pairs — CoinGecko has the level but
-    # not the history, so the channel work Hamid does on them needs a series we
-    # do not yet store. Reported honestly rather than faked from a proxy.
+    # Read the actual closed index series gathered by the dominance workflow
+    # before visiting an alt. A spot quote cannot establish an index trend.
+    from hamid import dominance as index_feed
     try:
-        g = research.global_market()
-        dom = {"btc_dominance": g["btc_dominance"], "usdt_dominance": g["usdt_dominance"],
-               "note": "سطح لحظه‌ای — سری زمانی برای کشیدن کانال هنوز ذخیره نمی‌شود"}
-    except Exception as e:                           # noqa: BLE001 - carry on without it
-        dom = {"note": f"دامیننس در دسترس نبود: {type(e).__name__}"}
-
-    first = market_first(btc4, None, None)
+        points = json.loads(index_feed.SERIES.read_text(encoding="utf-8"))["points"]
+        now_ms = int(time.time()*1000)
+        if not points or not 0 <= now_ms-points[-1]["t"] <= 3600000:
+            raise ValueError("stale index series")
+        usdt_bars, btc_d_bars = (index_feed._bars(points, k) for k in ("u","b"))
+        dom = {"btc_dominance":points[-1]["b"],"usdt_dominance":points[-1]["u"],
+               "observed_at":points[-1]["t"],"timeframe":"1h"}
+    except (KeyError, ValueError, TypeError, OSError, IndexError) as exc:
+        usdt_bars,btc_d_bars = None,None
+        dom = {"note":f"دامیننس قابل تأیید نیست: {type(exc).__name__}"}
+    first = market_first(btc4, usdt_bars, btc_d_bars)
     first["dominance"] = dom
     brain.room_log("market", f"خوانش بازار: {first.get('verdict')}", "read")
 
@@ -196,9 +200,11 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
         higher = {sym: future.result() for sym, future in higher.items()}
 
     reads, setups, inds = [], [], []
+    first["symbol_history"] = {}
     for sym in symbols:
         c1h, c15 = fetched.get(sym, ([], []))
         c4h = higher.get(sym, [])
+        first["symbol_history"][sym] = {"4h":len(c4h),"1h":len(c1h),"15m":len(c15)}
         if len(c4h) < 200 or len(c1h) < 200 or len(c15) < 60:
             brain.room_log("market", f"{sym}: incomplete closed HTF history — NO_SIGNAL", "no-data")
             continue
@@ -1373,9 +1379,9 @@ def main():
         # رسیدن به ۲۰ معامله (کف نتیجه‌گیری) هفته‌ها طول می‌کشید. ثبت کاغذی
         # هزینه‌ای ندارد و هیچ پیامی برای حمید نمی‌سازد.
         report["paper_candidates"] = ready + vetoed + [x for x in waiting]
-        st["signals"] += take
+        report["selected_for_delivery"] = take
         print(f"{len(reads)} ارز خوانده شد، {len(setups)} ستاپ، "
-              f"{take} سیگنال فرستاده شد"
+              f"{take} ستاپ برای بررسی ارسال انتخاب شد"
               + (f"، {held} تای دیگر نگه داشته شد (سهمیهٔ روز)" if held else ""))
     else:
         act("بازار آرام است — به‌جای اسکن کامل، تقویم اقتصادی و نامزدهای پامپ بررسی می‌شوند")
@@ -1528,6 +1534,7 @@ def main():
                 s_["analyzed_at"] = report["generated"]
             sent = telegram.send_signals(outs, _tg_chart)   # چارت ۵د + واترمارک
             report["telegram"] = sent
+            st["signals"] += sent
             if sent:
                 act(f"{sent} سیگنال با چارت به تلگرام فرستاده شد")
         except Exception as e:                     # noqa: BLE001 - delivery is not the analysis
@@ -1639,6 +1646,8 @@ def main():
             if sigs:
                 import telegram
                 sent_al = telegram.send_signals(sigs, _tg_chart)
+                st["signals"] += sent_al
+                report["alarm_deliveries"] = sent_al
                 from hamid import paper as _pp
                 _pp.open_from([{"symbol": x["sym"], "dir": x["dir"],
                                 "entry": x["entry"], "sl": x["sl"], "tp1": x["tp1"],
