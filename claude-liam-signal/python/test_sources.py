@@ -136,7 +136,7 @@ for vid, c in seen:
 print("\nهر منبع باید همهٔ تایم‌فریم‌ها را بشناسد:")
 for v in sources.VENUES:
     bad = []
-    for tf in ("5m", "15m", "1h", "1d"):
+    for tf in ("5m", "15m", "1h", "4h", "1d"):
         try:
             u = v["url"]("BTCUSDT", tf, 420)
             if not u.startswith("https://"):
