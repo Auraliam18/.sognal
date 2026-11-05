@@ -114,7 +114,7 @@ jobs:
           # برای دفتر تولیدشده، و رد کردن هر فایل دارای مارکر تعارض.
           for attempt in 1 2 3 4 5; do
             git push origin HEAD:main && exit 0
-            git fetch origin main || true
+            python3 "$GITHUB_WORKSPACE/scripts/fetch_for_merge.py" main || exit 1
             if ! git merge --no-edit origin/main; then
               # فقط همان فایلی که این job تولید کرده، نه کل signals/ —
               # چرخه هم‌زمان به signals/latest.json می‌نویسد و --ours روی
@@ -135,3 +135,14 @@ jobs:
           done
           echo "پوش نشد — اجرای بعدی جبران می‌کند (دفتر محلی سالم است)"
           exit 1
+
+      - name: Pack unpublished training results
+        if: failure() || cancelled()
+        run: python3 scripts/archive_unpublished.py
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: unpublished-trainer-${{ github.run_id }}
+          path: ${{ runner.temp }}/unpublished.tar.gz
+          if-no-files-found: error
+          retention-days: 7
