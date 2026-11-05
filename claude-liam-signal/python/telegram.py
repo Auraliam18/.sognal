@@ -64,7 +64,7 @@ def _log_final(s):
     # (کیل‌سوییچ/کارمزد/سایز) هم بگذرد، قصد اجرا در exec-outbox می‌نشیند.
     try:
         from hamid import execution_gate
-        if s.get("kind", "trade_signal") == "trade_signal":
+        if s.get("kind", "trade_signal") == "trade_signal" and type(s.get("tg_msg_id")) is int and s["tg_msg_id"] > 0:
             execution_gate.push(s)
     except Exception:                                  # noqa: BLE001
         pass
@@ -548,6 +548,13 @@ def send_signals(signals, render_chart, limit=8):
             s["tg_msg_id"] = tg_mid
             sent[_key(s)] = time.time() * 1000
             sent[f"any|{s['sym']}|{s['tf']}|{s['dir']}"] = time.time() * 1000
+            if type(tg_mid) is not int or tg_mid <= 0:
+                # A post may have reached the recipient. Keep its dedupe key
+                # and audit trail, but never count or execute an unproved send.
+                s["tg_msg_id"] = None
+                _log_final(s)
+                print(f"telegram: response had no valid message receipt for {s['sym']}", flush=True)
+                continue
             ok += 1
             print(f"  sent {s['sym']} {s['tf']} {s['dir']}{'' if png else ' (text only)'}", flush=True)
             _log_final(s)
