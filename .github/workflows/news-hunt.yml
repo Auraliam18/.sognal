@@ -31,20 +31,11 @@ jobs:
         run: |
           python3 -m hamid.intel --deep --quiet
           python3 - <<'PY'
-          import json, sys, time
-          sys.path.insert(0, ".")
-          from hamid import discovery
-          d = json.load(open("../../brain/intel/latest.json"))
-          hot = (d.get("news") or {}).get("hot") or []
-          cls = discovery.classify_news(hot)
-          out = {"generated": int(time.time() * 1000),
-                 "verdict": d.get("verdict"),
-                 "classified": cls[:10],
-                 "calendar": (d.get("calendar") or {}).get("next_48h") or [],
-                 "deep_topics": len(d.get("deep") or [])}
-          open("../../signals/news.json", "w").write(
-              json.dumps(out, ensure_ascii=False, indent=1))
-          print(f"{len(hot)} تیتر داغ، {len(out['calendar'])} رویداد ۴۸س")
+          import json, time
+          from pathlib import Path
+          packet=json.loads(Path("../../signals/news.json").read_text())
+          if not packet.get("source_count") or not 0 <= time.time()*1000-packet["generated"] < 600000:
+              raise SystemExit("No new source-backed news observation")
           PY
       - name: ثبت روی main
         run: |
