@@ -22,6 +22,7 @@ C5  پنجرهٔ رسیدن داده (قانون ۵ حمید): تازگی خرو
 خروجی: signals/conformance.json + تلگرام فقط در صورت تخلف.
 """
 import json
+import math
 import time
 from collections import Counter
 from pathlib import Path
@@ -54,8 +55,12 @@ def check(now_ms=None):
 
     # C1 — پیشنهاد پامپ فقط هنوز-نپریده
     pr = _read("signals/pump-radar.json") or {}
-    for p in (pr.get("picks") or []):
-        b = next((x for x in (pr.get("blocks") or [])
+    # Published radar packets use recommendation/coins; retain older packet
+    # compatibility without treating a present, empty recommendation as absent.
+    picks = pr.get("recommendation", pr.get("picks")) or []
+    blocks = pr.get("coins", pr.get("blocks")) or []
+    for p in picks:
+        b = next((x for x in blocks
                   if x.get("symbol") == p.get("symbol")), {})
         c24, c60, c30 = (b.get("change_24h_pct"), b.get("change_60m_pct"),
                          b.get("change_30m_pct"))
@@ -123,8 +128,11 @@ def check(now_ms=None):
     # C5 — پنجرهٔ رسیدن داده
     for rel, mx in FRESHNESS_MAX_MIN.items():
         d = _read(rel)
-        ts = (d or {}).get("generated")
-        if not ts:
+        ts = d.get("generated") if isinstance(d, dict) else None
+        valid = isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts) and ts > 0
+        if not valid or ts > now_ms + 60_000:
+            v.append(dict(rule="C5", sev="high", sym=rel.split("/")[-1],
+                          msg=f"{rel}: missing/invalid/future generated timestamp — freshness unproven"))
             continue
         age_min = (now_ms - ts) / 60000
         if age_min > mx:

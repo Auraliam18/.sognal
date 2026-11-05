@@ -17,6 +17,7 @@
 اجرا و تأیید نهایی همیشه سمت داشبورد/حمید است (قانون ۱۰).
 """
 import json
+import math
 import time
 import uuid
 from pathlib import Path
@@ -38,9 +39,31 @@ def evaluate(s):
     if not killswitch.guard():
         out["reason"] = "کیل‌سوییچ فعال است — قصد اجرا صادر نمی‌شود"
         return out
-    if not all([sym, d, entry, sl]):
+    if not all([sym, d, entry, sl, tp1]):
         out["reason"] = "سیگنال ناقص (sym/dir/entry/sl)"
         return out
+    if d not in ("LONG", "SHORT") or not all(isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) and x > 0 for x in (entry, sl, tp1)):
+        out["reason"] = "invalid direction or non-finite prices"
+        return out
+    sign = 1 if d == "LONG" else -1
+    if sign*(entry-sl) <= 0 or sign*(tp1-entry) <= 0:
+        out["reason"] = "stop/target are on the wrong side"
+        return out
+    t4, t1 = s.get("trend4"), s.get("trend1")
+    if t4 not in ("up", "down", "range") or t1 not in ("up", "down", "range"):
+        out["reason"] = "missing HTF trend evidence — NO_SIGNAL"
+        return out
+    opposite = "down" if d == "LONG" else "up"
+    if t4 == opposite and t1 == opposite:
+        out["reason"] = "both HTFs oppose the signal — hard veto"
+        return out
+    if t4 == opposite or t1 == opposite:
+        quality = s.get("quality")
+        if not (all(s.get(k) is True for k in ("inOB", "swept", "choch", "fvg")) and
+                isinstance(quality, (int, float)) and math.isfinite(quality) and quality >= 70 and
+                s.get("counter_trend_note")):
+            out["reason"] = "counter-trend evidence or label is incomplete"
+            return out
     fg = fees.gate(entry, sl, tp1 or entry, symbol=sym) if tp1 else \
         dict(ok=True, fee_r=fees.cost_in_r(entry, sl, sym), net_rr=None,
              reason="بدون tp1 — فقط کارمزد ثبت شد")

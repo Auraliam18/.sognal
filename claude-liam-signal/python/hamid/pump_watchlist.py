@@ -59,15 +59,18 @@ def add_candidates(blocks, picks, now_ms=None):
     grave = wl.get("_graveyard") or {}
     pick_syms = {p["symbol"] for p in picks or []}
     added = []
+    changed = False
     bmap = {b["symbol"]: b for b in blocks or []}
 
     def _put(sym, leader, window_end, reasons, entry=None, sl=None, src="pick"):
+        nonlocal changed
         if sym and now_ms - grave.get(sym, 0) < REJOIN_COOLDOWN_H * 3600e3:
             return                       # تازه منقضی شده — درس تکراری نساز
         if not sym or sym in wl:
             # تمدید پنجره اگر شاهد تازه پنجرهٔ بلندتر می‌دهد
             if sym in wl and window_end and window_end > wl[sym].get("expires_at", 0):
                 wl[sym]["expires_at"] = window_end
+                changed = True
             return
         wl[sym] = {"leader": leader, "added_at": now_ms,
                    "expires_at": int(window_end) if window_end else
@@ -75,6 +78,7 @@ def add_candidates(blocks, picks, now_ms=None):
                    "reasons": (reasons or [])[:3], "entry": entry, "sl": sl,
                    "src": src}
         added.append(sym)
+        changed = True
 
     for p in picks or []:
         b = bmap.get(p["symbol"]) or {}
@@ -96,7 +100,7 @@ def add_candidates(blocks, picks, now_ms=None):
         leader = (proven[0] or {}).get("symbol") or b.get("via")
         _put(sym, leader, None, why, al.get("entry"), al.get("sl"), "candidate")
 
-    if added:
+    if changed:
         _save(wl)
     return wl, added
 
@@ -232,16 +236,24 @@ def merge_state(ours, theirs):
     """اجتماع دو نسخهٔ دفتر بعد از git reset ورک‌فلو (کلاس خطای ۱۷ اوت:
     reset --hard هر اجرا قبرستان را می‌کشت چون دفتر در لیست بازنشانی نبود —
     ×۲۶ درس تکراری). قبرستان: union با جدیدترین timestamp؛ ورودی‌ها: نسخهٔ
-    ما (پساپردازش همین اجرا) مقدم است، ورودیِ فقط-آن‌طرفی اگر در قبرستان
-    ادغامی نباشد می‌ماند."""
+    جدیدتر مقدم است. سابقهٔ حذف، ورودی قدیمی را برنمی‌گرداند؛ ثبت جدیدی
+    که پس از مهلت ۲۴س مجاز شده، نباید با حذف قدیمی پاک شود."""
     ours, theirs = ours or {}, theirs or {}
     g = dict(theirs.get("_graveyard") or {})
     for k, v in (ours.get("_graveyard") or {}).items():
         g[k] = max(v, g.get(k, 0))
-    out = {k: v for k, v in theirs.items() if k != "_graveyard" and k not in g}
-    for k, v in ours.items():
-        if k != "_graveyard":
-            out[k] = v
-    out = {k: v for k, v in out.items() if k not in g}
+    out = {}
+    for state in (theirs, ours):
+        for k, v in state.items():
+            if k == "_graveyard":
+                continue
+            # Compare the registration to the deletion, not just membership:
+            # historical tombstones must not erase a legitimate later cycle.
+            if k in g and (v.get("added_at") or 0) - g[k] < REJOIN_COOLDOWN_H * 3600e3:
+                continue
+            current = out.get(k)
+            stamp = lambda e: (e.get("added_at") or 0, e.get("expires_at") or 0)
+            if current is None or stamp(v) >= stamp(current):
+                out[k] = v
     out["_graveyard"] = g
     return out

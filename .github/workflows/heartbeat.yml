@@ -106,6 +106,7 @@ jobs:
           EVERY="${{ github.event.inputs.every || '20' }}"
           END=$(( $(date +%s) + MINUTES * 60 ))
           N=0
+          PUBLISH_FAILURES=0
           while [ "$(date +%s)" -lt "$END" ]; do
             N=$((N + 1))
             echo "───────── چرخهٔ $N — $(date -u '+%H:%M:%S UTC') ─────────"
@@ -120,9 +121,10 @@ jobs:
             git add signals brain claude-liam-signal/backtests 2>/dev/null
             if ! git diff --cached --quiet; then
               git commit -q -m "ضربان $(date -u '+%Y-%m-%d %H:%M') UTC"
+              PUBLISHED=0
               for a in 1 2 3; do
-                git push origin HEAD:main && break
-                git fetch origin main || true
+                git push origin HEAD:main && { PUBLISHED=1; break; }
+                python3 "$GITHUB_WORKSPACE/scripts/fetch_for_merge.py" main || break
                 if ! git merge --no-edit origin/main; then
                   # ۱۵ اوت: `--ours` اینجا ۳۹۰ ردیف دفتر معامله را پاک کرد — رانر
                   # نسخهٔ کهنهٔ خودش را «مال ما» دید. حالا هر فایل با معنای خودش
@@ -146,6 +148,10 @@ jobs:
                 fi
                 sleep $((a * 3))
               done
+              if [ "$PUBLISHED" -ne 1 ]; then
+                PUBLISH_FAILURES=$((PUBLISH_FAILURES + 1))
+                echo "::error::Cycle $N was computed but publication failed; local result retained"
+              fi
             else
               echo "چیزی تغییر نکرد"
             fi
@@ -163,7 +169,7 @@ jobs:
                   git commit -q -m "ضربان $(date -u '+%H:%M') UTC"
                   for a in 1 2 3; do
                     git push origin HEAD:gh-pages -q && break
-                    git fetch origin gh-pages -q || true
+                    python3 "$GITHUB_WORKSPACE/scripts/fetch_for_merge.py" gh-pages || break
                     git rebase origin/gh-pages -q || { git rebase --abort; break; }
                   done
                 fi )
@@ -182,9 +188,21 @@ jobs:
             echo "── $EVERY دقیقه صبر"
             sleep $((EVERY * 60))
           done
-          echo "ضربان تمام شد: $N چرخه"
+          echo "ضربان تمام شد: $N چرخه؛ publication failures=$PUBLISH_FAILURES"
+          [ "$PUBLISH_FAILURES" -eq 0 ]
 
       - name: خلاصه
         if: always()
         run: echo "ضربان در $(date -u '+%H:%M UTC') تمام شد" >> $GITHUB_STEP_SUMMARY
 
+
+      - name: Preserve unpublished results on failure
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unpublished-${{ github.workflow }}-${{ github.run_id }}
+          path: |
+            signals/
+            brain/
+            claude-liam-signal/backtests/
+          retention-days: 7
