@@ -221,6 +221,8 @@ def mark():
     for pos in positions:
         sym = pos["sym"]
         oldest[sym] = min(oldest.get(sym, pos["opened"]), pos["opened"])
+    if OPEN.parent == BOOK and BOOK.name == "paper":
+        (BOOK/"reconciliation.json").write_text(json.dumps({"checked_at":int(time.time()*1000),"open_before":before,"exact_closed_matches":before-len(positions),"remaining_before_mark":len(positions),"market_reads":len(oldest)}),encoding="utf-8")
     print(f"paper: {before} open rows; {before-len(positions)} exact closed matches; {len(oldest)} market reads", flush=True)
     # One snapshot per symbol; preserve the original per-order decision window.
     with ThreadPoolExecutor(max_workers=6) as pool:
