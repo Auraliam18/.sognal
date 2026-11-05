@@ -108,10 +108,21 @@ jobs:
               exit 0
             fi
             echo "push rejected, rebasing onto $BRANCH (attempt $attempt)"
-            git fetch origin "$BRANCH" || true
+            python3 "$GITHUB_WORKSPACE/scripts/fetch_for_merge.py" "$BRANCH" || exit 1
             git -c rebase.autoStash=true rebase "origin/$BRANCH" \
               || { git rebase --abort 2>/dev/null; exit 1; }
             sleep $((attempt * 3))
           done
           echo "could not push the report after five attempts"
           exit 1
+
+      - name: Preserve unpublished results on failure
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unpublished-${{ github.workflow }}-${{ github.run_id }}
+          path: |
+            signals/
+            brain/
+            claude-liam-signal/backtests/
+          retention-days: 7
