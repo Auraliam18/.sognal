@@ -20,7 +20,7 @@ switching it off is a bigger claim than one 52-day window supports.
 
     python3 scan.py --symbols 100 --telegram
 """
-import argparse, json, os, subprocess, sys, time
+import argparse, json, math, os, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -40,6 +40,11 @@ STRATS = {"smc": "کانال + اردر بلاک", "ibs": "IBS + پولبک"}
 
 def klines_now(sym, tf, bars=BARS):
     rows = get(f"/api/v3/klines?symbol={sym}&interval={tf}&limit={bars}")
+    step = MS[tf]
+    now = int(time.time()*1000)
+    if (len(rows) < 2 or not 0 <= now-int(rows[-1][0]) < 2*step
+        or any(int(b[0])-int(a[0]) != step for a,b in zip(rows,rows[1:]))):
+        raise ValueError(f"{sym} {tf}: stale, incomplete, or gapped live candles")
     return [{"t": k[0], "o": float(k[1]), "h": float(k[2]), "l": float(k[3]),
              "c": float(k[4]), "v": float(k[5])} for k in rows]
 
@@ -58,6 +63,19 @@ def _source_label():
     return f"کندل واقعی {label}، اسکن‌شده روی رانر گیت‌هاب"
 
 
+def current_volume_48h(rows, now):
+    """A delisted market can return a successful response from years ago."""
+    step = 3_600_000
+    bars = [r for r in rows if int(r[0]) + step <= now][-48:]
+    if (len(bars) != 48 or not 0 <= now - int(bars[-1][0]) - step < step
+        or any(int(b[0])-int(a[0]) != step for a,b in zip(bars,bars[1:]))):
+        raise ValueError("48 closed hours ending in the current window required")
+    volumes = [float(r[7]) for r in bars]
+    if any(not math.isfinite(v) or v < 0 for v in volumes) or sum(volumes) <= 0:
+        raise ValueError("no valid 48h quote volume")
+    return sum(volumes)
+
+
 def top_by_48h(n):
     """The most-traded pairs over the last 48 hours, not the last 24.
 
@@ -72,8 +90,8 @@ def top_by_48h(n):
     vols = {}
 
     def vol48(sym):
-        rows = get(f"/api/v3/klines?symbol={sym}&interval=1h&limit=48")
-        return sym, sum(float(r[7]) for r in rows)      # index 7 is quote volume
+        rows = get(f"/api/v3/klines?symbol={sym}&interval=1h&limit=49")
+        return sym, current_volume_48h(rows, int(time.time()*1000))
 
     with ThreadPoolExecutor(max_workers=10) as ex:
         for f in [ex.submit(vol48, s) for s in shortlist]:

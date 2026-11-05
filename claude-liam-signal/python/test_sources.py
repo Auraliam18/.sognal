@@ -24,6 +24,20 @@ import sources                                       # noqa: E402
 from io import BytesIO
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+import scan
+
+_step = 3_600_000
+_now = 600000 * _step + 1000
+_book = [[_now - 1000 - i*_step,1,1,1,1,1,0,10] for i in reversed(range(49))]
+_book[-1][7] = 900000  # forming candle has no place in the 48-hour ranking
+assert scan.current_volume_48h(_book, _now) == 480
+for _rows, _at in ((_book, _now + 415*86400000), (_book[:23]+_book[24:],_now)):
+    try:
+        scan.current_volume_48h(_rows, _at)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("retired or gapped market entered today's ranking")
 
 # Verify the request that actually reaches the HTTP transport.
 with patch.object(sources.urllib.request, "urlopen", return_value=BytesIO(b"[]")) as transport:
