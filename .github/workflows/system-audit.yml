@@ -1,6 +1,11 @@
 name: Strategy replay and system audit
 on:
   workflow_dispatch:
+    inputs:
+      replay:
+        description: Run real-candle research in addition to deterministic checks
+        type: boolean
+        default: true
   pull_request:
     paths: ['claude-liam-signal/python/**', 'scripts/system_audit.py', 'scripts/test_audit_publish.py', '.github/workflows/system-audit.yml']
 permissions:
@@ -42,11 +47,16 @@ jobs:
         if: always()
         with:
           name: system-audit-evidence
+          if-no-files-found: error
+          include-hidden-files: true
           path: |
             audit-results/
             terminal-*.png
           retention-days: 30
   replay:
+    # Real candle research is explicitly dispatched; routine PR changes only
+    # repeat deterministic/browser checks, avoiding duplicate heavy work.
+    if: github.event_name == 'workflow_dispatch' && inputs.replay
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -71,6 +81,7 @@ jobs:
         if: always()
         with:
           name: real-candle-replay-evidence
+          if-no-files-found: error
           path: |
             audit-results/
             claude-liam-signal/backtests/
