@@ -11,6 +11,7 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000},serviceWorkers:'block'}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const snapshot=JSON.parse(await fs.readFile('terminal/data/snapshot.json','utf8'));
+  snapshot.feeds.scan.data.signals = [{sym:'TSLABUSDT'}, {sym:'CAPUSDT'}];
   const trade={sym:'TESTUSDT',book:'hamid',dir:'LONG',entry:100,sl:99,tp1:102,R:2,outcome:'tp',closed:Date.now(),mode:'paper'};
   snapshot.ledger.available=true;snapshot.ledger.records=1;snapshot.ledger.pages=[{url:'history/0000000000000000.json',count:1,books:['hamid'],symbols:['TESTUSDT']}];
   await page.route('**/data/snapshot.json',r=>r.fulfill({json:snapshot}));
@@ -19,14 +20,25 @@ try {
   await page.route('https://www.okx.com/api/v5/market/candles?**',r=>r.fulfill({json:{code:'0',data:candles.slice().reverse()}}));
   await page.route('https://www.okx.com/api/v5/market/tickers?**',r=>r.fulfill({json:{code:'0',data:[{instId:'BTC-USDT-SWAP',last:'65432.123',ts:String(Date.now())}]}}));
   await page.route('https://api.bitget.com/**',r=>r.fulfill({json:{code:'00000',data:[]}}));
+  await page.route('https://liam-market-quotes.phoenix-hamid-2026.workers.dev/**',r=>r.fulfill({json:{
+    quotes:[{symbol:'CAPUSDT', price:0.01234, at:Date.now(), venue:'MEXC spot'}]
+  }}));
   await page.routeWebSocket(/wss:\/\//,ws=>ws.close());
   await page.route('https://data-api.binance.vision/**',r=>r.fulfill({json:candles}));
+  await page.route('https://data-api.binance.vision/api/v3/ticker/24hr?**',r=>r.fulfill({json:[
+    {symbol:'TSLABUSDT',lastPrice:'234.56',closeTime:Date.now()},
+    {symbol:'CAPUSDT',lastPrice:'789',closeTime:Date.now()}
+  ]}));
   await page.goto('http://127.0.0.1:8765/terminal/');
   await page.locator('.metric').first().waitFor();
   for(const route of ['signals','agents','learning','strategy','health','market','history','overview']) {
     await page.locator(`nav a[data-view="${route}"]`).click();
     await page.locator(`nav a[data-view="${route}"].active`).waitFor();
     assert.equal(await page.locator('.error-box').count(),0,route);
+    if(route==='signals') {
+      await page.locator('[data-market-quote="TSLABUSDT"]').first().getByText('234.56',{exact:true}).waitFor();
+      await page.locator('[data-market-quote="CAPUSDT"]').first().getByText('0.01234',{exact:true}).waitFor();
+    }
     if(route==='agents')assert.equal(await page.locator('.agent-card').count(),26);
     if(route==='market'){
       await page.locator('#chart canvas').first().waitFor();
