@@ -19,7 +19,41 @@ class TerminalContract(unittest.TestCase):
         result = own(packet, [{"kind": "trade_signal", "tg_msg_id": 8}])
         self.assertEqual((result["E12"], result["E25"]), ("fresh", "partial"))
         result = own(dict(packet, universe_n=0), [{"kind": "watch_alert", "tg_msg_id": 8}])
-        self.assertEqual((result["E12"], result["E25"]), ("partial", "fresh"))
+        self.assertEqual((result["E12"], result["E25"]), ("partial", "partial"))
+        receipt = {"kind":"trade_signal", "tg_msg_id":8, "at":1700000000000, "signal_id":"S-"+"a"*20}
+        self.assertEqual(own(packet, [receipt, {"at":1}])["E25"], "fresh")
+        self.assertEqual(own(packet, [receipt, receipt])["E25"], "partial")
+        self.assertEqual(own(packet, [])["E25"], "partial")
+
+    def test_role_checks_distinguish_review_coverage_and_legacy_receipts(self):
+        from role_evidence import inspect, delivery, history_ok, positioned
+        def inspect_role(role, packet):
+            return inspect(role, packet, lessons={}, reconciliation={}, risk={}, portfolio={})
+        review = {"at":1700000000000, "closed":2,"books":{"alarm":{"n":2}},"verdict":"reviewed"}
+        packet = {"review":review, "coverage":{"complete":False}}
+        _, missing, clock = inspect_role("E20",packet)
+        self.assertEqual(missing, [])
+        self.assertEqual(clock[0],review["at"])
+        review["closed"] = 3
+        self.assertTrue(inspect_role("E20",packet)[1])
+        self.assertFalse(history_ok({"1h":200,"4h":199,"15m":60}))
+        self.assertFalse(positioned({"dir":"LONG","sl":1,"entry":2,"tp1":2,"tp2":3}))
+        log = delivery([{"kind":"watch_alert","tg_msg_id":True,"at":1},{"at":1},
+                        {"kind":"watch_alert","tg_msg_id":2,"at":1}])
+        self.assertEqual((log["trade_receipts"],log["watch_receipts"],log["invalid"],log["legacy_unverified"]), (0,1,1,1))
+
+    def test_radar_recovers_only_with_the_required_closed_bars(self):
+        from hamid import ob_intel
+        from unittest.mock import patch
+        calls = []
+        def fetch(symbol, frame, size):
+            calls.append((frame,size))
+            if size in (61,201):
+                return [{"c":1}] * (size-1)
+            return []
+        with patch.object(ob_intel,"analyze",return_value=[]):
+            self.assertEqual(set(ob_intel.radar_for("FIXTURE",fetch)["observed_frames"]), {"15m","1h","4h"})
+        self.assertEqual(len(calls),6)
 
     def test_freshness_never_rebrands_missing_or_future_time(self):
         self.assertEqual(b.freshness(None, 1000000, 60), "unknown")

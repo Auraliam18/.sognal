@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "claude-liam-signal/python"))
 from hamid.settled_evidence import Outcomes
 import jsonl_store
+import role_evidence
 import yaml
 
 VERSION = "1.0.0"
@@ -187,12 +188,23 @@ def ledger(root, output, now, page_size=1000):
         stat["win_pct"] = round(100 * stat["wins"] / n, 2) if n else None
         stat["sum_r"] = round(stat["sum_r"], 5)
         stat["days"] = [{"date": d, "r": round(r, 5)} for d, r in sorted(stat["days"].items())]
-    opened = [public_trade(r, i) for i, r in enumerate(jsonl_store.read(root / "brain/paper/open.jsonl")) if isinstance(r, dict)]
-    return {"available": exists, "computed_at": now, "last_result_at": last, "mode": "paper", "records": len(rows), "malformed_records": bad, "evidence_counts": dict(grades), "books": list(stats.values()), "open": opened, "recent": rows[:100], "pages": pages, "source": "brain/paper/closed.jsonl + .parts", "limitations": "پیپر و بازپخش روی کندل واقعی؛ فیل صرافی، لغزش و سرمایهٔ واقعی نیست. فقط یک نتیجهٔ سازگار با قیمت‌های معتبر برای هر موقعیت در آمار می‌آید؛ همهٔ ردیف‌های خام برای بررسی محفوظ‌اند."}
+    open_path = root / "brain/paper/open.jsonl"
+    open_rows = [r for r in jsonl_store.read(open_path) if isinstance(r, dict)]
+    opened = [public_trade(r, i) for i, r in enumerate(open_rows)]
+    # Keep different research books separate from the main paper portfolio.
+    primary = [r for r in open_rows if book_of(r) == "hamid"]
+    notionals = [r["notional_usd"] for r in primary if number(r.get("notional_usd")) is not None and r["notional_usd"] > 0]
+    portfolio = {"available": open_path.is_file() or jsonl_store.parts(open_path).is_dir(),
+                 "book": "hamid", "open_positions": len(primary), "sized_positions": len(notionals),
+                 "exposure_usd": sum(notionals) if len(notionals) == len(primary) else None}
+    return {"portfolio": portfolio, "available": exists, "computed_at": now, "last_result_at": last, "mode": "paper", "records": len(rows), "malformed_records": bad, "evidence_counts": dict(grades), "books": list(stats.values()), "open": opened, "recent": rows[:100], "pages": pages, "source": "brain/paper/closed.jsonl + .parts", "limitations": "پیپر و بازپخش روی کندل واقعی؛ فیل صرافی، لغزش و سرمایهٔ واقعی نیست. فقط یک نتیجهٔ سازگار با قیمت‌های معتبر برای هر موقعیت در آمار می‌آید؛ همهٔ ردیف‌های خام برای بررسی محفوظ‌اند."}
 
 
 def engine_packets(root, feeds, history, now):
     registry = yaml.safe_load((root / "config/engine_registry.yaml").read_text(encoding="utf-8"))
+    lessons = role_evidence.mapping(read_json(root / "brain/memory/lessons.json"))
+    reconciliation = role_evidence.mapping(read_json(root / "brain/paper/reconciliation.json"))
+    risk = role_evidence.mapping(read_json(root / "config/risk.json"))
     result = []
     for i, (feed, name, module, required, deps) in enumerate(ENGINE_BINDINGS):
         definition = registry["engines"][i]
@@ -203,25 +215,28 @@ def engine_packets(root, feeds, history, now):
             missing = [field for field in required if at(evidence["data"], field) is None]
             if feed == "radar" and not (number(at(evidence["data"], "universe_n")) or 0) > 0:
                 missing.append("observed market universe")
-            if feed == "delivery" and isinstance(at(evidence["data"], "sent"), list):
-                for row in evidence["data"]["sent"]:
-                    if (not isinstance(row, dict) or not row.get("tg_msg_id")
-                        or row.get("kind") not in {"trade_signal", "watch_alert"}
-                        or (row["kind"] == "trade_signal" and not row.get("signal_id"))):
-                        missing.append("linked delivery evidence")
-                        break
-            if status == "fresh" and missing:
-                status = "partial"
-            if feed in {"hamid","blocks"} and at(evidence["data"], "coverage.complete") is False and status == "fresh":
-                status = "partial"
             if status == "fresh" and feed == "conformance" and at(evidence["data"], "ok") is False:
                 status = "attention"
             ts = evidence["generated"]
             path = evidence["path"]
         else:
-            status = "fresh" if feed == "terminal" or history["available"] else "missing"
+            status = "fresh" if feed == "terminal" or (feed == "ledger" and history["available"]) else "missing"
             ts, path = now, "terminal/data/snapshot.json" if feed == "terminal" else history["source"]
-        result.append({"id": definition["id"], "name": name, "output": definition["output"], "state": status, "observed_at": ts, "source": path, "feed": feed, "required": required, "missing": missing, "dependencies": deps, "version": registry["version"], "module": f"hamid/{module}.py" if module else "scripts/build_terminal.py", "claim": "وضعیت شواهدِ منتشرشده؛ تضمین عملکرد یا اثبات اجرای مدل نیست"})
+        stats, gaps, clock = role_evidence.inspect(definition["id"], feeds.get(feed, {}).get("data"),
+                lessons=lessons, reconciliation=reconciliation, risk=risk, portfolio=history.get("portfolio", {}))
+        missing.extend(gaps)
+        if definition["id"] == "E19":
+            path = "brain/paper/reconciliation.json"
+        if definition["id"] == "E21":
+            path += " + brain/memory/lessons.json"
+        if clock is not None:
+            ts = stamp(clock[0])
+            clock_state = freshness(ts, now, clock[1])
+            if clock_state != "fresh" and status == "fresh":
+                status = clock_state
+        if status == "fresh" and missing:
+            status = "partial"
+        result.append({"evidence": stats, "evidence_ttl": clock[1] if clock else None, "id": definition["id"], "name": name, "output": definition["output"], "state": status, "observed_at": ts, "source": path, "feed": feed, "required": required, "missing": missing, "dependencies": deps, "version": registry["version"], "module": f"hamid/{module}.py" if module else "scripts/build_terminal.py", "claim": "وضعیت شواهدِ منتشرشده؛ تضمین عملکرد یا اثبات اجرای مدل نیست"})
     by_id = {e["id"]:e for e in result}
     def blocked(e, trail=()):
         if e["id"] in trail:
