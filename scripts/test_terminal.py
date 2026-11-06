@@ -11,10 +11,10 @@ import build_terminal as b
 class TerminalContract(unittest.TestCase):
     def test_observed_no_pick_and_unlinked_delivery_have_different_health(self):
         def own(radar, sent):
-            feeds = {k: {"generated": 1, "path": k, "state": "fresh", "data": data}
+            feeds = {k: {"generated": 1700000000000, "path": k, "state": "fresh", "data": data}
                      for k, data in [("radar", radar), ("delivery", {"sent": sent})]}
             return {e["id"]: e["own_state"] for e in
-                    b.engine_packets(b.ROOT, feeds, {"available": True, "source": "fixture"}, 1)}
+                    b.engine_packets(b.ROOT, feeds, {"available": True, "source": "fixture"}, 1700000000000)}
         packet = {"universe_n": 30, "coins": [], "recommendation": [], "verdict": None}
         result = own(packet, [{"kind": "trade_signal", "tg_msg_id": 8}])
         self.assertEqual((result["E12"], result["E25"]), ("fresh", "partial"))
@@ -22,6 +22,8 @@ class TerminalContract(unittest.TestCase):
         self.assertEqual((result["E12"], result["E25"]), ("partial", "partial"))
         receipt = {"kind":"trade_signal", "tg_msg_id":8, "at":1700000000000, "signal_id":"S-"+"a"*20}
         self.assertEqual(own(packet, [receipt, {"at":1}])["E25"], "fresh")
+        self.assertEqual(own(packet, [dict(receipt, at=1600000000000)])["E25"], "stale")
+        self.assertEqual(own(packet, [dict(receipt, at=1800000000000)])["E25"], "clock_error")
         self.assertEqual(own(packet, [receipt, receipt])["E25"], "partial")
         self.assertEqual(own(packet, [])["E25"], "partial")
 
@@ -41,6 +43,17 @@ class TerminalContract(unittest.TestCase):
         log = delivery([{"kind":"watch_alert","tg_msg_id":True,"at":1},{"at":1},
                         {"kind":"watch_alert","tg_msg_id":2,"at":1}])
         self.assertEqual((log["trade_receipts"],log["watch_receipts"],log["invalid"],log["legacy_unverified"]), (0,1,1,1))
+
+    def test_order_book_preserves_source_time_and_rejects_crossed_books(self):
+        from hamid import intel
+        from unittest.mock import patch
+        row={"ts":"1700000000000","bids":[["10","4"]],"asks":[["11","1"]]}
+        with patch.object(intel,"_json",return_value={"data":[row]}):
+            result=intel.order_book()
+            self.assertEqual((result["at"],result["imbalance"]), (1700000000000,0.6))
+            row["bids"][0][0]="12"
+            with self.assertRaises(ValueError):
+                intel.order_book()
 
     def test_radar_recovers_only_with_the_required_closed_bars(self):
         from hamid import ob_intel

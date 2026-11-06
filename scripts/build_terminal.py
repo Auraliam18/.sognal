@@ -202,6 +202,8 @@ def ledger(root, output, now, page_size=1000):
 
 def engine_packets(root, feeds, history, now):
     registry = yaml.safe_load((root / "config/engine_registry.yaml").read_text(encoding="utf-8"))
+    registry_file = root / "strategies/registry.yaml"
+    routes = yaml.safe_load(registry_file.read_text(encoding="utf-8")) if registry_file.exists() else {}
     lessons = role_evidence.mapping(read_json(root / "brain/memory/lessons.json"))
     reconciliation = role_evidence.mapping(read_json(root / "brain/paper/reconciliation.json"))
     risk = role_evidence.mapping(read_json(root / "config/risk.json"))
@@ -223,10 +225,13 @@ def engine_packets(root, feeds, history, now):
             status = "fresh" if feed == "terminal" or (feed == "ledger" and history["available"]) else "missing"
             ts, path = now, "terminal/data/snapshot.json" if feed == "terminal" else history["source"]
         stats, gaps, clock = role_evidence.inspect(definition["id"], feeds.get(feed, {}).get("data"),
-                lessons=lessons, reconciliation=reconciliation, risk=risk, portfolio=history.get("portfolio", {}))
+                lessons=lessons, reconciliation=reconciliation, risk=risk, portfolio=history.get("portfolio", {}),
+                routes=role_evidence.mapping(routes), cycle=role_evidence.mapping(feeds.get("hamid", {}).get("data")))
         missing.extend(gaps)
         if definition["id"] == "E19":
             path = "brain/paper/reconciliation.json"
+        if definition["id"] == "E11":
+            path += " + strategies/registry.yaml + signals/hamid-latest.json"
         if definition["id"] == "E21":
             path += " + brain/memory/lessons.json"
         if clock is not None:

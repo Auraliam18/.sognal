@@ -59,7 +59,7 @@ def delivery(rows):
             "invalid": groups["invalid"], "reused_receipts": sum(n-1 for n in receipts.values())}
 
 
-def inspect(role, raw, *, lessons, reconciliation, risk, portfolio):
+def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None):
     data = mapping(raw)
     stats, missing = {}, []
     source_clock = None
@@ -107,17 +107,30 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio):
             ts = str(oi.get("at", ""))
             source_clock = (int(ts) if ts.isascii() and ts.isdecimal() and len(ts) <= 14 else None, 3600)
         # Candle-derived attraction zones do not establish the order book or observed liquidations.
-        need(bool(mapping(world.get("order_book")).get("source")) and bool(mapping(world.get("liquidations")).get("source")),
-             "پوشش عمق سفارش و لیکوییدیشن واقعی برای نمادها")
+        depth = mapping(world.get("order_book"))
+        stats["btc_depth"] = depth
+        need(depth.get("instrument") == "BTC-USDT-SWAP" and finite(depth.get("imbalance"))
+             and abs(depth["imbalance"]) <= 1 and finite(depth.get("at"))
+             and finite(data.get("generated")) and -300000 <= data["generated"] - depth["at"] <= 3600000,
+             "نمونهٔ زمان‌دار عمق سفارش بیت‌کوین")
+        need(bool(mapping(world.get("liquidations")).get("source")), "دادهٔ مستقل لیکوییدیشن نمادها")
     elif role == "E11":
-        routes = mapping(data.get("per_strategy"))
-        stats["published_routes"] = sorted(routes)
-        need(all(all(count(mapping(v).get(k)) for k in ("signals","armed","watching")) for v in routes.values())
-             and bool(routes), "شمارش مسیرها")
-        route_ids = {v.get("strategy_id") for v in routes.values() if isinstance(v,dict) and v.get("version")
-                     and isinstance(v.get("strategy_id"),str)}
-        need({"S1","S2","Liam S","IBS + Pullback Plus","ONE-IDM Wick 15"} <= route_ids,
-             "شاهد تفکیک‌شدهٔ پنج مسیر نسخه‌دار در قرارداد E11")
+        observed = mapping(data.get("per_strategy"))
+        stats["published_routes"] = sorted(observed)
+        need(all(all(count(mapping(v).get(k)) for k in ("signals","armed","watching")) for v in observed.values())
+             and bool(observed), "شمارش مسیرهای اسکن")
+        declared = mapping(routes)
+        contract = ("s1","s2","liam_s","ibs_pullback_plus","one_idm_wick_15")
+        stats["registry"] = {k:{f:mapping(declared.get(k)).get(f) for f in ("strategy_id","version","status")}
+                             for k in contract}
+        for key, rule in stats["registry"].items():
+            need(rule["strategy_id"] and rule["version"] and rule["status"] in ("LIVE_SIGNAL","EXPERIMENT_ONLY"),
+                 f"تعریف اجرایی نسخه‌دار {key}")
+        primary = mapping(cycle)
+        stats["paper_inducement"] = len(items(primary.get("inducement")))
+        stats["primary_candidates"] = len(items(primary.get("setups")))
+        need(isinstance(primary.get("inducement"),list) and isinstance(primary.get("setups"),list),
+             "خروجی مسیر اصلی و آزمایشی پولبک")
     elif role == "E15":
         alarms = data.get("alarms")
         stats["alarms"] = len(items(alarms))
@@ -181,6 +194,8 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio):
                  for r in rows), "وضعیت اعتبارسنجی و تصمیم پیشنهادها")
     elif role == "E25":
         stats = delivery(data.get("sent"))
+        if stats["last_trade_at"] is not None:
+            source_clock = (stats["last_trade_at"], 3600)
         need(stats["trade_receipts"] > 0, "رسید تلگرام متصل به شناسهٔ سیگنال معاملاتی")
         need(stats["invalid"] == 0 and stats["reused_receipts"] == 0, "رسید ناسازگار یا تکراری")
     return stats, missing, source_clock
