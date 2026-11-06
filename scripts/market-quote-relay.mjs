@@ -1,0 +1,61 @@
+// Public, read-only last prices for the two exchange REST feeds that lack browser CORS.
+// Deploy as liam-market-quotes on the panel owner's workers.dev subdomain.
+const venues = {
+  'Bitunix futures': 'https://fapi.bitunix.com/api/v1/futures/market/tickers',
+  'MEXC spot': 'https://api.mexc.com/api/v3/ticker/24hr',
+};
+const origin = 'https://auraliam18.github.io';
+const ttl = 15000;
+const batches = new Map();
+
+async function readBatch(venue) {
+  const res = await fetch(venues[venue], {signal: AbortSignal.timeout(4500), cache: 'no-store'});
+  if (!res.ok) throw Error('exchange unavailable');
+  const body = await res.json();
+  const futures = venue === 'Bitunix futures';
+  const rows = futures && body.code === 0 ? body.data : body;
+  if (!Array.isArray(rows)) throw Error('invalid exchange response');
+  const httpDate = Date.parse(res.headers.get('Date'));
+  const quotes = new Map();
+  for (const row of rows) {
+    const price = Number(futures ? row.last : row.lastPrice);
+    const at = futures ? httpDate : Number(row.closeTime);
+    if (typeof row.symbol === 'string' && row.symbol.endsWith('USDT') &&
+        Number.isFinite(price) && price > 0 && Number.isSafeInteger(at)) {
+      quotes.set(row.symbol, {symbol: row.symbol, price, at, venue});
+    }
+  }
+  return quotes;
+}
+
+function batch(venue) {
+  const cached = batches.get(venue);
+  if (cached && Date.now() - cached.started < 4000) return cached.promise;
+  const item = {started: Date.now(), promise: readBatch(venue)};
+  batches.set(venue, item);
+  item.promise.catch(() => { if (batches.get(venue) === item) batches.delete(venue); });
+  return item.promise;
+}
+
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method !== 'GET' || url.pathname !== '/v1/tickers') return new Response(null, {status:404});
+    if (request.headers.has('Origin') && request.headers.get('Origin') !== origin) return new Response(null, {status:403});
+    const symbols = [...new Set((url.searchParams.get('symbols') || '').split(','))];
+    if (symbols.length > 300 || symbols.some(s => s.length > 48 || !s.endsWith('USDT'))) return new Response(null, {status:400});
+    const quotes = [], unavailable = [];
+    await Promise.all(Object.keys(venues).map(async venue => {
+      try {
+        const data = await batch(venue);
+        for (const symbol of symbols) {
+          const q = data.get(symbol);
+          if (q && Date.now() - q.at <= ttl && q.at <= Date.now() + 2000) quotes.push(q);
+        }
+      } catch { unavailable.push(venue); }
+    }));
+    return Response.json({quotes, unavailable}, {headers:{
+      'Access-Control-Allow-Origin':origin, 'Cache-Control':'no-store', 'Vary':'Origin',
+    }});
+  },
+};
