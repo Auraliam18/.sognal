@@ -12,6 +12,7 @@ URLS = {
     "OKX swap": "https://www.okx.com/api/v5/market/tickers?instType=SWAP",
     "Bitget spot": "https://api.bitget.com/api/v2/spot/market/tickers",
     "MEXC spot": "https://api.mexc.com/api/v3/ticker/24hr",
+    "Binance spot": "https://data-api.binance.vision/api/v3/ticker/24hr?type=MINI",
 }
 MAX_AGE_MS = 15000
 
@@ -54,7 +55,7 @@ def fetch(source):
     with urlopen(request, timeout=5) as response:
         packet = json.load(response)
         at = int(parsedate_to_datetime(response.headers["Date"]).timestamp()*1000) if source == BITUNIX else None
-    if source == "MEXC spot":
+    if source in ("MEXC spot", "Binance spot"):
         rows = packet
     else:
         if str(packet.get("code")) not in ("0", "00000"):

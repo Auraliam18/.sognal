@@ -147,7 +147,7 @@ function priceSocket(url, subscribe, receive, ping) {
 
 
 export function livePrices(onChange) {
-  const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot'];
+  const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot','Binance spot'];
   let wanted = new Set();
   let lastPoll = 0, pollAbort;
   function save(q) {
@@ -180,11 +180,35 @@ export function livePrices(onChange) {
     }, ()=>({method:'PING'}));
   async function poll() {
     const abort = pollAbort = new AbortController();
-    const timeout=setTimeout(()=>abort.abort(),5000);
+    const timeout=setTimeout(()=>abort.abort(),7500);
+    // These two exchanges do not expose REST tickers to cross-origin browsers.
+    // Their change-only streams can stay silent for an otherwise listed market.
+    async function pollRelay(symbols) {
+      const url = new URL('https://liam-market-quotes.phoenix-hamid-2026.workers.dev/v1/tickers');
+      url.searchParams.set('symbols', symbols.join(','));
+      const response = await fetch(url, {cache:'no-store', signal:abort.signal});
+      if (!response.ok) return;
+      const packet = await response.json();
+      if (abort.signal.aborted || !Array.isArray(packet.quotes)) return;
+      for (const row of packet.quotes) {
+        if (row?.venue === 'Bitunix futures' || row?.venue === 'MEXC spot') {
+          save(marketQuote(row.symbol, row.price, row.at, row.venue));
+        }
+      }
+      onChange();
+    }
     async function provider(url, venue) {
       const response=await fetch(url,{cache:'no-store',signal:abort.signal});
       if (!response.ok) throw Error('quote feed unavailable');
       const packet=await response.json();
+      if (venue === 'Binance spot') {
+        if (abort.signal.aborted || !Array.isArray(packet)) return;
+        for (const row of packet) {
+          if (wanted.has(row.symbol)) save(marketQuote(row.symbol,row.lastPrice,row.closeTime,venue));
+        }
+        onChange();
+        return;
+      }
       if (abort.signal.aborted || !['0','00000'].includes(String(packet.code)) || !Array.isArray(packet.data)) return;
       for (const row of packet.data) {
         if (venue === 'OKX swap') {
@@ -194,9 +218,13 @@ export function livePrices(onChange) {
       onChange();
     }
     try {
+      const symbols = [...wanted], batches = [];
+      for (let i=0; i<symbols.length; i+=100) batches.push(pollRelay(symbols.slice(i,i+100)));
       await Promise.allSettled([
+        ...batches,
         provider('https://www.okx.com/api/v5/market/tickers?instType=SWAP','OKX swap'),
-        provider('https://api.bitget.com/api/v2/spot/market/tickers','Bitget spot')
+        provider('https://api.bitget.com/api/v2/spot/market/tickers','Bitget spot'),
+        provider('https://data-api.binance.vision/api/v3/ticker/24hr?type=MINI','Binance spot')
       ]);
     } finally { clearTimeout(timeout); if (pollAbort===abort) pollAbort=null; }
   }
