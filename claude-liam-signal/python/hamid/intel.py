@@ -103,6 +103,26 @@ def open_interest():
     return {"btc_oi": float(d.get("oiCcy") or 0), "at": d.get("ts")}
 
 
+def order_book():
+    """One public BTC swap depth snapshot, in contracts, with exchange timestamp."""
+    import math
+    data = _json("https://www.okx.com/api/v5/market/books?instId=BTC-USDT-SWAP&sz=20")["data"][0]
+    sides = {}
+    for side in ("bids", "asks"):
+        levels = [(float(row[0]), float(row[1])) for row in data[side]]
+        if not levels or not all(math.isfinite(v) and v > 0 for pair in levels for v in pair):
+            raise ValueError("invalid depth levels")
+        sides[side] = levels
+    bid = max(price for price, _ in sides["bids"])
+    ask = min(price for price, _ in sides["asks"])
+    if bid >= ask or int(data["ts"]) <= 0:
+        raise ValueError("invalid book or time")
+    bid_size, ask_size = (sum(size for _,size in sides[side]) for side in ("bids","asks"))
+    return {"source":"OKX", "instrument":"BTC-USDT-SWAP", "at":int(data["ts"]),
+            "bid_levels":len(sides["bids"]), "ask_levels":len(sides["asks"]),
+            "best_bid":bid, "best_ask":ask, "imbalance":(bid_size-ask_size)/(bid_size+ask_size)}
+
+
 def _tv_calendar():
     """تقویم رویدادهای تریدینگ‌ویو — پشتیبان تقویم اصلی (خواستهٔ حمید: سرچ
     مداوم در تریدینگ‌ویو و ایونت‌ها). فقط رویدادهای اهمیت بالا."""
@@ -218,6 +238,7 @@ SOURCES = [
     ("dominance", dominance, "market"),
     ("funding", funding, "trade"),
     ("open_interest", open_interest, "trade"),
+    ("order_book", order_book, "trade"),
     ("calendar", calendar, "intel"),
     ("news", news, "intel"),
     ("trending", trending, "radar"),
