@@ -37,6 +37,8 @@ def parse_quote(source, row, response_time, now):
             last, at = row.get("lastPrice"), row.get("closeTime")
     if not isinstance(symbol, str) or not symbol.endswith("USDT"):
         return None
+    if isinstance(last, bool) or isinstance(at, bool):
+        return None
     try:
         price, at = float(last), int(at)
     except (TypeError, ValueError, OverflowError):

@@ -235,6 +235,14 @@ def recent_fixture(sym,tf,n,**kw):
     return [[end-(n-1-i)*step,px,px*1.001,px*.999,px,1.] for i in range(n)]
 _sources.klines=recent_fixture
 from hamid import market_quotes as _mq
+_qt = _mq.now_ms()
+qrow = {"symbol":"BTCUSDT","last":"123.4","markPrice":"9000","lastPrice":"9999"}
+_q = _mq.parse_quote(_mq.BITUNIX,qrow,_qt,_qt)
+check("قیمت بازار از فیلد معامله خوانده شد", _q["price"] == 123.4 and _q["clock"] == "http_date")
+check("قیمت منقضی یا آینده رد می‌شود", all(_mq.parse_quote(_mq.BITUNIX,qrow,ts,_qt) is None for ts in (_qt-15001,_qt+2001)))
+check("قیمت مرجع صرافی دیگر اجازهٔ ارسال نمی‌دهد", _mq.entry_check({"sym":"BTCUSDT","entry":123.4,"sl":120,"dir":"LONG"},dict(_q,venue="MEXC spot"))[0]=="no_execution_quote")
+check("قراردادهای ضریب‌دار به نام سکهٔ معمولی تبدیل نمی‌شوند",
+      _mq.parse_quote("OKX swap", {"instId":"1000PEPE-USDT-SWAP","last":"1","ts":_qt},None,_qt)["symbol"] == "1000PEPEUSDT")
 _original_quote = _mq.execution_quote
 _mq.execution_quote = lambda sym: {"symbol":sym, "venue":_mq.BITUNIX, "price":PX.get(sym,1.0),
                                     "observed_at":_mq.now_ms(), "clock":"http_date"}
