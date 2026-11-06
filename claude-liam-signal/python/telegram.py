@@ -304,10 +304,10 @@ def caption(s):
         L.append(f"🪜 <i>قانون تریل: با رسیدن قیمت به <code>{third:.10g}</code> "
                  f"(⅓ مسیر تارگت)، استاپ را بیاور در سودِ کارمزددار؛ در ⅔ مسیر، "
                  f"استاپ به همان ⅓. دفتر کاغذی همین را خودکار حساب می‌کند.</i>")
-    # هم‌زمانی — قیمت لحظهٔ ارسال از کندل ۵ دقیقه، تا حمید ببیند ورود نگذشته
+    # هم‌زمانی — قیمت لحظهٔ ارسال از قرارداد Bitunix، تا حمید ببیند ورود نگذشته
     sy = s.get("sync")
     if sy:
-        L.append(f"⏱ <i>قیمت لحظهٔ ارسال <code>{sy['price']:.10g}</code> — "
+        L.append(f"⏱ <i>قیمت لحظهٔ ارسال Bitunix <code>{sy['price']:.10g}</code> — "
                  f"فاصله تا ورود {sy['dist_pct']:+}٪</i>")
     # ساعت تحلیل و ساعت ارسال، به وقت ایران — تا تأخیر قابل راستی‌آزمایی باشد
     an = s.get("analyzed_at")
@@ -409,25 +409,9 @@ def send_signals(signals, render_chart, limit=8):
     tmp = Path(__file__).resolve().parent / ".charts"
     tmp.mkdir(exist_ok=True)
     for s in fresh:
-        # هم‌زمانی با نقطهٔ ورود — شکایت حمید: سیگنال یا از ورود رد شده بود
-        # یا فاصلهٔ زیادی داشت. همین لحظه آخرین کندل ۵ دقیقه خوانده می‌شود؛
-        # ردشده یا دورتر از حد → ارسال نمی‌شود، بی‌استثنا.
-        try:
-            import sources as _src0
-            _k5 = _src0.klines(s["sym"], "5m", 3)
-            import math
-            from hamid.position_state import geometry
-            if not geometry(s.get("dir"), s.get("entry"), s.get("sl"), s.get("tp1"), s.get("tp2")):
-                print(f"telegram: invalid price geometry for {s.get('sym')}"); continue
-            bar_start = int(_k5[-1][0])
-            _px = float(_k5[-1][4])
-            if not math.isfinite(_px) or _px <= 0 or not 0 <= time.time()*1000 - bar_start < 600000:
-                raise ValueError("invalid or stale 5m price")
-        except Exception as e:                        # noqa: BLE001
-            _px = None
-            print(f"  قیمت لحظهٔ {s['sym']} در دسترس نبود ({type(e).__name__}) — "
-                  f"دروازهٔ هم‌زمانی رد شد", flush=True)
-        if _px is None:
+        from hamid.position_state import geometry
+        if not geometry(s.get("dir"), s.get("entry"), s.get("sl"), s.get("tp1"), s.get("tp2")):
+            print(f"telegram: invalid price geometry for {s.get('sym')}")
             continue
         try:
             macro = decision_context(s["sym"], TGLOG.parent, int(time.time()*1000))
@@ -463,21 +447,6 @@ def send_signals(signals, render_chart, limit=8):
             print(f"  دروازهٔ روند {s['sym']}: {type(_e).__name__} — "
                   f"دادهٔ ناقص، ارسال نشد", flush=True)
             continue
-        if _px is not None and s.get("entry") and s.get("sl"):
-            _stop_frac = abs(s["entry"] - s["sl"]) / s["entry"]
-            _signed = ((_px - s["entry"]) / s["entry"] if s["dir"] == "LONG"
-                       else (s["entry"] - _px) / s["entry"])
-            if _signed < -0.5 * _stop_frac:
-                print(f"  ⏱ {s['sym']} صادر نشد — قیمت از نقطهٔ ورود رد شده "
-                      f"({_signed*100:+.2f}٪ به سمت استاپ)؛ سیگنالِ دیر نمی‌فرستیم", flush=True)
-                sent[f"skip|{_key(s)}"] = now_ms
-                continue
-            if _signed > 0.025:
-                print(f"  ⏱ {s['sym']} صادر نشد — فاصله تا ورود {_signed*100:.2f}٪ "
-                      f"است؛ سیگنال ناهم‌زمان نمی‌فرستیم", flush=True)
-                sent[f"skip|{_key(s)}"] = now_ms
-                continue
-            s["sync"] = {"price": _px, "bar_open": bar_start, "observed_at": int(time.time()*1000), "dist_pct": round(_signed * 100, 2)}
         # بازجویی پیش از صدور — قانون حمید: اول در ۱۵ دقیقه ببین چه چیزهایی
         # می‌تواند استاپت کند؛ فقط با دلایلِ تارگتِ بیشتر صادر کن. سیگنالِ
         # ردشده به دفتر vetoed می‌رود تا خود دروازه نمره بگیرد. خطای زیرساخت
@@ -521,13 +490,30 @@ def send_signals(signals, render_chart, limit=8):
                 except Exception:                     # noqa: BLE001
                     pass
                 continue
-        import hashlib
-        s["signal_id"] = "S-" + hashlib.sha256(f"{_key(s)}|{bar_start}|{s['entry']}|{s['sl']}|{s['tp1']}".encode()).hexdigest()[:20]
         png = None
         try:
             png = render_chart(s, str(tmp / f"{s['sym']}-{s['tf']}.png"))
         except Exception as e:                        # noqa: BLE001 - a chart failure must not lose the signal
             print(f"  chart failed for {s['sym']}: {e}", flush=True)
+        # Charting and trend analysis can take time. Compare to the actual
+        # execution venue immediately before the first outbound request.
+        from hamid import market_quotes
+        try:
+            quote = market_quotes.execution_quote(s["sym"])
+            decision, distance = market_quotes.entry_check(s, quote)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f"telegram: no execution quote for {s['sym']} ({type(error).__name__})")
+            continue
+        if decision != "within_entry_window":
+            print(f"telegram: {s['sym']} price gate: {decision}")
+            if decision in ("passed_entry","far_from_entry"):
+                sent[f"skip|{_key(s)}"] = now_ms
+            continue
+        s["sync"] = {**quote, "dist_pct": round(distance * 100, 2)}
+        # Keep the existing five-minute deduplication key independent of ticks.
+        bar_start = quote["observed_at"] // 300000 * 300000
+        import hashlib
+        s["signal_id"] = "S-" + hashlib.sha256(f"{_key(s)}|{bar_start}|{s['entry']}|{s['sl']}|{s['tp1']}".encode()).hexdigest()[:20]
         try:
             if png:
                 with open(png, "rb") as f:

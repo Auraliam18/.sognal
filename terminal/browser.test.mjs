@@ -16,6 +16,10 @@ try {
   await page.route('**/data/snapshot.json',r=>r.fulfill({json:snapshot}));
   await page.route('**/history/0000000000000000.json',r=>r.fulfill({json:[trade]}));
   const candles=Array.from({length:200},(_,i)=>[1700000000000+i*3600000,'100','103','98',String(100+i/100),'1000']);
+  await page.route('https://www.okx.com/api/v5/market/candles?**',r=>r.fulfill({json:{code:'0',data:candles.slice().reverse()}}));
+  await page.route('https://www.okx.com/api/v5/market/tickers?**',r=>r.fulfill({json:{code:'0',data:[{instId:'BTC-USDT-SWAP',last:'65432.123',ts:String(Date.now())}]}}));
+  await page.route('https://api.bitget.com/**',r=>r.fulfill({json:{code:'00000',data:[]}}));
+  await page.routeWebSocket(/wss:\/\//,ws=>ws.close());
   await page.route('https://data-api.binance.vision/**',r=>r.fulfill({json:candles}));
   await page.goto('http://127.0.0.1:8765/terminal/');
   await page.locator('.metric').first().waitFor();
@@ -24,7 +28,10 @@ try {
     await page.locator(`nav a[data-view="${route}"].active`).waitFor();
     assert.equal(await page.locator('.error-box').count(),0,route);
     if(route==='agents')assert.equal(await page.locator('.agent-card').count(),26);
-    if(route==='market')await page.locator('#chart canvas').first().waitFor();
+    if(route==='market'){
+      await page.locator('#chart canvas').first().waitFor();
+      await page.locator('#chart-quote').getByText('65,432.123',{exact:true}).waitFor();
+    }
     if(route==='history'){
       await page.locator('#history-table').getByText('TEST',{exact:false}).first().waitFor();
       const download=page.waitForEvent('download');await page.locator('#history-export').click();assert.ok((await download).suggestedFilename().endsWith('.csv'));

@@ -32,3 +32,19 @@ test('a newly rendered ledger preserves role gaps and the reconciliation clock',
   assert.equal(engineState(role,{},ledger,now),'partial');
   assert.equal(engineState({...role,missing:[],observed_at:now-4000000},{},ledger,now),'stale');
 });
+
+test('exchange quotes expire and malformed or future prices cannot be displayed',async()=>{
+  const {marketQuote}=await import('./lib.mjs');
+  const t=1700000000000;
+  assert.equal(marketQuote('BTCUSDT','1.25',t,'Bitunix futures',t).price,1.25);
+  for(const price of [null,true,'','Infinity','0',-1]) assert.equal(marketQuote('BTCUSDT',price,t,'Bitunix futures',t),null);
+  for(const at of [t-15001,t+2001,undefined,0]) assert.equal(marketQuote('BTCUSDT','1',at,'OKX swap',t),null);
+});
+
+test('MEXC aggregate ticker reads the original exchange time and exact symbol',async()=>{
+  const {mexcTickers}=await import('./lib.mjs');
+  const sample=Uint8Array.from([48,128,208,149,255,188,49,178,19,18,10,16,10,7,66,84,67,85,83,68,84,18,5,49,46,50,51,52]);
+  const ticks=[];mexcTickers(sample.buffer,(...row)=>ticks.push(row));
+  assert.deepEqual(ticks,[['BTCUSDT','1.234',1700000000000]]);
+  assert.throws(()=>mexcTickers(sample.slice(0,-1).buffer,()=>{}));
+});

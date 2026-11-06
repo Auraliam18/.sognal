@@ -60,3 +60,164 @@ export function csv(rows) {
   const cell=v=>'"'+String(v??'').replace(/^[=+@\-]/,"'$&").replaceAll('"','""')+'"';
   return '\uFEFF'+[keys.map(cell).join(','),...rows.map(r=>keys.map(k=>cell(r[k])).join(','))].join('\r\n');
 }
+
+// A price is bound to one instrument, one venue and the exchange's timestamp.
+export const QUOTE_TTL = 15000;
+export function marketQuote(symbol, price, at, venue, now = Date.now()) {
+  if (typeof symbol !== 'string' || !symbol.endsWith('USDT') || (typeof price !== 'number' && typeof price !== 'string')) return null;
+  price = Number(price); at = Number(at);
+  if (!Number.isFinite(price) || price <= 0 || !Number.isSafeInteger(at) || at < now - QUOTE_TTL || at > now + 2000) return null;
+  return {symbol, price, at, venue};
+}
+
+// Wire fields used by the exchange's PublicMiniTickersV3Api and PushDataV3ApiWrapper.
+function fields(bytes, visit) {
+  let i=0;
+  function integer() {
+    let value=0, factor=1;
+    for (let n=0; n<8 && i<bytes.length; n++) {
+      const byte=bytes[i++];
+      value+=(byte&127)*factor;
+      if (!Number.isSafeInteger(value)) break;
+      if (byte<128) return value;
+      factor*=128;
+    }
+    throw Error('invalid protobuf integer');
+  }
+  while (i<bytes.length) {
+    const tag=integer(), wire=tag%8, field=Math.floor(tag/8);
+    if (!field) throw Error('invalid protobuf field');
+    if (wire===0) {visit(field,integer());continue;}
+    const size=wire===2?integer():wire===1?8:wire===5?4:-1;
+    if (size<0 || size>bytes.length-i) throw Error('invalid protobuf length');
+    const part=bytes.subarray(i,i+size);i+=size;
+    if (wire===2) visit(field,part);
+  }
+}
+const decoder=new TextDecoder();
+export function mexcTickers(buffer, accept) {
+  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength>2000000) return;
+  let batch,ts;
+  fields(new Uint8Array(buffer),(id,v)=>{
+    if(id===310 && v instanceof Uint8Array) batch=v;
+    if(id===6 && typeof v==='number') ts=v;
+  });
+  if(!batch || !ts) return;
+  fields(batch,(id,item)=>{
+    if(id!==1 || !(item instanceof Uint8Array)) return;
+    let sym,px;
+    fields(item,(k,v)=>{
+      if(v instanceof Uint8Array && k===1) sym=decoder.decode(v);
+      if(v instanceof Uint8Array && k===2) px=decoder.decode(v);
+    });
+    accept(sym,px,ts);
+  });
+}
+
+function priceSocket(url, subscribe, receive, ping) {
+  let socket, retryAt=0, backoff=1000, lastData=0, lastPing=0;
+  function stop() {
+    if(!socket) return;
+    const old=socket;socket=null;
+    old.onclose=old.onmessage=old.onopen=old.onerror=null;
+    old.close();
+  }
+  function delay(now) {retryAt=now+backoff;backoff=Math.min(backoff*2,30000);}
+  function tick(now) {
+    if(socket && now-lastData>25000) {stop();delay(now);}
+    if(!socket && now>=retryAt) {
+      try {
+        const ws=socket=new WebSocket(url);
+        ws.binaryType='arraybuffer';lastData=lastPing=now;
+        ws.onopen=()=>ws.send(JSON.stringify(subscribe()));
+        ws.onmessage=e=>{
+          try {if(receive(e.data)) {lastData=Date.now();backoff=1000;}}
+          catch { /* Discard malformed messages without renewing their lifetime. */ }
+        };
+        ws.onclose=()=>{if(ws===socket){socket=null;delay(Date.now());}};
+        ws.onerror=()=>ws.close();
+      } catch {stop();delay(now);}
+    }
+    if(socket?.readyState===WebSocket.OPEN && now-lastPing>=10000) {
+      socket.send(JSON.stringify(ping(now)));lastPing=now;
+    }
+  }
+  return {tick,reset(){stop();retryAt=0;backoff=1000;}};
+}
+
+
+export function livePrices(onChange) {
+  const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot'];
+  let wanted = new Set();
+  let lastPoll = 0, pollAbort;
+  function save(q) {
+    if (!q || !wanted.has(q.symbol)) return;
+    const book = books.get(q.symbol) || new Map();
+    if (!book.has(q.venue) || book.get(q.venue).at <= q.at) book.set(q.venue, q);
+    books.set(q.symbol, book);
+  }
+  function best(sym, now = Date.now()) {
+    for (const v of order) {
+      const q = books.get(sym)?.get(v);
+      if (q && q.at <= now+2000 && q.at >= now-QUOTE_TTL) return q;
+    }
+    return null;
+  }
+  const bitunix=priceSocket('wss://fapi.bitunix.com/public/',
+    ()=>({op:'subscribe',args:[...wanted].slice(0,300).map(symbol=>({symbol,ch:'tickers'}))}),
+    raw=>{
+      const m=JSON.parse(raw);
+      if(m.ch!=='tickers' || !Array.isArray(m.data)) return false;
+      for(const row of m.data) save(marketQuote(row.s,row.la,m.ts,order[0]));
+      return true;
+    }, now=>({op:'ping',ping:Math.floor(now/1000)}));
+  const mexc=priceSocket('wss://wbs-api.mexc.com/ws',
+    ()=>({method:'SUBSCRIPTION',params:['spot@public.miniTickers.v3.api.pb@UTC+8']}),
+    raw=>{
+      if(!(raw instanceof ArrayBuffer)) return false;
+      mexcTickers(raw,(sym,price,at)=>save(marketQuote(sym,price,at,'MEXC spot')));
+      return true;
+    }, ()=>({method:'PING'}));
+  async function poll() {
+    const abort = pollAbort = new AbortController();
+    const timeout=setTimeout(()=>abort.abort(),5000);
+    async function provider(url, venue) {
+      const response=await fetch(url,{cache:'no-store',signal:abort.signal});
+      if (!response.ok) throw Error('quote feed unavailable');
+      const packet=await response.json();
+      if (abort.signal.aborted || !['0','00000'].includes(String(packet.code)) || !Array.isArray(packet.data)) return;
+      for (const row of packet.data) {
+        if (venue === 'OKX swap') {
+          if (row.instId?.endsWith('-USDT-SWAP')) save(marketQuote(row.instId.slice(0,-10)+'USDT',row.last,row.ts,venue));
+        } else save(marketQuote(row.symbol,row.lastPr,row.ts,venue));
+      }
+      onChange();
+    }
+    try {
+      await Promise.allSettled([
+        provider('https://www.okx.com/api/v5/market/tickers?instType=SWAP','OKX swap'),
+        provider('https://api.bitget.com/api/v2/spot/market/tickers','Bitget spot')
+      ]);
+    } finally { clearTimeout(timeout); if (pollAbort===abort) pollAbort=null; }
+  }
+  function tick() {
+    if (!wanted.size || document.hidden) return;
+    const now=Date.now();
+    bitunix.tick(now); mexc.tick(now);
+    if (!pollAbort && now-lastPoll>=8000) {lastPoll=now; void poll();}
+    onChange();
+  }
+  function watch(symbols) {
+    const next=new Set(symbols.filter(s=>typeof s==='string' && s.endsWith('USDT')));
+    if (next.size===wanted.size && [...next].every(s=>wanted.has(s))) {onChange();return;}
+    bitunix.reset(); mexc.reset(); pollAbort?.abort(); wanted=next; books.clear(); lastPoll=0;
+    tick();
+  }
+  setInterval(tick,1000);
+  document.addEventListener('visibilitychange',()=>{
+    if (document.hidden) {bitunix.reset();mexc.reset();pollAbort?.abort();}
+    else {lastPoll=0;tick();}
+  });
+  return {watch,best};
+}
+
