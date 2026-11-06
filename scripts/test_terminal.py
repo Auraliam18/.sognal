@@ -46,6 +46,15 @@ class TerminalContract(unittest.TestCase):
         self.assertEqual((grouped["watch_receipts"],grouped["watch_rows"],grouped["reused_receipts"]), (1,2,0))
         self.assertEqual((log["trade_receipts"],log["watch_receipts"],log["invalid"],log["legacy_unverified"]), (0,1,1,1))
 
+    def test_concurrent_market_publications_preserve_measured_derivatives(self):
+        from role_evidence import derivative_observation
+        t=1700000000000
+        market={"open_interest":{"at":str(t-20),"btc_oi":1}}
+        intel={"open_interest":{"at":str(t-10),"btc_oi":2}}
+        self.assertEqual(derivative_observation("open_interest",market,intel,t)[:2], (t-10,"brain/intel/latest.json"))
+        self.assertEqual(derivative_observation("open_interest",{},intel,t+4000000), (None,None,{}))
+        self.assertEqual(derivative_observation("open_interest",{},intel,t-4000000), (None,None,{}))
+
     def test_order_book_preserves_source_time_and_rejects_crossed_books(self):
         from hamid import intel
         from unittest.mock import patch
