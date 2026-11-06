@@ -1411,9 +1411,17 @@ def main():
         ready.sort(key=lambda x: (-(x.get("learn_score") or 0), -x["block"]["impulse"]))
         room = max(0, DAILY_TARGET - st["signals"])
         per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
-        take = min(room, per_cycle, len(ready))
-        held = len(ready) - take
-        report["setups"] = ready[:take] + waiting
+        from hamid import market_quotes
+        report["quote_book"] = market_quotes.snapshot(syms)
+        for setup in ready + vetoed + waiting:
+            observation = report["quote_book"]["quotes"].get(setup["symbol"])
+            setup["quote_check"] = market_quotes.entry_check(setup, observation)[0]
+        within_window = [s for s in ready if s["quote_check"] == "within_entry_window"]
+        report["held_for_price"] = [{"symbol":s["symbol"], "dir":s["dir"], "reason":s["quote_check"]}
+                                    for s in ready if s["quote_check"] != "within_entry_window"]
+        take = min(room, per_cycle, len(within_window))
+        held = len(within_window) - take
+        report["setups"] = within_window[:take] + waiting
         report["held_back"] = held
         # سهمیه فقط برای نمایش و تلگرام است. دفتر کاغذی همهٔ آماده‌ها را
         # می‌گیرد: یادگیری به معاملهٔ بسته نیاز دارد و با ۲ سیگنال در چرخه،
@@ -1730,12 +1738,9 @@ def main():
 
     st["modes"][mode] = st["modes"].get(mode, 0) + 1
     act("چرخه تمام شد — نتیجه روی پنل منتشر می‌شود")
-    from hamid import market_quotes
-    symbols_checked = (report.get("coverage") or {}).get("symbols") or ["BTCUSDT","ETHUSDT","SOLUSDT"]
-    report["quote_book"] = market_quotes.snapshot(symbols_checked)
-    for setup in report.get("setups", []):
-        current = report["quote_book"]["quotes"].get(setup["symbol"])
-        setup["quote_check"] = market_quotes.entry_check(setup, current)[0]
+    if "quote_book" not in report:
+        from hamid import market_quotes
+        report["quote_book"] = market_quotes.snapshot(["BTCUSDT","ETHUSDT","SOLUSDT"])
     report["activity"] = ACTIVITY[-25:]
     if not a.dry:
         _save_state(st)
