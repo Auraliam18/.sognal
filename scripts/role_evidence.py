@@ -37,7 +37,8 @@ def positioned(row):
 def delivery(rows):
     groups = Counter()
     trades = {}
-    receipts = Counter()
+    watch_messages = set()
+    trade_messages = Counter()
     for raw in items(rows):
         row = mapping(raw)
         kind, mid, sid = (row.get(k) for k in ("kind", "tg_msg_id", "signal_id"))
@@ -47,16 +48,19 @@ def delivery(rows):
         if type(mid) is not int or mid < 1 or not finite(row.get("at")) or row["at"] <= 0:
             groups["invalid"] += 1
             continue
-        receipts[mid] += 1
         if kind == "watch_alert":
-            groups["watch_receipts"] += 1
+            watch_messages.add(mid)
+            groups["watch_rows"] += 1
         elif isinstance(sid, str) and re.fullmatch(r"S-[0-9a-f]{20}", sid) and sid not in trades:
             trades[sid] = row["at"]
+            trade_messages[mid] += 1
         else:
             groups["invalid"] += 1
-    return {"watch_receipts": groups["watch_receipts"], "trade_receipts": len(trades),
+    # Pump radar can include multiple watched symbols in one Telegram post.
+    conflicts = sum(n-1 for n in trade_messages.values()) + len(watch_messages.intersection(trade_messages))
+    return {"watch_receipts": len(watch_messages), "watch_rows": groups["watch_rows"], "trade_receipts": len(trades),
             "last_trade_at": max(trades.values(), default=None), "legacy_unverified": groups["legacy_unverified"],
-            "invalid": groups["invalid"], "reused_receipts": sum(n-1 for n in receipts.values())}
+            "invalid": groups["invalid"], "reused_receipts": conflicts}
 
 
 def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None):

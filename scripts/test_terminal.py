@@ -42,6 +42,8 @@ class TerminalContract(unittest.TestCase):
         self.assertFalse(positioned({"dir":"LONG","sl":1,"entry":2,"tp1":2,"tp2":3}))
         log = delivery([{"kind":"watch_alert","tg_msg_id":True,"at":1},{"at":1},
                         {"kind":"watch_alert","tg_msg_id":2,"at":1}])
+        grouped = delivery([{"kind":"watch_alert","tg_msg_id":8,"at":1,"sym":symbol} for symbol in ("BTC","ETH")])
+        self.assertEqual((grouped["watch_receipts"],grouped["watch_rows"],grouped["reused_receipts"]), (1,2,0))
         self.assertEqual((log["trade_receipts"],log["watch_receipts"],log["invalid"],log["legacy_unverified"]), (0,1,1,1))
 
     def test_order_book_preserves_source_time_and_rejects_crossed_books(self):
