@@ -234,6 +234,18 @@ def recent_fixture(sym,tf,n,**kw):
     px=PX.get(sym,1.) if tf=="5m" else 1.
     return [[end-(n-1-i)*step,px,px*1.001,px*.999,px,1.] for i in range(n)]
 _sources.klines=recent_fixture
+from hamid import market_quotes as _mq
+_qt = _mq.now_ms()
+qrow = {"symbol":"BTCUSDT","last":"123.4","markPrice":"9000","lastPrice":"9999"}
+_q = _mq.parse_quote(_mq.BITUNIX,qrow,_qt,_qt)
+check("قیمت بازار از فیلد معامله خوانده شد", _q["price"] == 123.4 and _q["clock"] == "http_date")
+check("قیمت منقضی یا آینده رد می‌شود", all(_mq.parse_quote(_mq.BITUNIX,qrow,ts,_qt) is None for ts in (_qt-15001,_qt+2001)))
+check("قیمت مرجع صرافی دیگر اجازهٔ ارسال نمی‌دهد", _mq.entry_check({"sym":"BTCUSDT","entry":123.4,"sl":120,"dir":"LONG"},dict(_q,venue="MEXC spot"))[0]=="no_execution_quote")
+check("قراردادهای ضریب‌دار به نام سکهٔ معمولی تبدیل نمی‌شوند",
+      _mq.parse_quote("OKX swap", {"instId":"1000PEPE-USDT-SWAP","last":"1","ts":_qt},None,_qt)["symbol"] == "1000PEPEUSDT")
+_original_quote = _mq.execution_quote
+_mq.execution_quote = lambda sym: {"symbol":sym, "venue":_mq.BITUNIX, "price":PX.get(sym,1.0),
+                                    "observed_at":_mq.now_ms(), "clock":"http_date"}
 import time as _clock
 _tick=int(_clock.time()*1000)
 (_tmp2/"dominance.json").write_text(_json.dumps({"generated":_tick,"usdt_dominance":6.8,"structure":{"regime":"RANGE"}}))
@@ -272,6 +284,7 @@ s3["tf"], s3["dir"], s3["entry"], s3["sl"] = "1h", "SHORT", 1.0, 1.01
 n3 = tg.send_signals([s3], lambda s, p: None)
 check("سقف ۲ ارسال به ازای هر ارز در ۱۲ ساعت", n3 == 0)
 tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
+_mq.execution_quote = _original_quote
 
 # ── Universe Snapshot (AuraLiam369 §5 — فاز ۱) ────────────────────────────
 from hamid import universe as _u                      # noqa: E402

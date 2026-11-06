@@ -401,6 +401,11 @@ def main():
 
     report["signals"] = [strip(s) for s in report["signals"]]
     report["watch"] = [strip(s) for s in report["watch"]]
+    from hamid import market_quotes
+    report["quote_book"] = market_quotes.snapshot(syms)
+    for candidate in report.get("signals", []):
+        quote = report["quote_book"]["quotes"].get(candidate["sym"])
+        candidate["quote_check"] = market_quotes.entry_check(candidate, quote)[0]
     (OUT / "latest.json").write_text(json.dumps(report, ensure_ascii=False, indent=1))
 
     print(f"\n{counts['SIGNAL']} signals · {counts['ARMED']} armed · "
