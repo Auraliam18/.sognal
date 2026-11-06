@@ -18,7 +18,7 @@ async function readBatch(venue) {
   const httpDate = Date.parse(res.headers.get('Date'));
   const quotes = new Map();
   for (const row of rows) {
-    const price = Number(futures ? row.last : row.lastPrice);
+    const price = Number(row.lastPrice);
     const at = futures ? httpDate : Number(row.closeTime);
     if (typeof row.symbol === 'string' && row.symbol.endsWith('USDT') &&
         Number.isFinite(price) && price > 0 && Number.isSafeInteger(at)) {
