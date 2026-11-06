@@ -234,6 +234,10 @@ def recent_fixture(sym,tf,n,**kw):
     px=PX.get(sym,1.) if tf=="5m" else 1.
     return [[end-(n-1-i)*step,px,px*1.001,px*.999,px,1.] for i in range(n)]
 _sources.klines=recent_fixture
+from hamid import market_quotes as _mq
+_original_quote = _mq.execution_quote
+_mq.execution_quote = lambda sym: {"symbol":sym, "venue":_mq.BITUNIX, "price":PX.get(sym,1.0),
+                                    "observed_at":_mq.now_ms(), "clock":"http_date"}
 import time as _clock
 _tick=int(_clock.time()*1000)
 (_tmp2/"dominance.json").write_text(_json.dumps({"generated":_tick,"usdt_dominance":6.8,"structure":{"regime":"RANGE"}}))
@@ -272,6 +276,7 @@ s3["tf"], s3["dir"], s3["entry"], s3["sl"] = "1h", "SHORT", 1.0, 1.01
 n3 = tg.send_signals([s3], lambda s, p: None)
 check("سقف ۲ ارسال به ازای هر ارز در ۱۲ ساعت", n3 == 0)
 tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
+_mq.execution_quote = _original_quote
 
 # ── Universe Snapshot (AuraLiam369 §5 — فاز ۱) ────────────────────────────
 from hamid import universe as _u                      # noqa: E402

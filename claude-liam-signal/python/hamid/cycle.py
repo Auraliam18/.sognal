@@ -1730,6 +1730,12 @@ def main():
 
     st["modes"][mode] = st["modes"].get(mode, 0) + 1
     act("چرخه تمام شد — نتیجه روی پنل منتشر می‌شود")
+    from hamid import market_quotes
+    symbols_checked = (report.get("coverage") or {}).get("symbols") or ["BTCUSDT","ETHUSDT","SOLUSDT"]
+    report["quote_book"] = market_quotes.snapshot(symbols_checked)
+    for setup in report.get("setups", []):
+        current = report["quote_book"]["quotes"].get(setup["symbol"])
+        setup["quote_check"] = market_quotes.entry_check(setup, current)[0]
     report["activity"] = ACTIVITY[-25:]
     if not a.dry:
         _save_state(st)
