@@ -63,7 +63,28 @@ def delivery(rows):
             "invalid": groups["invalid"], "reused_receipts": conflicts}
 
 
-def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None):
+def observation_time(sample):
+    raw = str(mapping(sample).get("at", ""))
+    if raw.isascii() and raw.isdecimal() and len(raw) == 13:
+        return int(raw)
+    return None
+
+
+def derivative_observation(key, world, intel, cycle_at):
+    # The heartbeat and full scan may publish out of order. Use the exchange
+    # timestamp, never the Git commit time, to compare compatible observations.
+    options = []
+    for source, record in (("signals/hamid-latest.json", world), ("brain/intel/latest.json", mapping(intel))):
+        sample = mapping(record.get(key))
+        ts = observation_time(sample)
+        if ts and finite(cycle_at) and -300000 <= cycle_at - ts <= 3600000:
+            options.append((ts, source, sample))
+    if options:
+        return max(options, key=lambda item:item[0])
+    return None, None, {}
+
+
+def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None, intel=None):
     data = mapping(raw)
     stats, missing = {}, []
     source_clock = None
@@ -102,16 +123,17 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
              and c.get("complete") is True and not c.get("missing_frames"), "پوشش کندل در سه تایم‌فریم")
     elif role == "E10":
         world = mapping(data.get("world"))
-        oi = mapping(world.get("open_interest"))
+        oi_at, oi_source, oi = derivative_observation("open_interest", world, intel, data.get("generated"))
+        book_at, book_source, depth = derivative_observation("order_book", world, intel, data.get("generated"))
+        stats["sources"] = {"open_interest":oi_source, "order_book":book_source}
         stats.update(funding=mapping(world.get("funding")), btc_oi=oi.get("btc_oi"), oi_at=oi.get("at"),
                      liquidity_maps=sum(bool(mapping(x).get("liq_map")) for x in items(data.get("setups"))))
         need(all(finite(stats["funding"].get(k)) for k in ("BTC","ETH","SOL")), "فاندینگ")
         need(finite(oi.get("btc_oi")) and oi["btc_oi"] > 0, "موقعیت باز BTC")
-        if oi:
-            ts = str(oi.get("at", ""))
-            source_clock = (int(ts) if ts.isascii() and ts.isdecimal() and len(ts) <= 14 else None, 3600)
+        observed = [ts for ts in (oi_at, book_at) if ts is not None]
+        if observed:
+            source_clock = (min(observed), 3600)
         # Candle-derived attraction zones do not establish the order book or observed liquidations.
-        depth = mapping(world.get("order_book"))
         stats["btc_depth"] = depth
         need(depth.get("instrument") == "BTC-USDT-SWAP" and finite(depth.get("imbalance"))
              and abs(depth["imbalance"]) <= 1 and finite(depth.get("at"))
