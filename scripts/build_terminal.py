@@ -206,6 +206,7 @@ def engine_packets(root, feeds, history, now):
     routes = yaml.safe_load(registry_file.read_text(encoding="utf-8")) if registry_file.exists() else {}
     lessons = role_evidence.mapping(read_json(root / "brain/memory/lessons.json"))
     reconciliation = role_evidence.mapping(read_json(root / "brain/paper/reconciliation.json"))
+    intel = role_evidence.mapping(read_json(root / "brain/intel/latest.json"))
     risk = role_evidence.mapping(read_json(root / "config/risk.json"))
     result = []
     for i, (feed, name, module, required, deps) in enumerate(ENGINE_BINDINGS):
@@ -226,10 +227,12 @@ def engine_packets(root, feeds, history, now):
             ts, path = now, "terminal/data/snapshot.json" if feed == "terminal" else history["source"]
         stats, gaps, clock = role_evidence.inspect(definition["id"], feeds.get(feed, {}).get("data"),
                 lessons=lessons, reconciliation=reconciliation, risk=risk, portfolio=history.get("portfolio", {}),
-                routes=role_evidence.mapping(routes), cycle=role_evidence.mapping(feeds.get("hamid", {}).get("data")))
+                intel=intel, routes=role_evidence.mapping(routes), cycle=role_evidence.mapping(feeds.get("hamid", {}).get("data")))
         missing.extend(gaps)
         if definition["id"] == "E19":
             path = "brain/paper/reconciliation.json"
+        if definition["id"] == "E10" and "brain/intel/latest.json" in stats.get("sources", {}).values():
+            path += " + brain/intel/latest.json"
         if definition["id"] == "E11":
             path += " + strategies/registry.yaml + signals/hamid-latest.json"
         if definition["id"] == "E21":
