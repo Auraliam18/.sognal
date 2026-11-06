@@ -26,10 +26,15 @@ export function engineState(e, feeds, ledger, now = Date.now(), engines = null, 
   return !engines && e.blocked_dependencies?.length ? 'partial' : own;
 }
 function ownState(e, feeds, ledger, now) {
-  if (e.feed === 'ledger') return !ledger.available ? 'missing' : freshness({data:ledger,generated:ledger.computed_at,ttl:3600},now);
+  if (e.feed === 'ledger' && !ledger.available) return 'missing';
   if (e.feed === 'terminal') return 'fresh';
-  const state = freshness(feeds[e.feed], now);
+  const primary = e.feed === 'ledger' ? {data:ledger,generated:ledger.computed_at,ttl:3600} : feeds[e.feed];
+  const state = freshness(primary, now);
   if (state !== 'fresh') return state;
+  if (e.evidence_ttl) {
+    const evidenceState = freshness({data:e.evidence,generated:e.observed_at,ttl:e.evidence_ttl},now);
+    if (evidenceState !== 'fresh') return evidenceState;
+  }
   if (e.feed === 'conformance' && feeds[e.feed]?.data?.ok === false) return 'attention';
   return e.own_state === "partial" || e.missing?.length ? 'partial' : 'fresh';
 }

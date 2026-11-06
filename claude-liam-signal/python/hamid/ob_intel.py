@@ -331,14 +331,24 @@ def radar_for(sym, fetch):
     """نقشهٔ اردر بلاک یک نماد — همان ده قلمی که سند بند ۱۶ می‌خواهد.
 
     fetch(sym, tf, n) -> کندل dict — تزریق‌پذیر برای تست آفلاین."""
-    c15 = fetch(sym, "15m", 320)
-    c1h = fetch(sym, "1h", 320)
+    def closed_window(tf, preferred, minimum):
+        bars = fetch(sym, tf, preferred)
+        if len(bars) < minimum:
+            # Some venues reject an entire request for a preferred window they
+            # cannot fill. Include one extra bar for the possibly open candle.
+            retry = fetch(sym, tf, minimum + 1)
+            if len(retry) > len(bars):
+                return retry
+        return bars
+
+    c15 = closed_window("15m", 320, 60)
+    c1h = closed_window("1h", 320, 60)
     maps = {}
     if len(c15) >= 60:
         maps["15m"] = analyze(c15, "15m")
     if len(c1h) >= 60:
         maps["1h"] = analyze(c1h, "1h")
-    c4h = fetch(sym, "4h", 240)
+    c4h = closed_window("4h", 240, 200)
     if len(c4h) >= 200:
         maps["4h"] = analyze(c4h, "4h")
     if not (c15 or c1h):

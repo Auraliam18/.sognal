@@ -1061,7 +1061,7 @@ def main():
               "mode": mode, "why": why, "pacing": pace,
               "world": {k: world.get(k) for k in
                         ("verdict", "fear_greed", "dominance", "funding",
-                         "calendar", "news", "trending") if k in world}}
+                         "calendar", "news", "trending", "open_interest", "order_book", "failed", "gathered") if k in world}}
 
     # اول تسویه و یادگیری، بعد تصمیم — تا وتو و مشورتِ حافظه با دانشِ همین
     # لحظه باشد، نه یک چرخه کهنه‌تر.
