@@ -31,7 +31,7 @@ def parse_quote(source, row, response_time, now):
     else:
         symbol = row.get("symbol")
         if source == BITUNIX:
-            last, at = row.get("last"), response_time
+            last, at = row.get("lastPrice"), response_time
         elif source == "Bitget spot":
             last, at = row.get("lastPr"), row.get("ts")
         else:

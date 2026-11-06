@@ -236,7 +236,7 @@ def recent_fixture(sym,tf,n,**kw):
 _sources.klines=recent_fixture
 from hamid import market_quotes as _mq
 _qt = _mq.now_ms()
-qrow = {"symbol":"BTCUSDT","last":"123.4","markPrice":"9000","lastPrice":"9999"}
+qrow = {"symbol":"BTCUSDT","lastPrice":"123.4","markPrice":"9000","last":"9999"}
 _q = _mq.parse_quote(_mq.BITUNIX,qrow,_qt,_qt)
 check("قیمت بازار از فیلد معامله خوانده شد", _q["price"] == 123.4 and _q["clock"] == "http_date")
 check("قیمت منقضی یا آینده رد می‌شود", all(_mq.parse_quote(_mq.BITUNIX,qrow,ts,_qt) is None for ts in (_qt-15001,_qt+2001)))
