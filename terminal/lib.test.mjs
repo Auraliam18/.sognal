@@ -25,3 +25,10 @@ test('bad snapshots and archive traversal are rejected',()=>{
 test('stale conformance failures remain stale, not current assertions',()=>{
   assert.equal(engineState({feed:'conformance',missing:[]},{conformance:{data:{ok:false},generated:1600000000000,ttl:60}},{},1700000000000),'stale');
 });
+
+test('a newly rendered ledger preserves role gaps and the reconciliation clock',()=>{
+  const now=1700000000000, ledger={available:true,computed_at:now};
+  const role={feed:'ledger',missing:['reconciliation'],evidence:{},observed_at:now,evidence_ttl:3600};
+  assert.equal(engineState(role,{},ledger,now),'partial');
+  assert.equal(engineState({...role,missing:[],observed_at:now-4000000},{},ledger,now),'stale');
+});
