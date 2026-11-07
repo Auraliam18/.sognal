@@ -152,7 +152,7 @@ function priceSocket(url, subscribe, receive, ping) {
 export function livePrices(onChange, {direct=false}={}) {
   const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot','Binance spot'];
   const errors = new Map(), subscriptions = new Map();
-  let wanted = new Set();
+  let wanted = new Set(), markets = new Map();
   let lastPoll = 0, pollAbort;
   function save(q, transport='rest') {
     if (!q || !wanted.has(q.symbol)) return;
@@ -162,7 +162,8 @@ export function livePrices(onChange, {direct=false}={}) {
     books.set(q.symbol, book);
   }
   function best(sym, now = Date.now(), venue) {
-    for (const v of venue?[venue]:order) {
+    const required=venue || markets.get(sym);
+    for (const v of required?[required]:order) {
       for (const transport of ['websocket','rest']) {
         const q = books.get(sym)?.get(v+' '+transport);
         if (q && q.at <= now+2000 && q.at >= now-QUOTE_TTL) return q;
@@ -218,7 +219,7 @@ export function livePrices(onChange, {direct=false}={}) {
   function subscribeListedMarkets() {
     const needed=new Set();
     for(const venue of ['Bitunix futures','OKX swap','Bitget spot','MEXC spot']) {
-      const symbols=[...wanted].filter(s=>order.find(v=>books.get(s)?.has(v+' rest') || books.get(s)?.has(v+' websocket'))===venue).sort();
+      const symbols=[...wanted].filter(s=>(markets.get(s) || order.find(v=>books.get(s)?.has(v+' rest') || books.get(s)?.has(v+' websocket')))===venue).sort();
       for(let i=0;i<symbols.length;i+=25) {
         const chunk=symbols.slice(i,i+25),key=venue+' '+chunk.join(',');
         needed.add(key);
@@ -292,10 +293,14 @@ export function livePrices(onChange, {direct=false}={}) {
     if (!pollAbort && now-lastPoll>=8000) {lastPoll=now; void poll();}
     onChange();
   }
-  function watch(symbols) {
+  function watch(symbols, venues={}) {
     const next=new Set(symbols.filter(s=>typeof s==='string' && s.endsWith('USDT')));
-    if (next.size===wanted.size && [...next].every(s=>wanted.has(s))) {onChange();return;}
+    markets=new Map([...next].filter(s=>order.includes(venues[s])).map(s=>[s,venues[s]]));
+    if (next.size===wanted.size && [...next].every(s=>wanted.has(s))) {
+      subscribeListedMarkets();onChange();return;
+    }
     reset(); wanted=next; books.clear(); errors.clear(); lastPoll=0;
+    subscribeListedMarkets();
     tick();
   }
   function reset() {
