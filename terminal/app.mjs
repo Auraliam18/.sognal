@@ -43,7 +43,7 @@ function paintQuotes() {
     const price=q?quoteNumber.format(q.price):'—';
     const entry=Number(cell.dataset.entry);
     const gap=q && entry>0 ? ` · فاصله از ورود ${num((q.price/entry-1)*100,2)}٪`:'';
-    const stamp=q ? `${q.venue} · ${quoteClock.format(q.at)}${gap}` : 'قیمت تازه در دسترس نیست';
+    const stamp=q ? `${q.venue} · ${quoteClock.format(q.at)} · ${q.transport==='websocket'?'WebSocket':'REST'}${gap}` : 'قیمت تازه در دسترس نیست';
     if(cell.firstElementChild.textContent!==price) cell.firstElementChild.textContent=price;
     if(cell.lastElementChild.textContent!==stamp) cell.lastElementChild.textContent=stamp;
   }
