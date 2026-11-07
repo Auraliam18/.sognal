@@ -70,5 +70,8 @@ test('a same-market REST refresh cannot displace a fresh WebSocket trade',async(
     assert.equal(feed.best('BTCUSDT',restAt).transport,'websocket');
     assert.equal(feed.best('BTCUSDT',restAt+14500).transport,'rest');
     assert.equal(feed.best('BTCUSDT',restAt+15001),null);
+    feed.watch(['BTCUSDT'],{BTCUSDT:'MEXC spot'});
+    assert.equal(feed.best('BTCUSDT',restAt),null);
+    assert.equal(feed.best('BTCUSDT',restAt,'Bitunix futures').price,101);
   } finally {feed.close();globalThis.WebSocket=originalSocket;globalThis.fetch=originalFetch;}
 });
