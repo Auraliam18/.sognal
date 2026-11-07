@@ -12,6 +12,9 @@ try {
   page.on('pageerror',e=>errors.push(e.message));
   const snapshot=JSON.parse(await fs.readFile('terminal/data/snapshot.json','utf8'));
   snapshot.feeds.scan.data.signals = [{sym:'TSLABUSDT'}, {sym:'CAPUSDT'}];
+  snapshot.feeds.hamid.data.quote_book={markets:{
+    BTCUSDT:'OKX swap', TSLABUSDT:'Binance spot', CAPUSDT:'MEXC spot'
+  }};
   const trade={sym:'TESTUSDT',book:'hamid',dir:'LONG',entry:100,sl:99,tp1:102,R:2,outcome:'tp',closed:Date.now(),mode:'paper'};
   snapshot.ledger.available=true;snapshot.ledger.records=1;snapshot.ledger.pages=[{url:'history/0000000000000000.json',count:1,books:['hamid'],symbols:['TESTUSDT']}];
   await page.route('**/data/snapshot.json',r=>r.fulfill({json:snapshot}));
@@ -21,7 +24,8 @@ try {
   await page.route('https://www.okx.com/api/v5/market/tickers?**',r=>r.fulfill({json:{code:'0',data:[{instId:'BTC-USDT-SWAP',last:'65432.123',ts:String(Date.now())}]}}));
   await page.route('https://api.bitget.com/**',r=>r.fulfill({json:{code:'00000',data:[]}}));
   await page.route('https://liam-market-quotes.phoenix-hamid-2026.workers.dev/**',r=>r.fulfill({json:{
-    quotes:[{symbol:'CAPUSDT', price:0.01234, at:Date.now(), venue:'MEXC spot'}]
+    quotes:[{symbol:'CAPUSDT', price:0.01234, at:Date.now(), venue:'MEXC spot'},
+      {symbol:'BTCUSDT',price:70000,at:Date.now(),venue:'Bitunix futures'}]
   }}));
   await page.routeWebSocket(/wss:\/\//,ws=>ws.close());
   await page.route('https://data-api.binance.vision/**',r=>r.fulfill({json:candles}));
