@@ -232,6 +232,8 @@ def main():
 
     t0 = time.time()
     syms = top_by_48h(args.symbols)
+    from hamid import market_quotes
+    market_quotes.prewarm(syms)
     pairs = [(s, tf) for tf in tfs for s in syms]
     print(f"scanning the {len(syms)} most-traded pairs of the last 48h "
           f"× {len(tfs)} timeframes", flush=True)
@@ -401,7 +403,6 @@ def main():
 
     report["signals"] = [strip(s) for s in report["signals"]]
     report["watch"] = [strip(s) for s in report["watch"]]
-    from hamid import market_quotes
     report["quote_book"] = market_quotes.snapshot(syms)
     for candidate in report.get("signals", []):
         quote = report["quote_book"]["quotes"].get(candidate["sym"])

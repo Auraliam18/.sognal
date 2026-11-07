@@ -28,6 +28,10 @@ on:
       symbols:
         description: "how many coins"
         default: "200"
+      compare_panel:
+        description: Compare live quotes with an independent published panel browser
+        type: boolean
+        default: false
   schedule:
     # Explicit minutes, not */30. A `*/N` cron lands in the most contended
     # window on the runners and this pipeline has already watched one of them
@@ -119,6 +123,10 @@ jobs:
       - name: matplotlib برای چارت سیگنال
         run: pip -q install matplotlib pyyaml
 
+      - name: Prepare the independent price comparison
+        if: inputs.compare_panel
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Run the cycle
         shell: bash
         working-directory: claude-liam-signal/python
@@ -129,6 +137,7 @@ jobs:
           # them out of the workflow entirely meant adding the secrets would
           # have changed nothing, silently.
           TELEGRAM_BOT_TOKEN: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN || '' }}
+          LIAM_QUOTE_PARITY: ${{ inputs.compare_panel && '1' || '0' }}
           TELEGRAM_CHAT_ID: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID || '' }}
           TELEGRAM_BOT_TOKEN_2: ${{ !inputs.silent && secrets.TELEGRAM_BOT_TOKEN_2 || '' }}
           TELEGRAM_CHAT_ID_2: ${{ !inputs.silent && secrets.TELEGRAM_CHAT_ID_2 || '' }}

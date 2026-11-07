@@ -48,3 +48,27 @@ test('MEXC aggregate ticker reads the original exchange time and exact symbol',a
   assert.deepEqual(ticks,[['BTCUSDT','1.234',1700000000000]]);
   assert.throws(()=>mexcTickers(sample.slice(0,-1).buffer,()=>{}));
 });
+
+test('a same-market REST refresh cannot displace a fresh WebSocket trade',async()=>{
+  const {livePrices}=await import('./lib.mjs');
+  const originalSocket=globalThis.WebSocket, originalFetch=globalThis.fetch;
+  const sockets=[], restAt=Math.floor(Date.now()/1000)*1000;
+  globalThis.WebSocket=class {static OPEN=1;constructor(url){this.url=url;sockets.push(this);}close(){}};
+  globalThis.fetch=async url=>{
+    const bitunix=String(url).includes('fapi.bitunix');
+    return Response.json(bitunix?{code:0,data:[{symbol:'BTCUSDT',lastPrice:'100'}]}:[],
+      {headers:{date:new Date(restAt).toUTCString()}});
+  };
+  const feed=livePrices(()=>{},{direct:true});
+  try {
+    feed.watch(['BTCUSDT']);
+    sockets.find(s=>s.url.includes('bitunix')).onmessage({data:JSON.stringify({
+      ch:'tickers',ts:restAt-1000,data:[{s:'BTCUSDT',la:'101'}]
+    })});
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(feed.best('BTCUSDT',restAt).price,101);
+    assert.equal(feed.best('BTCUSDT',restAt).transport,'websocket');
+    assert.equal(feed.best('BTCUSDT',restAt+14500).transport,'rest');
+    assert.equal(feed.best('BTCUSDT',restAt+15001),null);
+  } finally {feed.close();globalThis.WebSocket=originalSocket;globalThis.fetch=originalFetch;}
+});

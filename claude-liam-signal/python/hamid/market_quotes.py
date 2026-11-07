@@ -5,6 +5,7 @@ import json
 import math
 import time
 from urllib.request import Request, urlopen
+from . import quote_stream
 
 BITUNIX = "Bitunix futures"
 URLS = {
@@ -47,7 +48,7 @@ def parse_quote(source, row, response_time, now):
     if not math.isfinite(price) or price <= 0 or not -2000 <= now - at <= MAX_AGE_MS:
         return None
     return {"symbol":symbol, "price":price, "venue":source, "observed_at":at,
-            "clock":"http_date" if source == BITUNIX else "exchange_timestamp"}
+            "clock":"http_date" if source == BITUNIX else "exchange_timestamp", "transport":"rest"}
 
 
 def fetch(source):
@@ -81,6 +82,13 @@ _cached_at = 0
 
 def execution_quote(symbol):
     global _execution_cache, _cached_at
+    try:
+        live = quote_stream.read([symbol], execution=symbol)
+        if (live and live["symbol"] == symbol and live["venue"] == BITUNIX
+                and -2000 <= now_ms()-live["observed_at"] <= MAX_AGE_MS):
+            return live
+    except (OSError, ValueError):
+        pass
     now = now_ms()
     if not 0 <= now-_cached_at <= 3000:
         _execution_cache = fetch(BITUNIX)
@@ -91,7 +99,7 @@ def execution_quote(symbol):
     return dict(q)
 
 
-def snapshot(symbols):
+def _rest_snapshot(symbols):
     """At scan time only. Other venues support research, never the delivery gate."""
     requested = set(symbols)
     quotes, errors = {}, {}
@@ -108,6 +116,27 @@ def snapshot(symbols):
                     quotes.setdefault(symbol, batch[symbol])
     return {"captured_at":now_ms(), "quotes":quotes, "requested":len(requested),
             "missing":sorted(requested-quotes.keys()), "source_errors":errors}
+
+
+def prewarm(symbols):
+    try:
+        quote_stream.start(symbols)
+    except OSError:
+        pass  # snapshot can still use the public REST feeds.
+
+
+def snapshot(symbols):
+    requested = sorted(set(symbols))
+    if requested:
+        try:
+            book = quote_stream.read(requested)
+            if book["quotes"]:
+                return book
+        except (OSError, ValueError):
+            pass
+    book = _rest_snapshot(requested)
+    book["source_errors"]["websocket_client"] = "no live quotes"
+    return book
 
 
 def entry_check(signal, quote):
