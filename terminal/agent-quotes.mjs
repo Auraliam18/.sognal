@@ -45,26 +45,36 @@ async function snapshot(request) {
   const waitUntil=started+(request.execution?3000:11000);
   while(Date.now()<waitUntil && !(request.execution && feed.best(request.execution,Date.now(),'Bitunix futures')?.transport==='websocket')) await delay(100);
   if(request.execution) return quote(request.execution,Date.now(),'Bitunix futures');
-  let comparison;
+  let comparison, markets;
   if(observer && request.audit) {
     const {page,error}=await observer;
     if(error) comparison={error};
     else {
-      try {comparison=await page.evaluate(symbols=>{
+      // Give the browser only the venue selected for publication, never the price.
+      // The production UI uses this same routing table from the cycle's quote book.
+      const selectedAt=Date.now();
+      markets=Object.fromEntries(watch.map(s=>[s,feed.best(s,selectedAt)?.venue]).filter(([,v])=>v));
+      try {comparison=await page.evaluate(async ({symbols,markets})=>{
+        window.panelQuotes.watch(symbols,markets);
+        const deadline=Date.now()+6000;
+        while(Date.now()<deadline && Object.keys(markets).some(s=>!window.panelQuotes.best(s))) {
+          await new Promise(resolve=>setTimeout(resolve,150));
+        }
         const at=Date.now();
         return {captured_at:at,quotes:Object.fromEntries(symbols.map(s=>[s,window.panelQuotes.best(s,at)]))};
-      },watch);} catch(e) {comparison={error:e.message};}
+      },{symbols:watch,markets});} catch(e) {comparison={error:e.message};}
     }
   }
   const at=Date.now(), quotes={}, missing=[];
   for(const s of request.symbols) {
-    const q=quote(s,at);
+    const q=quote(s,at,markets?.[s]);
     if(q) quotes[s]=q; else missing.push(s);
   }
   const book={captured_at:at,requested:request.symbols.length,quotes,missing,source_errors:Object.fromEntries(feed.errors)};
+  book.markets=markets || Object.fromEntries(Object.entries(quotes).map(([s,q])=>[s,q.venue]));
   if(comparison) {
     book.panel_comparison=comparison;
-    if(!request.symbols.includes('UMXUSDT')) book.probe_umx=quote('UMXUSDT',at);
+    if(!request.symbols.includes('UMXUSDT')) book.probe_umx=quote('UMXUSDT',at,markets?.UMXUSDT);
   }
   return book;
 }

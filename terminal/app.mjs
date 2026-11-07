@@ -50,7 +50,9 @@ function paintQuotes() {
 }
 function watchDisplayedQuotes() {
   quoteCells=Array.from(document.querySelectorAll('[data-market-quote]'));
-  quoteStream.watch(quoteCells.map(c=>c.dataset.marketQuote));
+  const book=data('hamid').quote_book;
+  const markets=book?.markets || Object.fromEntries(Object.entries(book?.quotes || {}).map(([s,q])=>[s,q.venue]));
+  quoteStream.watch(quoteCells.map(c=>c.dataset.marketQuote),markets);
 }
 function agentQuoteSummary() {
   const b=data('hamid').quote_book;
