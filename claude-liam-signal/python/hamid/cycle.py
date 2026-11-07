@@ -1174,6 +1174,8 @@ def main():
         except Exception as e:                       # noqa: BLE001
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+        from hamid import market_quotes
+        market_quotes.prewarm(syms)
         act(f"در حال خواندن {len(syms)} ارز برتر از صرافی‌های جهانی")
 
         # ── ارسال فوریِ per-symbol (دستور صریح حمید، ۱۴ اوت) ───────────────
@@ -1411,7 +1413,6 @@ def main():
         ready.sort(key=lambda x: (-(x.get("learn_score") or 0), -x["block"]["impulse"]))
         room = max(0, DAILY_TARGET - st["signals"])
         per_cycle = max(1, round(DAILY_TARGET / 8))    # never a whole day at once
-        from hamid import market_quotes
         report["quote_book"] = market_quotes.snapshot(syms)
         for setup in ready + vetoed + waiting:
             observation = report["quote_book"]["quotes"].get(setup["symbol"])
