@@ -6,8 +6,9 @@ import {livePrices} from './lib.mjs';
 
 const symbols=JSON.parse(process.argv[2]);
 const audit=process.env.LIAM_QUOTE_PARITY==='1' && symbols.length>1;
-const watch=audit?[...new Set([...symbols,'UMXUSDT'])]:symbols;
-const feed=livePrices(()=>{}, {direct:true});
+const inspect=audit?{TRUTHUSDT:'Bitunix futures',DOSUSDT:'Bitunix futures',LITUSDT:'Bitunix futures',PUMPUSDT:'OKX swap'}:{};
+const watch=audit?[...new Set([...symbols,'UMXUSDT',...Object.keys(inspect)])]:symbols;
+const feed=livePrices(()=>{}, {direct:true,inspect});
 const started=Date.now();
 feed.watch(watch);
 
@@ -23,11 +24,11 @@ async function openPanel() {
   await page.goto(base+'quote-verification',{timeout:20000});
   const url=base+'lib.mjs?verify='+started;
   const download=page.waitForResponse(r=>r.url()===url,{timeout:15000});
-  const [,response]=await Promise.all([page.evaluate(async ({url,watch})=>{
+  const [,response]=await Promise.all([page.evaluate(async ({url,watch,inspect})=>{
     const {livePrices}=await import(url);
-    window.panelQuotes=livePrices(()=>{});
+    window.panelQuotes=livePrices(()=>{},{inspect});
     window.panelQuotes.watch(watch);
-  },{url,watch}),download]);
+  },{url,watch,inspect}),download]);
   if(!(await response.body()).equals(await readFile(new URL('./lib.mjs',import.meta.url)))) throw Error('published panel version differs');
   await delay(12000);
   return {page};
@@ -61,7 +62,7 @@ async function snapshot(request) {
           await new Promise(resolve=>setTimeout(resolve,150));
         }
         const at=Date.now();
-        return {captured_at:at,quotes:Object.fromEntries(symbols.map(s=>[s,window.panelQuotes.best(s,at)]))};
+        return {captured_at:at,quotes:Object.fromEntries(symbols.map(s=>[s,window.panelQuotes.best(s,at)])),feed_checks:window.panelQuotes.evidence()};
       },{symbols:watch,markets});} catch(e) {comparison={error:e.message};}
     }
   }
@@ -73,6 +74,7 @@ async function snapshot(request) {
   const book={captured_at:at,requested:request.symbols.length,quotes,missing,source_errors:Object.fromEntries(feed.errors)};
   book.markets=markets || Object.fromEntries(Object.entries(quotes).map(([s,q])=>[s,q.venue]));
   if(comparison) {
+    book.feed_checks=feed.evidence();
     book.panel_comparison=comparison;
     if(!request.symbols.includes('UMXUSDT')) book.probe_umx=quote('UMXUSDT',at,markets?.UMXUSDT);
   }

@@ -55,22 +55,24 @@ test('a same-market REST refresh cannot displace a fresh WebSocket trade',async(
   const sockets=[], restAt=Math.floor(Date.now()/1000)*1000;
   globalThis.WebSocket=class {static OPEN=1;constructor(url){this.url=url;sockets.push(this);}close(){}};
   globalThis.fetch=async url=>{
+    if(String(url).endsWith('/trading_pairs')) return Response.json({code:0,data:[{symbol:'BTCUSDT',symbolStatus:'OPEN',quote:'USDT'}]});
     const bitunix=String(url).includes('fapi.bitunix');
     return Response.json(bitunix?{code:0,data:[{symbol:'BTCUSDT',lastPrice:'100'}]}:[],
       {headers:{date:new Date(restAt).toUTCString()}});
   };
   const feed=livePrices(()=>{},{direct:true});
   try {
-    feed.watch(['BTCUSDT']);
+    feed.watch(['BTCUSDT','LITUSDT']);
     sockets.find(s=>s.url.includes('bitunix')).onmessage({data:JSON.stringify({
-      ch:'tickers',ts:restAt-1000,data:[{s:'BTCUSDT',la:'101'}]
+      ch:'tickers',ts:restAt-1000,data:[{s:'BTCUSDT',la:'101'},{s:'LITUSDT',la:'0.57'}]
     })});
     await new Promise(resolve=>setImmediate(resolve));
     assert.equal(feed.best('BTCUSDT',restAt).price,101);
+    assert.equal(feed.best('LITUSDT',restAt,'Bitunix futures'),null);
     assert.equal(feed.best('BTCUSDT',restAt).transport,'websocket');
     assert.equal(feed.best('BTCUSDT',restAt+14500).transport,'rest');
     assert.equal(feed.best('BTCUSDT',restAt+15001),null);
-    feed.watch(['BTCUSDT'],{BTCUSDT:'MEXC spot'});
+    feed.watch(['BTCUSDT','LITUSDT'],{BTCUSDT:'MEXC spot'});
     assert.equal(feed.best('BTCUSDT',restAt),null);
     assert.equal(feed.best('BTCUSDT',restAt,'Bitunix futures').price,101);
   } finally {feed.close();globalThis.WebSocket=originalSocket;globalThis.fetch=originalFetch;}
