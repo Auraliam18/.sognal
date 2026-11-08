@@ -52,6 +52,14 @@ def parse_quote(source, row, response_time, now):
 
 
 def fetch(source):
+    active = None
+    if source == BITUNIX:
+        catalog = Request(URLS[BITUNIX].replace('/tickers','/trading_pairs'), headers={'User-Agent':'LiamTerminal/1.0'})
+        with urlopen(catalog, timeout=5) as response:
+            directory = json.load(response)
+        if str(directory.get('code')) != '0' or not isinstance(directory.get('data'), list):
+            raise ValueError('invalid Bitunix contract directory')
+        active = {r['symbol'] for r in directory['data'] if r.get('symbolStatus') == 'OPEN' and r.get('quote') == 'USDT'}
     request = Request(URLS[source], headers={"User-Agent":"LiamTerminal/1.0", "Cache-Control":"no-cache"})
     with urlopen(request, timeout=5) as response:
         packet = json.load(response)
@@ -67,7 +75,7 @@ def fetch(source):
     now = now_ms()
     quotes = {}
     for row in rows:
-        if isinstance(row, dict):
+        if isinstance(row, dict) and (active is None or row.get('symbol') in active):
             quote = parse_quote(source, row, at, now)
             if quote:
                 quotes[quote["symbol"]] = quote
