@@ -116,7 +116,7 @@ export function mexcTickers(buffer, accept) {
   if(batch) fields(batch,(id,item)=>{if(id===1 && item instanceof Uint8Array) readItem(item);});
 }
 
-function priceSocket(url, subscribe, receive, ping) {
+function priceSocket(url, subscribe, receive, ping, onState) {
   let socket, retryAt=0, backoff=1000, lastData=0, lastPing=0;
   function stop() {
     if(!socket) return;
@@ -131,13 +131,13 @@ function priceSocket(url, subscribe, receive, ping) {
       try {
         const ws=socket=new WebSocket(url);
         ws.binaryType='arraybuffer';lastData=lastPing=now;
-          ws.onopen=()=>{if(subscribe) ws.send(JSON.stringify(subscribe()));};
+        ws.onopen=()=>{if(subscribe) ws.send(JSON.stringify(subscribe()));onState?.('subscribed');};
         ws.onmessage=e=>{
           try {if(receive(e.data)) {lastData=Date.now();backoff=1000;}}
           catch { /* Discard malformed messages without renewing their lifetime. */ }
         };
-        ws.onclose=()=>{if(ws===socket){socket=null;delay(Date.now());}};
-        ws.onerror=()=>ws.close();
+        ws.onclose=e=>{if(ws===socket){socket=null;onState?.('closed '+e.code);delay(Date.now());}};
+        ws.onerror=()=>{onState?.('error');ws.close();};
       } catch {stop();delay(now);}
     }
       if(ping && socket?.readyState===WebSocket.OPEN && now-lastPing>=10000) {
@@ -149,13 +149,22 @@ function priceSocket(url, subscribe, receive, ping) {
 }
 
 
-export function livePrices(onChange, {direct=false}={}) {
+export function livePrices(onChange, {direct=false,inspect={}}={}) {
   const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot','Binance spot'];
-  const errors = new Map(), subscriptions = new Map();
+  const errors = new Map(), subscriptions = new Map(), listed=new Map();
   let wanted = new Set(), markets = new Map();
   let lastPoll = 0, pollAbort;
+  let bitunixMarkets=new Set(), catalogAt=0;
+  const relay='https://liam-market-quotes.phoenix-hamid-2026.workers.dev';
+  const bitunixOpen=s=>Date.now()-catalogAt<120000 && bitunixMarkets.has(s);
+  const diagnostics=Object.fromEntries(Object.keys(inspect).map(s=>[s,{venue:inspect[s],ticks:0,lastTick:null,maxGap:0}]));
   function save(q, transport='rest') {
     if (!q || !wanted.has(q.symbol)) return;
+    const trace=diagnostics[q.symbol];
+    if(trace?.venue===q.venue && transport==='websocket' && q.at>(trace.lastTick||0)) {
+      if(trace.lastTick) trace.maxGap=Math.max(trace.maxGap,q.at-trace.lastTick);
+      trace.lastTick=q.at;trace.ticks++;
+    }
     const book = books.get(q.symbol) || new Map();
     const key=q.venue+' '+transport;
     if (!book.has(key) || book.get(key).at<=q.at) book.set(key,{...q,transport});
@@ -164,6 +173,7 @@ export function livePrices(onChange, {direct=false}={}) {
   function best(sym, now = Date.now(), venue) {
     const required=venue || markets.get(sym);
     for (const v of required?[required]:order) {
+      if (v==='Bitunix futures' && !bitunixOpen(sym)) continue;
       for (const transport of ['websocket','rest']) {
         const q = books.get(sym)?.get(v+' '+transport);
         if (q && q.at <= now+2000 && q.at >= now-QUOTE_TTL) return q;
@@ -175,6 +185,7 @@ export function livePrices(onChange, {direct=false}={}) {
     ()=>({op:'subscribe',args:[...wanted].slice(0,300).map(symbol=>({symbol,ch:'tickers'}))}),
     raw=>{
       const m=JSON.parse(raw);
+      if(m.op==='ping' && m.pong!=null) return true;
       if(m.ch!=='tickers' || !Array.isArray(m.data)) return false;
       for(const row of m.data) save(marketQuote(row.s,row.la,m.ts,order[0]),'websocket');
       return true;
@@ -193,33 +204,47 @@ export function livePrices(onChange, {direct=false}={}) {
     return true;
   },null);
   function listedSocket(venue,symbols) {
+    const state=msg=>{for(const s of symbols) if(diagnostics[s]?.venue===venue) diagnostics[s].socket=msg;};
     if(venue==='Bitunix futures') return priceSocket('wss://fapi.bitunix.com/public/',
-      ()=>({op:'subscribe',args:symbols.map(symbol=>({symbol,ch:'ticker'}))}),raw=>{
+      ()=>({op:'subscribe',args:symbols.flatMap(symbol=>['ticker','trade'].map(ch=>({symbol,ch})))}),raw=>{
         const m=JSON.parse(raw);
+        if(m.op==='ping' && m.pong!=null) return true;
+        if(m.ch==='trade' && Array.isArray(m.data) && symbols.includes(m.symbol)) {
+          for(const r of m.data) save(marketQuote(m.symbol,r.p,Date.parse(r.t),venue),'websocket');
+          return true;
+        }
         if(m.ch!=='ticker' || !m.data || m.data.s!==m.symbol) return false;
         save(marketQuote(m.symbol,m.data.la,m.ts,venue),'websocket');
         return true;
-      },now=>({op:'ping',ping:Math.floor(now/1000)}));
+      },now=>({op:'ping',ping:Math.floor(now/1000)}),state);
     if(venue==='MEXC spot') return priceSocket(mexcUrl,()=>({method:'SUBSCRIPTION',
       params:symbols.map(s=>'spot@public.miniTicker.v3.api.pb@'+s+'@UTC+8')}),receiveMexc,()=>({method:'PING'}));
     const okx=venue==='OKX swap';
-    const args=symbols.map(s=>okx?{channel:'tickers',instId:s.slice(0,-4)+'-USDT-SWAP'}:{instType:'SPOT',channel:'ticker',instId:s});
+    const args=okx?symbols.flatMap(s=>['tickers','trades'].map(channel=>({channel,instId:s.slice(0,-4)+'-USDT-SWAP'}))):
+      symbols.map(s=>({instType:'SPOT',channel:'ticker',instId:s}));
     return priceSocket(okx?'wss://ws.okx.com/ws/v5/public':'wss://ws.bitget.com/v2/ws/public',()=>({op:'subscribe',args}),raw=>{
       if(raw==='pong') return true;
       const m=JSON.parse(raw);
-      if(!Array.isArray(m.data) || m.arg?.channel!==(okx?'tickers':'ticker')) return false;
+      if(!Array.isArray(m.data) || !(okx?['tickers','trades']:['ticker']).includes(m.arg?.channel)) return false;
       for(const r of m.data) {
         if(okx && !r.instId?.endsWith('-USDT-SWAP')) continue;
         const sym=okx?r.instId.slice(0,-10)+'USDT':m.arg.instId;
-        save(marketQuote(sym,okx?r.last:r.lastPr,r.ts,venue),'websocket');
+        const price=okx?(m.arg.channel==='trades'?r.px:r.last):r.lastPr;
+        save(marketQuote(sym,price,r.ts,venue),'websocket');
       }
       return true;
-    },()=> 'ping');
+    },()=> 'ping',state);
   }
   function subscribeListedMarkets() {
     const needed=new Set();
     for(const venue of ['Bitunix futures','OKX swap','Bitget spot','MEXC spot']) {
-      const symbols=[...wanted].filter(s=>(markets.get(s) || order.find(v=>books.get(s)?.has(v+' rest') || books.get(s)?.has(v+' websocket')))===venue).sort();
+      const symbols=[...wanted].filter(s=>{
+        if(venue==='Bitunix futures' && !bitunixOpen(s)) return false;
+        if(markets.has(s)) return markets.get(s)===venue;
+        if(venue==='Bitunix futures') return true;
+        // A cached ticker on another market must not prevent this subscription.
+        return listed.get(venue)?.has(s) || books.get(s)?.has(venue+' rest') || books.get(s)?.has(venue+' websocket');
+      }).sort();
       for(let i=0;i<symbols.length;i+=25) {
         const chunk=symbols.slice(i,i+25),key=venue+' '+chunk.join(',');
         needed.add(key);
@@ -234,7 +259,7 @@ export function livePrices(onChange, {direct=false}={}) {
     // These two exchanges do not expose REST tickers to cross-origin browsers.
     // Their change-only streams can stay silent for an otherwise listed market.
     async function pollRelay(symbols) {
-      const url = new URL('https://liam-market-quotes.phoenix-hamid-2026.workers.dev/v1/tickers');
+      const url = new URL(relay+'/v1/tickers');
       url.searchParams.set('symbols', symbols.join(','));
       const response = await fetch(url, {cache:'no-store', signal:abort.signal});
       if (!response.ok) throw Error('relay unavailable');
@@ -260,17 +285,36 @@ export function livePrices(onChange, {direct=false}={}) {
         return;
       }
       if (abort.signal.aborted || !['0','00000'].includes(String(packet.code)) || !Array.isArray(packet.data)) return;
+      const instruments=new Set();
       for (const row of packet.data) {
         if (venue === 'OKX swap') {
-          if (row.instId?.endsWith('-USDT-SWAP')) save(marketQuote(row.instId.slice(0,-10)+'USDT',row.last,row.ts,venue));
+          if (!row.instId?.endsWith('-USDT-SWAP')) continue;
+          const symbol=row.instId.slice(0,-10)+'USDT';
+          if(wanted.has(symbol)) instruments.add(symbol);
+          save(marketQuote(symbol,row.last,row.ts,venue));
           } else if (venue==='Bitunix futures') {
             save(marketQuote(row.symbol,row.lastPrice,Date.parse(response.headers.get('date')),venue));
-          } else save(marketQuote(row.symbol,row.lastPr,row.ts,venue));
+          } else {
+            if(wanted.has(row.symbol)) instruments.add(row.symbol);
+            save(marketQuote(row.symbol,row.lastPr,row.ts,venue));
+          }
       }
+      if(venue==='OKX swap' || venue==='Bitget spot') listed.set(venue,instruments);
       onChange();
     }
     try {
       const symbols = [...wanted], batches = [];
+      if(Date.now()-catalogAt>=60000) batches.push((async()=>{
+        const url=direct?'https://fapi.bitunix.com/api/v1/futures/market/trading_pairs':relay+'/v1/bitunix-contracts';
+        try {
+          const response=await fetch(url,{cache:'no-store',signal:abort.signal});
+          if(!response.ok) throw Error('contract directory unavailable');
+          const packet=await response.json();
+          const rows=direct && String(packet.code)==='0'?packet.data.filter(r=>r.symbolStatus==='OPEN' && r.quote==='USDT').map(r=>r.symbol):packet.symbols;
+          if(!Array.isArray(rows) || !rows.length) throw Error('empty contract directory');
+          if(pollAbort===abort && !abort.signal.aborted) {bitunixMarkets=new Set(rows);catalogAt=Date.now();errors.delete('Bitunix contracts');}
+        } catch(e) {if(pollAbort===abort) errors.set('Bitunix contracts',e.message);}
+      })());
       if (!direct) for (let i=0; i<symbols.length; i+=100) batches.push(pollRelay(symbols.slice(i,i+100)));
       const sources=[
         ['OKX swap','https://www.okx.com/api/v5/market/tickers?instType=SWAP'],
@@ -314,6 +358,11 @@ export function livePrices(onChange, {direct=false}={}) {
   }
   globalThis.document?.addEventListener('visibilitychange',visibility);
   function close() {clearInterval(timer);reset();globalThis.document?.removeEventListener('visibilitychange',visibility);}
-  return {watch,best,close,errors};
+  function evidence() {
+    return Object.fromEntries(Object.entries(diagnostics).map(([s,r])=>[s,{...r,
+      contractOpen:r.venue==='Bitunix futures' && Date.now()-catalogAt<120000?bitunixMarkets.has(s):null,
+      quote:best(s,Date.now(),r.venue)}]));
+  }
+  return {watch,best,close,errors,evidence};
 }
 
