@@ -151,7 +151,7 @@ function priceSocket(url, subscribe, receive, ping, onState) {
 
 export function livePrices(onChange, {direct=false,inspect={}}={}) {
   const books = new Map(), order = ['Bitunix futures','OKX swap','Bitget spot','MEXC spot','Binance spot'];
-  const errors = new Map(), subscriptions = new Map();
+  const errors = new Map(), subscriptions = new Map(), listed=new Map();
   let wanted = new Set(), markets = new Map();
   let lastPoll = 0, pollAbort;
   let bitunixMarkets=new Set(), catalogAt=0;
@@ -243,7 +243,7 @@ export function livePrices(onChange, {direct=false,inspect={}}={}) {
         if(markets.has(s)) return markets.get(s)===venue;
         if(venue==='Bitunix futures') return true;
         // A cached ticker on another market must not prevent this subscription.
-        return books.get(s)?.has(venue+' rest') || books.get(s)?.has(venue+' websocket');
+        return listed.get(venue)?.has(s) || books.get(s)?.has(venue+' rest') || books.get(s)?.has(venue+' websocket');
       }).sort();
       for(let i=0;i<symbols.length;i+=25) {
         const chunk=symbols.slice(i,i+25),key=venue+' '+chunk.join(',');
@@ -285,13 +285,21 @@ export function livePrices(onChange, {direct=false,inspect={}}={}) {
         return;
       }
       if (abort.signal.aborted || !['0','00000'].includes(String(packet.code)) || !Array.isArray(packet.data)) return;
+      const instruments=new Set();
       for (const row of packet.data) {
         if (venue === 'OKX swap') {
-          if (row.instId?.endsWith('-USDT-SWAP')) save(marketQuote(row.instId.slice(0,-10)+'USDT',row.last,row.ts,venue));
+          if (!row.instId?.endsWith('-USDT-SWAP')) continue;
+          const symbol=row.instId.slice(0,-10)+'USDT';
+          if(wanted.has(symbol)) instruments.add(symbol);
+          save(marketQuote(symbol,row.last,row.ts,venue));
           } else if (venue==='Bitunix futures') {
             save(marketQuote(row.symbol,row.lastPrice,Date.parse(response.headers.get('date')),venue));
-          } else save(marketQuote(row.symbol,row.lastPr,row.ts,venue));
+          } else {
+            if(wanted.has(row.symbol)) instruments.add(row.symbol);
+            save(marketQuote(row.symbol,row.lastPr,row.ts,venue));
+          }
       }
+      if(venue==='OKX swap' || venue==='Bitget spot') listed.set(venue,instruments);
       onChange();
     }
     try {

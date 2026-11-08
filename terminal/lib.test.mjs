@@ -77,3 +77,35 @@ test('a same-market REST refresh cannot displace a fresh WebSocket trade',async(
     assert.equal(feed.best('BTCUSDT',restAt,'Bitunix futures').price,101);
   } finally {feed.close();globalThis.WebSocket=originalSocket;globalThis.fetch=originalFetch;}
 });
+
+test('a stale OKX listing subscribes to live trades despite an obsolete Bitunix ticker',async()=>{
+  const {livePrices}=await import('./lib.mjs');
+  const originalSocket=globalThis.WebSocket,originalFetch=globalThis.fetch;
+  let openSocket;
+  const socketReady=new Promise(resolve=>{openSocket=resolve;});
+  globalThis.WebSocket=class {
+    static OPEN=1;
+    constructor(url){if(url.includes('ws.okx.com')) openSocket(this);}
+    send(raw){this.subscription=JSON.parse(raw);}
+    close(){}
+  };
+  globalThis.fetch=async url=>{
+    const path=String(url);
+    if(path.endsWith('/trading_pairs')) return Response.json({code:0,data:[{symbol:'BTCUSDT',symbolStatus:'OPEN',quote:'USDT'}]});
+    if(path.includes('fapi.bitunix')) return Response.json({code:0,data:[{symbol:'PUMPUSDT',lastPrice:'0.01613'}]},{headers:{date:new Date().toUTCString()}});
+    if(path.includes('www.okx.com')) return Response.json({code:'0',data:[{instId:'PUMP-USDT-SWAP',last:'0.003',ts:Date.now()-60000}]});
+    return Response.json([]);
+  };
+  const feed=livePrices(()=>{},{direct:true});
+  let timeout;
+  try {
+    feed.watch(['PUMPUSDT']);
+    const ws=await Promise.race([socketReady,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('no subscription')),3000);})]);
+    ws.onopen();
+    assert.ok(ws.subscription.args.some(r=>r.instId==='PUMP-USDT-SWAP' && r.channel==='trades'));
+    assert.equal(feed.best('PUMPUSDT'),null);
+    ws.onmessage({data:JSON.stringify({arg:{channel:'trades'},data:[{instId:'PUMP-USDT-SWAP',px:'0.00367',ts:String(Date.now())}]})});
+    assert.equal(feed.best('PUMPUSDT').price,0.00367);
+    assert.equal(feed.best('PUMPUSDT').venue,'OKX swap');
+  } finally {clearTimeout(timeout);feed.close();globalThis.WebSocket=originalSocket;globalThis.fetch=originalFetch;}
+});
