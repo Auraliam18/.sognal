@@ -70,12 +70,14 @@ check("حداقل یک اسکریپت صدا زده شده", bool(called), str(s
 for needle, desc in [
     ("publish.py stage", "پشتیبان‌گیری جداگانهٔ هر پوشه"),
     ("publish.py reapply", "بازگردانی خروجی‌ها پس از reset"),
-    ("publish.py audit", "بازرسی کهنگی در همان دور"),
+    ("publish.py verify-round", "بازرسی خروجی تولیدشده در همین دور"),
     ("test_publish.py", "آزمون رگرسیون انتشار"),
     ("brain/freebuff", "انتشار حافظه روی gh-pages"),
     ("publish.py prune", "پاک‌سازی فایل‌های تکراری"),
 ]:
     check(f"مرحلهٔ حیاتی هست: {desc}", needle in text, needle)
+
+check("agent command runs as a command", bool(re.search(r"(?m)^\s*python3 freebuff/agents\.py --force\s*$", text)))
 
 # ── ۶) توپولوژی معتبر ──
 if isinstance(doc, dict):
