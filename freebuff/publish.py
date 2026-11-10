@@ -82,6 +82,14 @@ def stage(dst_dir):
     return st
 
 
+def report_time(path):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("generated")
+        return value if type(value) is int and 0 < value <= time.time()*1000+2000 else 0
+    except (ValueError, AttributeError, OSError):
+        return 0
+
+
 def _restore(stage_dir, dst_dir, *, force, skip=()):
     """بازگردانی یک پوشه با محافظ تازگی. تعداد فایل بازگردانی‌شده برمی‌گردد."""
     if not stage_dir.is_dir():
@@ -100,7 +108,10 @@ def _restore(stage_dir, dst_dir, *, force, skip=()):
             #  درست همین لحظه از همین درخت برداشته شده؛ محافظ برای
             #  اجرای هم‌زمان و برای آزمون است.)
             try:
-                if dst.stat().st_mtime > src.stat().st_mtime + 1:
+                src_time, dst_time = (report_time(src), report_time(dst)) if dst_dir == SIGNALS else (0, 0)
+                if (src_time or dst_time) and dst_time > src_time:
+                    continue
+                if not (src_time or dst_time) and dst.stat().st_mtime > src.stat().st_mtime + 1:
                     continue
             except OSError:
                 continue
@@ -202,6 +213,15 @@ def audit(*, signals=SIGNALS, memory=MEMORY, stale_after_s=STALE_AFTER_S):
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "audit"
+    if cmd == "verify-round":
+        start = int(sys.argv[2]) * 1000
+        for name in ("round-state.json", "futures.json", "dominance.json"):
+            if report_time(SIGNALS / name) < start:
+                print(f"missing or stale output from current round: {name}")
+                return 1
+        agents = json.loads((SIGNALS / "round-state.json").read_text(encoding="utf-8"))["agents"]
+        return int(any(agents.get(k, {}).get("ok") is not True or agents[k].get("at", 0) < start
+                       for k in ("structure", "derivatives", "news", "macro")))
     if cmd == "stage":
         root, _ = snapshot_outputs()
         print(root)
