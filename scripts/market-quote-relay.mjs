@@ -58,11 +58,38 @@ function batch(venue) {
   return item.promise;
 }
 
+async function candles(params) {
+  const symbol = params.get('symbol') || '';
+  const venue = params.get('venue');
+  const tf = params.get('tf');
+  if (!/^[A-Z0-9]{1,20}USDT$/.test(symbol) || !['5m','15m','1h','4h','1d'].includes(tf) ||
+      !Object.hasOwn(venues, venue)) return new Response(null, {status:400, headers:cors});
+  const futures = venue === 'Bitunix futures';
+  if (futures && !(await contracts()).has(symbol)) return new Response(null, {status:404, headers:cors});
+  const url = new URL(futures ? 'https://fapi.bitunix.com/api/v1/futures/market/kline' : 'https://api.mexc.com/api/v3/klines');
+  url.search = new URLSearchParams({symbol, interval: !futures && tf === '1h' ? '60m' : tf, limit:'200'});
+  const res = await fetch(url, {signal:AbortSignal.timeout(4500)});
+  if (!res.ok) throw Error('candles unavailable');
+  const packet = await res.json();
+  const rows = futures && String(packet.code) === '0' ? packet.data : packet;
+  if (!Array.isArray(rows) || rows.length < 2) throw Error('insufficient candles');
+  const bars = rows.map(r => (futures ? [r.time,r.open,r.high,r.low,r.close] : r.slice(0,5)).map(Number))
+                   .sort((a,b)=>a[0]-b[0]);
+  const valid = bars.filter(([t,o,h,l,c],i)=>Number.isSafeInteger(t) && t>0 && (!i || t>bars[i-1][0]) &&
+      [o,h,l,c].every(n=>Number.isFinite(n) && n>0) && h>=Math.max(o,c) && l<=Math.min(o,c));
+  if (valid.length<2 || valid.at(-1)!==bars.at(-1)) throw Error('invalid candles');
+  return Response.json(valid,{headers:cors});
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method !== 'GET') return new Response(null, {status:404});
     if (request.headers.has('Origin') && request.headers.get('Origin') !== origin) return new Response(null, {status:403});
+    if (url.pathname==='/v1/candles') {
+      try {return await candles(url.searchParams);}
+      catch {return new Response(null,{status:503,headers:cors});}
+    }
     if (url.pathname==='/v1/bitunix-contracts') {
       try {return Response.json({symbols:[...await contracts()]},{headers:cors});}
       catch {return new Response(null,{status:503,headers:cors});}
