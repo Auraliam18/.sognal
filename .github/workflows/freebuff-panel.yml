@@ -83,12 +83,13 @@ jobs:
           git config user.email "noreply@freebuff.local"
           for k in 1 2 3 4; do
             t0=$(date +%s)
-            echo "── دور $k از ۴ · $(date -u '+%H:%M:%S UTC') ──"              python3 freebuff/agents.py --force || true
-              python3 freebuff/dominance.py || true
-              python3 freebuff/snapshot.py || true
+            echo "── دور $k از ۴ · $(date -u '+%H:%M:%S UTC') ──"
+            python3 freebuff/agents.py --force
+            python3 freebuff/dominance.py
+            python3 freebuff/snapshot.py
               # بازرسی سلامت: اگر خروجی‌ای نوشته نشد یا کهنه ماند، همین‌جا
               # در لاگ دیده می‌شود — نه چند روز بعد روی پنل.
-              python3 freebuff/publish.py audit || true
+            python3 freebuff/publish.py verify-round "$t0"
 
             # ثبت ضدتصادم: درخت به origin/main برمی‌گردد و خروجی‌های خودمان
             # دوباره می‌نشینند — زنجیرهٔ LIAM موازی همین کار را می‌کند؛
@@ -101,11 +102,12 @@ jobs:
             # یک‌بار پیش از حلقه: فایل‌های تکراریِ به‌جامانده از رانرهای
             # پیشین پاک می‌شوند تا audit و git diff هر دو صادق باشند.
             python3 freebuff/publish.py prune || true
-            python3 freebuff/publish.py stage || true
+            python3 freebuff/publish.py stage
             for i in 1 2 3 4; do
               git fetch origin main -q
               git reset --hard origin/main -q
-              python3 freebuff/publish.py reapply || true
+              python3 freebuff/publish.py reapply
+              python3 freebuff/publish.py verify-round "$t0"
               git add signals/freebuff brain/freebuff 2>/dev/null || true
               if git diff --cached --quiet; then echo "چیزی برای ثبت نیست"; break; fi
               if git commit -q -m "فری‌باف ۱: دور $(date -u '+%H:%M UTC') [skip ci]" \
