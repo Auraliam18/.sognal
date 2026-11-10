@@ -173,6 +173,18 @@ def klines(sym, tf, limit):
     raise RuntimeError(f"{sym} {tf} futures: no venue — {'; '.join(errs[:6])}")
 
 
+def _okx_statistics(metric, sym, period, limit):
+    instrument = _okx_inst(sym)
+    packet = _json(f"https://www.okx.com/api/v5/rubik/stat/contracts/{metric}"
+                   f"?instId={instrument}&period={period}&limit={limit}")
+    if str(packet.get("code")) != "0" or not packet.get("data"):
+        raise ValueError("OKX statistics unavailable")
+    rows = sorted(packet["data"], key=lambda r: int(r[0]))[-limit:]
+    if not -2000 <= time.time()*1000-int(rows[-1][0]) <= 15*60*1000:
+        raise ValueError("stale OKX statistics")
+    return rows
+
+
 def oi_history(sym="BTCUSDT", period="5m", limit=48):
     """تاریخچهٔ OI بایننس — رشد/کاهش پوزیشن باز، مادهٔ خام تشخیص پامپ واقعی."""
     try:
@@ -182,8 +194,14 @@ def oi_history(sym="BTCUSDT", period="5m", limit=48):
         return [{"t": int(x["timestamp"]), "oi": float(x["sumOpenInterest"]),
                  "oi_usd": float(x["sumOpenInterestValue"])}
                 for x in j]
-    except Exception as e:                           # noqa: BLE001
-        raise RuntimeError(f"oi_hist: binf {type(e).__name__}") from e
+    except (OSError, TypeError, KeyError, ValueError):
+        data = _okx_statistics("open-interest-history", sym, period, limit)
+        rows = [{"t": int(ts), "oi": float(coin), "oi_usd": float(usd)}
+                for ts, _, coin, usd in data]
+        if any(not 0 < r["oi"] < float("inf") or not 0 < r["oi_usd"] < float("inf") for r in rows):
+            raise ValueError("invalid OKX open interest")
+        _used["oi"] = "okx"
+        return rows
 
 
 def oi_snapshot_okx():
@@ -241,9 +259,21 @@ def longshort(limit=40):
                             "long_pct": round(float(x["longAccount"]) * 100, 1)})
         except Exception:                            # noqa: BLE001
             continue
+    venue_id = "binf"
+    if not out:
+        venue_id = "okx"
+        for sym in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"):
+            try:
+                ts, raw = _okx_statistics("long-short-account-ratio-contract", sym, "5m", 1)[-1]
+                ratio = float(raw)
+                if 0 < ratio < float("inf"):
+                    out.append({"symbol": sym, "ratio": round(ratio, 3), "at": int(ts),
+                                "long_pct": round(100*ratio/(1+ratio), 1)})
+            except (OSError, TypeError, KeyError, ValueError):
+                continue
     if not out:
         raise RuntimeError("longshort: no venue")
-    _used["longshort"] = "binf"
+    _used["longshort"] = venue_id
     return out[:limit]
 
 

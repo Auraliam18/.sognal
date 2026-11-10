@@ -105,5 +105,23 @@ check("longshort: متعادل", futures.longshort_verdict(
     [{"symbol": "BTCUSDT", "ratio": 1.2, "long_pct": 54.0}]) == "نسبت لانگ/شورت متعادل")
 check("longshort: خالی صادق", "نیامد" in futures.longshort_verdict([]))
 
+from unittest.mock import patch
+from time import time
+
+def alternate_market(url):
+    if "binance.com" in url:
+        raise OSError("upstream unavailable")
+    now = str(int(time()*1000))
+    if "open-interest-history" in url:
+        return {"code":"0", "data":[[now, "99999", "24", "80000"]]}
+    return {"code":"0", "data":[[now, "3"]]}
+
+with patch.object(futures, "_json", alternate_market):
+    oi = futures.oi_history()[0]
+    ratios = futures.longshort()
+    check("OKX OI uses coin and USD quantities", oi["oi"] == 24 and oi["oi_usd"] == 80000)
+    check("OKX account ratio fallback", len(ratios) == 5 and ratios[0]["long_pct"] == 75
+          and futures.used()["oi"] == futures.used()["longshort"] == "okx")
+
 print(f"\n{'همهٔ آزمون‌ها سبز' if FAIL == 0 else f'{FAIL} آزمون قرمز'}")
 sys.exit(1 if FAIL else 0)

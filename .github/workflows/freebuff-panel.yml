@@ -103,22 +103,24 @@ jobs:
             # پیشین پاک می‌شوند تا audit و git diff هر دو صادق باشند.
             python3 freebuff/publish.py prune || true
             python3 freebuff/publish.py stage
+            published=0
             for i in 1 2 3 4; do
-              git fetch origin main -q
+              git fetch --depth=1 --no-tags origin +refs/heads/main:refs/remotes/origin/main -q
               git reset --hard origin/main -q
               python3 freebuff/publish.py reapply
               python3 freebuff/publish.py verify-round "$t0"
               git add signals/freebuff brain/freebuff 2>/dev/null || true
-              if git diff --cached --quiet; then echo "چیزی برای ثبت نیست"; break; fi
+              if git diff --cached --quiet; then published=1; break; fi
               if git commit -q -m "فری‌باف ۱: دور $(date -u '+%H:%M UTC') [skip ci]" \
                  && git push origin HEAD:main -q; then
-                echo "ثبت شد (تلاش $i)"; break
+                published=1; echo "ثبت شد (تلاش $i)"; break
               fi
               sleep $((i * 3))
             done
+            test "$published" = 1
 
             # انتشار روی gh-pages برای پنل — خروجی‌ها + خودِ پنل
-            if git fetch origin gh-pages -q; then
+            if git fetch --depth=1 --no-tags origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages -q; then
               rm -rf /tmp/fbgp
               if git worktree add /tmp/fbgp origin/gh-pages --detach -q; then
                 mkdir -p /tmp/fbgp/signals/freebuff /tmp/fbgp/brain/freebuff
@@ -134,8 +136,8 @@ jobs:
                     for i in 1 2 3; do
                       git push origin HEAD:gh-pages -q \
                         && { echo "deployed=1" >> "$GITHUB_OUTPUT"; break; }
-                      git fetch origin gh-pages -q || true
-                      git rebase origin/gh-pages -q || { git rebase --abort; break; }
+                      git fetch --depth=1 --no-tags origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages -q
+                      git rebase --onto origin/gh-pages HEAD~1 -q || { git rebase --abort; break; }
                     done
                   fi )
                 git worktree remove --force /tmp/fbgp 2>/dev/null || true

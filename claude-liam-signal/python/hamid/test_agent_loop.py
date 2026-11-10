@@ -243,6 +243,13 @@ check("قیمت منقضی یا آینده رد می‌شود", all(_mq.parse_qu
 check("قیمت مرجع صرافی دیگر اجازهٔ ارسال نمی‌دهد", _mq.entry_check({"sym":"BTCUSDT","entry":123.4,"sl":120,"dir":"LONG"},dict(_q,venue="MEXC spot"))[0]=="no_execution_quote")
 check("قراردادهای ضریب‌دار به نام سکهٔ معمولی تبدیل نمی‌شوند",
       _mq.parse_quote("OKX swap", {"instId":"1000PEPE-USDT-SWAP","last":"1","ts":_qt},None,_qt)["symbol"] == "1000PEPEUSDT")
+from hamid import signal_liquidity as _liquidity
+from unittest.mock import patch as _patch
+_fixture_ranks = {s: {"rank": i} for i, s in enumerate(PX, 1)}
+_rank_mock = _patch.object(_liquidity, "policy", return_value={"members": _fixture_ranks})
+_book_mock = _patch.object(_liquidity, "assess", return_value={"ok": True, "rank": 1})
+_rank_mock.start()
+_book_mock.start()
 _original_quote = _mq.execution_quote
 _mq.execution_quote = lambda sym: {"symbol":sym, "venue":_mq.BITUNIX, "price":PX.get(sym,1.0),
                                     "observed_at":_mq.now_ms(), "clock":"http_date"}
@@ -285,6 +292,8 @@ n3 = tg.send_signals([s3], lambda s, p: None)
 check("سقف ۲ ارسال به ازای هر ارز در ۱۲ ساعت", n3 == 0)
 tg.creds, tg._post, _sources.klines, _pm2.review, _paper2.open_from = _orig_env
 _mq.execution_quote = _original_quote
+_rank_mock.stop()
+_book_mock.stop()
 
 # ── Universe Snapshot (AuraLiam369 §5 — فاز ۱) ────────────────────────────
 from hamid import universe as _u                      # noqa: E402

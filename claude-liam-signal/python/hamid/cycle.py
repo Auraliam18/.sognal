@@ -1174,7 +1174,8 @@ def main():
         except Exception as e:                       # noqa: BLE001
             print(f"لیست ارزها نیامد: {e}")
             syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
-        from hamid import market_quotes
+        from hamid import market_quotes, signal_liquidity
+        syms = signal_liquidity.prioritize(syms, a.symbols, signal_liquidity.policy())
         market_quotes.prewarm(syms)
         act(f"در حال خواندن {len(syms)} ارز برتر از صرافی‌های جهانی")
 
@@ -1420,9 +1421,12 @@ def main():
         within_window = [s for s in ready if s["quote_check"] == "within_entry_window"]
         report["held_for_price"] = [{"symbol":s["symbol"], "dir":s["dir"], "reason":s["quote_check"]}
                                     for s in ready if s["quote_check"] != "within_entry_window"]
+        within_window, liquidity_held = signal_liquidity.screen(within_window)
+        report["signal_policy"] = signal_liquidity.policy()
+        report["held_for_liquidity"] = [{"symbol": s["symbol"], **s["liquidity_check"]} for s in liquidity_held]
         take = min(room, per_cycle, len(within_window))
         held = len(within_window) - take
-        report["setups"] = within_window[:take] + waiting
+        report["setups"] = within_window[:take] + [s for s in waiting if s["symbol"] in report["signal_policy"]["members"]]
         report["held_back"] = held
         # سهمیه فقط برای نمایش و تلگرام است. دفتر کاغذی همهٔ آماده‌ها را
         # می‌گیرد: یادگیری به معاملهٔ بسته نیاز دارد و با ۲ سیگنال در چرخه،

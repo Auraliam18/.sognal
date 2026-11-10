@@ -227,28 +227,43 @@ def telegram_refuses_without_creds():
 
 
 def signal_is_sent_once():
-    import telegram, pathlib
-    tmp = HERE / ".selftest-sent.json"
-    real, telegram.SENT = telegram.SENT, pathlib.Path(tmp)
-    os.environ["TELEGRAM_BOT_TOKEN"] = "selftest"
-    os.environ["TELEGRAM_CHAT_ID"] = "0"
-    calls = []
-    post = telegram._post
-    telegram._post = lambda *a, **k: (calls.append(1), {"ok": True})[1]
-    try:
-        sig = [{"sym": "ONCEUSDT", "tf": "5m", "dir": "LONG", "entry": 1.0,
-                "sl": 0.9, "tp1": 1.2, "rr": 2, "strategy": "smc"}]
-        telegram.send_signals(sig, lambda s, p: None)
-        first = len(calls)
-        telegram.send_signals(sig, lambda s, p: None)
-        second = len(calls)
-    finally:
-        telegram._post = post
-        telegram.SENT = real
-        tmp.unlink(missing_ok=True)
-        os.environ.pop("TELEGRAM_BOT_TOKEN", None)
-        os.environ.pop("TELEGRAM_CHAT_ID", None)
-    return (first == 1 and second == 1), f"first pass {first} call, second pass {second}"
+    from contextlib import ExitStack
+    from tempfile import TemporaryDirectory
+    from unittest.mock import patch
+    import sources
+    import telegram
+    from hamid import market_quotes, paper, premortem, signal_liquidity
+
+    sym = "ONCEUSDT"
+    signal = {"sym": sym, "tf": "5m", "dir": "LONG", "entry": 1.0,
+              "sl": 0.9, "tp1": 1.2, "rr": 2, "strategy": "smc"}
+    now = market_quotes.now_ms()
+    def bars(symbol, tf, n):
+        step = {"15m": 900000, "1h": 3600000, "4h": 14400000}[tf]
+        end = now // step * step
+        return [[end-(n-i)*step, 1, 1.001, 0.999, 1, 100] for i in range(n)]
+
+    with TemporaryDirectory() as folder, ExitStack() as mocks:
+        stub = lambda obj, key, **kw: mocks.enter_context(patch.object(obj, key, **kw))
+        for attr, name in (("SENT", "sent.json"), ("TGLOG", "history.json")):
+            mocks.enter_context(patch.object(telegram, attr, Path(folder) / name))
+        stub(telegram, "creds", return_value=("selftest", "0"))
+        post = stub(telegram, "_post", return_value={"ok": True, "result": {"message_id": 1}})
+        stub(telegram, "decision_context", return_value={})
+        stub(telegram, "_log_final")
+        stub(paper, "open_from")
+        stub(sources, "klines", side_effect=bars)
+        stub(premortem, "review", return_value={"pro": [], "con": [], "issue": True, "note": ""})
+        stub(market_quotes, "execution_quote", return_value={"symbol": sym, "venue": market_quotes.BITUNIX,
+             "price": 1, "observed_at": now, "clock": "fixture"})
+        stub(signal_liquidity, "policy", return_value={"at": now, "members": {sym: {"rank": 50}}})
+        depth = stub(signal_liquidity, "_get", return_value=({"bids":[["0.99","10000"]], "asks":[["1.01","10000"]]}, now))
+        telegram.send_signals([dict(signal, sym="OUTSIDEUSDT"), signal], lambda s, p: None, limit=1)
+        rejected = post.call_count
+        depth.return_value = ({"bids":[["0.99999","10000"]], "asks":[["1.00001","10000"]]}, now)
+        first = telegram.send_signals([signal], lambda s, p: None)
+        second = telegram.send_signals([signal], lambda s, p: None)
+        return (rejected == 0 and first == 1 and second == 0 and post.call_count == 1), f"{post.call_count} posts"
 
 
 def published_scan_is_fresh():
