@@ -234,6 +234,24 @@ with tempfile.TemporaryDirectory() as td:
     check("و هشدار روشن می‌دهد", "پشتیبانی نبود" in r.stdout, r.stdout[:200])
 
 print()
+with tempfile.TemporaryDirectory() as td:
+    from unittest.mock import patch
+    tmp = Path(td)
+    src, dst = tmp / "staged", tmp / "checkedout"
+    src.mkdir()
+    dst.mkdir()
+    name = "agent-structure.json"
+    (src / name).write_text('[{"t":1000},{"t":2000}]')
+    (dst / name).write_text('[{"t":1000}]')
+    import os
+    os.utime(src / name, (1, 1))
+    with patch.object(publish, "MEMORY", dst):
+        publish._restore(src,dst,force=False)
+        check("checkout mtime does not erase newly appended observations", publish.report_time(dst/name)==2000)
+        (dst / name).write_text('[{"t":3000}]')
+        publish._restore(src,dst,force=False)
+        check("newer memory observations survive a retry", publish.report_time(dst/name)==3000)
+
 if FAIL:
     print(f"{FAIL} آزمون شکست خورد")
     sys.exit(1)

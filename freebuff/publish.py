@@ -84,7 +84,11 @@ def stage(dst_dir):
 
 def report_time(path):
     try:
-        value = json.loads(path.read_text(encoding="utf-8")).get("generated")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return max((r["t"] for r in data if isinstance(r, dict) and type(r.get("t")) is int
+                        and 0 < r["t"] <= time.time()*1000+2000), default=0)
+        value = data.get("generated")
         return value if type(value) is int and 0 < value <= time.time()*1000+2000 else 0
     except (ValueError, AttributeError, OSError):
         return 0
@@ -108,7 +112,9 @@ def _restore(stage_dir, dst_dir, *, force, skip=()):
             #  درست همین لحظه از همین درخت برداشته شده؛ محافظ برای
             #  اجرای هم‌زمان و برای آزمون است.)
             try:
-                src_time, dst_time = (report_time(src), report_time(dst)) if dst_dir == SIGNALS else (0, 0)
+                timestamped = dst_dir == SIGNALS or (dst_dir == MEMORY and
+                              (src.name.startswith("agent-") or src.name == "dominance-series.json"))
+                src_time, dst_time = (report_time(src), report_time(dst)) if timestamped else (0, 0)
                 if (src_time or dst_time) and dst_time > src_time:
                     continue
                 if not (src_time or dst_time) and dst.stat().st_mtime > src.stat().st_mtime + 1:
