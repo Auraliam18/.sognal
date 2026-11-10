@@ -1,6 +1,6 @@
 {
- "generated": 1794298845813,
- "generatedText": "2026-11-10 08:20 UTC",
+ "generated": 1794299082540,
+ "generatedText": "2026-11-10 08:24 UTC",
  "source": "کندل واقعی MEXC، اسکن‌شده روی رانر گیت‌هاب",
  "symbols": 60,
  "series": 120,
@@ -29,18 +29,6 @@
   }
  },
  "alarms": [
-  {
-   "sym": "TRUMPUSDT",
-   "tf": "5m",
-   "dir": "LONG",
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "price": 1.138,
-   "now": 1.138,
-   "distancePct": 0.0,
-   "why": "اتاق یادگیری مخالف است — 79 مورد مشابه، برد 8.9٪، انتظار -0.31R",
-   "stage": "ARMED"
-  },
   {
    "sym": "XLMUSDT",
    "tf": "5m",
@@ -75,6 +63,18 @@
    "now": 0.21854,
    "distancePct": 0.0,
    "why": "اتاق یادگیری مخالف است — 15 مورد مشابه، برد 6.7٪، انتظار -0.83R",
+   "stage": "ARMED"
+  },
+  {
+   "sym": "TRUMPUSDT",
+   "tf": "5m",
+   "dir": "LONG",
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "price": 1.138,
+   "now": 1.138,
+   "distancePct": 0.0,
+   "why": "اتاق یادگیری مخالف است — 79 مورد مشابه، برد 8.9٪، انتظار -0.31R",
    "stage": "ARMED"
   },
   {
@@ -126,6 +126,18 @@
    "stage": "ARMED"
   },
   {
+   "sym": "ZECUSDT",
+   "tf": "5m",
+   "dir": "SHORT",
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "price": 1140.24,
+   "now": 1140.24,
+   "distancePct": 0.0,
+   "why": "ADX 12.1 زیر حد 25 — بازار روند ندارد",
+   "stage": "ARMED"
+  },
+  {
    "sym": "SPCXBUSDT",
    "tf": "5m",
    "dir": "LONG",
@@ -147,18 +159,6 @@
    "now": 888.1,
    "distancePct": 0.0,
    "why": "ADX 14.9 زیر حد 25 — بازار روند ندارد",
-   "stage": "ARMED"
-  },
-  {
-   "sym": "ZECUSDT",
-   "tf": "5m",
-   "dir": "SHORT",
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "price": 1140.24,
-   "now": 1140.24,
-   "distancePct": 0.0,
-   "why": "ADX 12.1 زیر حد 25 — بازار روند ندارد",
    "stage": "ARMED"
   },
   {
@@ -516,7 +516,7 @@
   "note": "قبل از هر سیگنال، سابقهٔ همان ارز با همان استراتژی و همان جهت پرسیده می‌شود. اگر سابقه بد و نمونه کافی باشد، سیگنال نگه داشته می‌شود. اگر سابقه کم باشد چیزی تغییر نمی‌کند."
  },
  "context": {
-  "btcChange": 0.859
+  "btcChange": 0.645
  },
  "note": "۵ دقیقه بالاتر از ۱۵ دقیقه رتبه می‌گیرد، چون بک‌تست روی کندل واقعی روی ۵ دقیقه لبه اندازه گرفت (+۰.۱۴۱R با بازهٔ کاملاً بالای صفر) و روی ۱۵ دقیقه نه (+۰.۰۰۵R، بازه صفر را در بر می‌گیرد). این فقط رتبه‌بندی است — هیچ ارزی به‌خاطر تایم‌فریمش حذف نمی‌شود.",
  "signals": [
@@ -571,11 +571,15 @@
     "high": 5.293
    },
    "learned": {
-    "boost": 0.216,
+    "boost": 0.422,
     "rules": [
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": 0.216
+     },
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": 0.206
      }
     ]
    },
@@ -700,7 +704,7 @@
     "hit": 45.7,
     "ev": 0.323
    },
-   "quote_check": "within_entry_window"
+   "quote_check": "passed_entry"
   },
   {
    "strategy": "ibs",
@@ -1688,7 +1692,7 @@
     "hit": 39.6,
     "ev": 0.21
    },
-   "quote_check": "within_entry_window"
+   "quote_check": "passed_entry"
   },
   {
    "strategy": "ibs",
@@ -2091,10 +2095,10 @@
     "ev": 0.132
    },
    "macro_evidence": {
-    "dominance_at": 1794298738292,
+    "dominance_at": 1794298975578,
     "usdt_dominance": 7.022,
     "regime": "RANGE",
-    "btc_at": 1794298738347,
+    "btc_at": 1794298975628,
     "btc_4h": [],
     "btc_1h": []
    },
@@ -2420,7 +2424,7 @@
     "hit": 30.0,
     "ev": -0.032
    },
-   "quote_check": "within_entry_window"
+   "quote_check": "passed_entry"
   },
   {
    "strategy": "ibs",
@@ -2595,73 +2599,6 @@
   }
  ],
  "watch": [
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "TRUMPUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 1.138,
-   "sl": 1.1255371428571428,
-   "tp1": 1.1604331428571426,
-   "tp2": 1.1783796571428569,
-   "rr": 1.8,
-   "price": 1.138,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 59,
-   "visits": 1,
-   "depth": 0,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 24
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": 1,
-    "posPct": 89
-   },
-   "adx": 29.4,
-   "room": {
-    "r": 0.41,
-    "blocker": "حمایت ×14"
-   },
-   "swept": {
-    "n": 4
-   },
-   "thin": {
-    "insideRatio": 0.31,
-    "volRatio": 1.17
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "اتاق یادگیری مخالف است — 79 مورد مشابه، برد 8.9٪، انتظار -0.31R",
-   "lastClose": 1794298500000,
-   "ob": {
-    "low": 1.126,
-    "high": 1.129
-   },
-   "learned": {
-    "boost": 0.216,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": 0.216
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "bad",
-    "n": 79,
-    "hit": 8.9,
-    "ev": -0.313
-   }
-  },
   {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
@@ -3536,6 +3473,77 @@
   {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
+   "sym": "TRUMPUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 1.138,
+   "sl": 1.1255371428571428,
+   "tp1": 1.1604331428571426,
+   "tp2": 1.1783796571428569,
+   "rr": 1.8,
+   "price": 1.138,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 59,
+   "visits": 1,
+   "depth": 0,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 24
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": 1,
+    "posPct": 89
+   },
+   "adx": 29.4,
+   "room": {
+    "r": 0.41,
+    "blocker": "حمایت ×14"
+   },
+   "swept": {
+    "n": 4
+   },
+   "thin": {
+    "insideRatio": 0.31,
+    "volRatio": 1.17
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "اتاق یادگیری مخالف است — 79 مورد مشابه، برد 8.9٪، انتظار -0.31R",
+   "lastClose": 1794298500000,
+   "ob": {
+    "low": 1.126,
+    "high": 1.129
+   },
+   "learned": {
+    "boost": -0.372,
+    "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": 0.216
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "bad",
+    "n": 79,
+    "hit": 8.9,
+    "ev": -0.313
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
    "sym": "NVDABUSDT",
    "tf": "5m",
    "stage": "ARMED",
@@ -3584,8 +3592,12 @@
     "high": 181.66
    },
    "learned": {
-    "boost": -0.23,
+    "boost": -0.818,
     "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
      {
       "rule": "جای حرکت بیش از ۱.۵ برابر",
       "delta": -0.23
@@ -4037,73 +4049,6 @@
   {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
-   "sym": "SOXLBUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 56.18,
-   "sl": 55.87977142857143,
-   "tp1": 56.75,
-   "tp2": 57.06,
-   "rr": 1.9,
-   "price": 56.07,
-   "conf": 41,
-   "ev": 0.18336773484119084,
-   "quality": 61,
-   "visits": 1,
-   "depth": 80,
-   "exited": false,
-   "inside": true,
-   "fvg": true,
-   "level": {
-    "type": "R",
-    "touches": 6
-   },
-   "channel": {
-    "dir": "نزولی",
-    "drift": -4.3,
-    "posPct": 84
-   },
-   "adx": 26.5,
-   "room": {
-    "r": 0.42,
-    "blocker": "مقاومت ×6"
-   },
-   "swept": {
-    "n": 3
-   },
-   "thin": {
-    "insideRatio": 0.24,
-    "volRatio": 1.03
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": null,
-   "lastClose": 1794298500000,
-   "ob": {
-    "low": 55.93,
-    "high": 56.18
-   },
-   "learned": {
-    "boost": 0.216,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": 0.216
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "good",
-    "n": 107,
-    "hit": 24.3,
-    "ev": 0.306
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
    "sym": "BMTUSDT",
    "tf": "5m",
    "stage": "ARMED",
@@ -4152,11 +4097,15 @@
     "high": 0.02273
    },
    "learned": {
-    "boost": 0.216,
+    "boost": 0.422,
     "rules": [
      {
       "rule": "جای حرکت کمتر از ۱ برابر",
       "delta": 0.216
+     },
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": 0.206
      }
     ]
    },
@@ -4166,131 +4115,6 @@
     "n": 71,
     "hit": 40.8,
     "ev": 0.682
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "SPCXBUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 142.12,
-   "sl": 141.61445714285713,
-   "tp1": 143.33,
-   "tp2": 144.29800000000003,
-   "rr": 2.39,
-   "price": 142.12,
-   "conf": 39,
-   "ev": 0.3117211060778745,
-   "quality": 73,
-   "visits": 1,
-   "depth": 100,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 20
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": -0.4,
-    "posPct": 89
-   },
-   "adx": 12.3,
-   "room": {
-    "r": 0.53,
-    "blocker": "FVG مقابل"
-   },
-   "swept": {
-    "n": 10
-   },
-   "thin": {
-    "insideRatio": 0.1,
-    "volRatio": 0.95
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "ADX 12.3 زیر حد 25 — بازار روند ندارد",
-   "lastClose": 1794298500000,
-   "ob": {
-    "low": 141.64,
-    "high": 141.76
-   },
-   "learned": {
-    "boost": 0.216,
-    "rules": [
-     {
-      "rule": "جای حرکت کمتر از ۱ برابر",
-      "delta": 0.216
-     }
-    ]
-   },
-   "elite": true,
-   "learning": {
-    "verdict": "bad",
-    "n": 98,
-    "hit": 9.2,
-    "ev": -0.441
-   }
-  },
-  {
-   "strategy": "smc",
-   "strategyName": "کانال + اردر بلاک",
-   "sym": "SNDKBUSDT",
-   "tf": "5m",
-   "stage": "ARMED",
-   "dir": "LONG",
-   "entry": 888.1,
-   "sl": 884.4112285714286,
-   "tp1": 894.7397885714286,
-   "tp2": 900.0516194285714,
-   "rr": 1.8,
-   "price": 888.1,
-   "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 82,
-   "visits": 2,
-   "depth": 45,
-   "exited": true,
-   "inside": false,
-   "fvg": true,
-   "level": {
-    "type": "S",
-    "touches": 11
-   },
-   "channel": {
-    "dir": "خنثی",
-    "drift": -0.9,
-    "posPct": 73
-   },
-   "adx": 14.9,
-   "room": {
-    "r": 1.17,
-    "blocker": "مقاومت ×8"
-   },
-   "swept": {
-    "n": 2
-   },
-   "thin": {
-    "insideRatio": 0.07,
-    "volRatio": 0.93
-   },
-   "goOnFirst": true,
-   "waitReason": null,
-   "skip": "ADX 14.9 زیر حد 25 — بازار روند ندارد",
-   "lastClose": 1794298500000,
-   "ob": {
-    "low": 884.7,
-    "high": 886.21
-   },
-   "elite": false,
-   "learning": {
-    "verdict": "good",
-    "n": 129,
-    "hit": 31.0,
-    "ev": 0.122
    }
   },
   {
@@ -4999,6 +4823,77 @@
    }
   },
   {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "ZECUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "SHORT",
+   "entry": 1140.24,
+   "sl": 1151.3426285714286,
+   "tp1": 1120.2552685714286,
+   "tp2": 1104.2674834285715,
+   "rr": 1.8,
+   "price": 1140.24,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 81,
+   "visits": 1,
+   "depth": 54,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 6
+   },
+   "channel": {
+    "dir": "نزولی",
+    "drift": -2.1,
+    "posPct": 35
+   },
+   "adx": 12.1,
+   "room": {
+    "r": 99,
+    "blocker": null
+   },
+   "swept": {
+    "n": 4
+   },
+   "thin": {
+    "insideRatio": 0.1,
+    "volRatio": 1.51
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 12.1 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1794298500000,
+   "ob": {
+    "low": 1146.64,
+    "high": 1150.75
+   },
+   "learned": {
+    "boost": -0.024,
+    "rules": [
+     {
+      "rule": "جای حرکت بیش از ۱.۵ برابر",
+      "delta": -0.23
+     },
+     {
+      "rule": "شورت همسو با بیت‌کوین",
+      "delta": 0.206
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 140,
+    "hit": 36.4,
+    "ev": 0.231
+   }
+  },
+  {
    "strategy": "ibs",
    "strategyName": "IBS + پولبک",
    "sym": "AVAXUSDT",
@@ -5281,68 +5176,210 @@
   {
    "strategy": "smc",
    "strategyName": "کانال + اردر بلاک",
-   "sym": "ZECUSDT",
+   "sym": "SOXLBUSDT",
    "tf": "5m",
    "stage": "ARMED",
-   "dir": "SHORT",
-   "entry": 1140.24,
-   "sl": 1151.3426285714286,
-   "tp1": 1120.2552685714286,
-   "tp2": 1104.2674834285715,
-   "rr": 1.8,
-   "price": 1140.24,
+   "dir": "LONG",
+   "entry": 56.18,
+   "sl": 55.87977142857143,
+   "tp1": 56.75,
+   "tp2": 57.06,
+   "rr": 1.9,
+   "price": 56.07,
    "conf": 41,
-   "ev": 0.1547557525033565,
-   "quality": 81,
+   "ev": 0.18336773484119084,
+   "quality": 61,
    "visits": 1,
-   "depth": 54,
-   "exited": true,
-   "inside": false,
+   "depth": 80,
+   "exited": false,
+   "inside": true,
    "fvg": true,
    "level": {
-    "type": "S",
+    "type": "R",
     "touches": 6
    },
    "channel": {
     "dir": "نزولی",
-    "drift": -2.1,
-    "posPct": 35
+    "drift": -4.3,
+    "posPct": 84
    },
-   "adx": 12.1,
+   "adx": 26.5,
    "room": {
-    "r": 99,
-    "blocker": null
+    "r": 0.42,
+    "blocker": "مقاومت ×6"
    },
    "swept": {
-    "n": 4
+    "n": 3
    },
    "thin": {
-    "insideRatio": 0.1,
-    "volRatio": 1.51
+    "insideRatio": 0.24,
+    "volRatio": 1.03
    },
    "goOnFirst": true,
    "waitReason": null,
-   "skip": "ADX 12.1 زیر حد 25 — بازار روند ندارد",
+   "skip": null,
    "lastClose": 1794298500000,
    "ob": {
-    "low": 1146.64,
-    "high": 1150.75
+    "low": 55.93,
+    "high": 56.18
    },
    "learned": {
-    "boost": -0.23,
+    "boost": -0.372,
     "rules": [
      {
-      "rule": "جای حرکت بیش از ۱.۵ برابر",
-      "delta": -0.23
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": 0.216
      }
     ]
    },
    "elite": false,
    "learning": {
     "verdict": "good",
-    "n": 140,
-    "hit": 36.4,
-    "ev": 0.231
+    "n": 107,
+    "hit": 24.3,
+    "ev": 0.306
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "SPCXBUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 142.12,
+   "sl": 141.61445714285713,
+   "tp1": 143.33,
+   "tp2": 144.29800000000003,
+   "rr": 2.39,
+   "price": 142.12,
+   "conf": 39,
+   "ev": 0.3117211060778745,
+   "quality": 73,
+   "visits": 1,
+   "depth": 100,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 20
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": -0.4,
+    "posPct": 89
+   },
+   "adx": 12.3,
+   "room": {
+    "r": 0.53,
+    "blocker": "FVG مقابل"
+   },
+   "swept": {
+    "n": 10
+   },
+   "thin": {
+    "insideRatio": 0.1,
+    "volRatio": 0.95
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 12.3 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1794298500000,
+   "ob": {
+    "low": 141.64,
+    "high": 141.76
+   },
+   "learned": {
+    "boost": -0.372,
+    "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
+     {
+      "rule": "جای حرکت کمتر از ۱ برابر",
+      "delta": 0.216
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "bad",
+    "n": 98,
+    "hit": 9.2,
+    "ev": -0.441
+   }
+  },
+  {
+   "strategy": "smc",
+   "strategyName": "کانال + اردر بلاک",
+   "sym": "SNDKBUSDT",
+   "tf": "5m",
+   "stage": "ARMED",
+   "dir": "LONG",
+   "entry": 888.1,
+   "sl": 884.4112285714286,
+   "tp1": 894.7397885714286,
+   "tp2": 900.0516194285714,
+   "rr": 1.8,
+   "price": 888.1,
+   "conf": 41,
+   "ev": 0.1547557525033565,
+   "quality": 82,
+   "visits": 2,
+   "depth": 45,
+   "exited": true,
+   "inside": false,
+   "fvg": true,
+   "level": {
+    "type": "S",
+    "touches": 11
+   },
+   "channel": {
+    "dir": "خنثی",
+    "drift": -0.9,
+    "posPct": 73
+   },
+   "adx": 14.9,
+   "room": {
+    "r": 1.17,
+    "blocker": "مقاومت ×8"
+   },
+   "swept": {
+    "n": 2
+   },
+   "thin": {
+    "insideRatio": 0.07,
+    "volRatio": 0.93
+   },
+   "goOnFirst": true,
+   "waitReason": null,
+   "skip": "ADX 14.9 زیر حد 25 — بازار روند ندارد",
+   "lastClose": 1794298500000,
+   "ob": {
+    "low": 884.7,
+    "high": 886.21
+   },
+   "learned": {
+    "boost": -0.588,
+    "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     }
+    ]
+   },
+   "elite": false,
+   "learning": {
+    "verdict": "good",
+    "n": 129,
+    "hit": 31.0,
+    "ev": 0.122
    }
   },
   {
@@ -5396,8 +5433,12 @@
     "high": 291.07
    },
    "learned": {
-    "boost": -0.265,
+    "boost": -0.853,
     "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
      {
       "rule": "R:R بالای ۲.۵",
       "delta": -0.481
@@ -5467,8 +5508,12 @@
     "high": 10.637
    },
    "learned": {
-    "boost": -0.711,
+    "boost": -1.299,
     "rules": [
+     {
+      "rule": "لانگ خلاف بیت‌کوین",
+      "delta": -0.588
+     },
      {
       "rule": "R:R بالای ۲.۵",
       "delta": -0.481
@@ -5912,126 +5957,126 @@
   }
  ],
  "quote_book": {
-  "captured_at": 1794298866084,
+  "captured_at": 1794299103241,
   "requested": 60,
   "quotes": {
    "AAVEUSDT": {
     "symbol": "AAVEUSDT",
-    "price": 126.01,
+    "price": 125.81,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299103107,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ADAUSDT": {
     "symbol": "ADAUSDT",
-    "price": 0.1788,
+    "price": 0.1785,
     "venue": "Bitunix futures",
-    "observed_at": 1794298861703,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ARBUSDT": {
     "symbol": "ARBUSDT",
-    "price": 0.16671,
+    "price": 0.16656,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ASTERUSDT": {
     "symbol": "ASTERUSDT",
-    "price": 0.6521,
+    "price": 0.6518,
     "venue": "Bitunix futures",
-    "observed_at": 1794298860879,
+    "observed_at": 1794299101170,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "AVAXUSDT": {
     "symbol": "AVAXUSDT",
-    "price": 8.469,
+    "price": 8.459,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "BCHUSDT": {
     "symbol": "BCHUSDT",
-    "price": 237.76,
+    "price": 237.56,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "BMTUSDT": {
     "symbol": "BMTUSDT",
-    "price": 0.02243,
+    "price": 0.02249,
     "venue": "Bitunix futures",
-    "observed_at": 1794298861219,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "BNBUSDT": {
     "symbol": "BNBUSDT",
-    "price": 691.24,
+    "price": 690.83,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102793,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "BTCUSDT": {
     "symbol": "BTCUSDT",
-    "price": 74728.5,
+    "price": 74691.6,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865487,
+    "observed_at": 1794299102867,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "CRCLBUSDT": {
     "symbol": "CRCLBUSDT",
-    "price": 67.93,
+    "price": 67.82,
     "venue": "Binance spot",
-    "observed_at": 1794298858622,
-    "transport": "rest",
+    "observed_at": 1794299100628,
+    "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "DOGEUSDT": {
     "symbol": "DOGEUSDT",
-    "price": 0.06988,
+    "price": 0.06977,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864000,
+    "observed_at": 1794299102073,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ENAUSDT": {
     "symbol": "ENAUSDT",
-    "price": 0.15281,
+    "price": 0.15271,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865717,
+    "observed_at": 1794299103077,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ETHUSDT": {
     "symbol": "ETHUSDT",
-    "price": 2112.2,
+    "price": 2111.46,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865638,
+    "observed_at": 1794299102612,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "FETUSDT": {
     "symbol": "FETUSDT",
-    "price": 0.146,
+    "price": 0.1461,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864223,
+    "observed_at": 1794299101433,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "GOOGLBUSDT": {
     "symbol": "GOOGLBUSDT",
-    "price": 291.66,
+    "price": 291.69,
     "venue": "Binance spot",
-    "observed_at": 1794298855665,
+    "observed_at": 1794299100665,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
@@ -6039,111 +6084,111 @@
     "symbol": "GRAMUSDT",
     "price": 1.09,
     "venue": "Bitunix futures",
-    "observed_at": 1794298861700,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "HBARUSDT": {
     "symbol": "HBARUSDT",
-    "price": 0.067,
+    "price": 0.06698,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299103000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "HOTUSDT": {
     "symbol": "HOTUSDT",
-    "price": 0.0004318,
+    "price": 0.0004317,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864417,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "HYPEUSDT": {
     "symbol": "HYPEUSDT",
-    "price": 74.339,
+    "price": 74.2,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865189,
+    "observed_at": 1794299102305,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "INITUSDT": {
     "symbol": "INITUSDT",
-    "price": 0.20793,
+    "price": 0.21194,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865234,
+    "observed_at": 1794299103000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "INJUSDT": {
     "symbol": "INJUSDT",
-    "price": 8.045,
+    "price": 8.01,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864942,
+    "observed_at": 1794299103000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "INTCBUSDT": {
     "symbol": "INTCBUSDT",
-    "price": 58.94,
+    "price": 58.9,
     "venue": "Binance spot",
-    "observed_at": 1794298862640,
+    "observed_at": 1794299100640,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "KORUBUSDT": {
     "symbol": "KORUBUSDT",
-    "price": 7.66,
+    "price": 7.67,
     "venue": "Binance spot",
-    "observed_at": 1794298861688,
+    "observed_at": 1794299100688,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "LINKUSDT": {
     "symbol": "LINKUSDT",
-    "price": 10.616,
+    "price": 10.602,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102148,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "LTCUSDT": {
     "symbol": "LTCUSDT",
-    "price": 51.41,
+    "price": 51.33,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865622,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "MSTRBUSDT": {
     "symbol": "MSTRBUSDT",
-    "price": 125.48,
+    "price": 125.38,
     "venue": "Binance spot",
-    "observed_at": 1794298863641,
+    "observed_at": 1794299093641,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "MUBUSDT": {
     "symbol": "MUBUSDT",
-    "price": 733.81,
+    "price": 734.83,
     "venue": "Binance spot",
-    "observed_at": 1794298863627,
-    "transport": "websocket",
+    "observed_at": 1794299096548,
+    "transport": "rest",
     "clock": "exchange_timestamp"
    },
    "NEARUSDT": {
     "symbol": "NEARUSDT",
-    "price": 3.614,
+    "price": 3.603,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299103025,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "NVDABUSDT": {
     "symbol": "NVDABUSDT",
-    "price": 181.96,
+    "price": 182.26,
     "venue": "Binance spot",
-    "observed_at": 1794298864629,
+    "observed_at": 1794299101629,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
@@ -6151,159 +6196,167 @@
     "symbol": "ONDOUSDT",
     "price": 0.3706,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102343,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ONEUSDT": {
     "symbol": "ONEUSDT",
-    "price": 0.0016137,
+    "price": 0.001613,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865476,
+    "observed_at": 1794299102748,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "PAXGUSDT": {
     "symbol": "PAXGUSDT",
-    "price": 4105.41,
+    "price": 4105.31,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299101834,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "PEPEUSDT": {
     "symbol": "PEPEUSDT",
-    "price": 5.348e-06,
+    "price": 5.3367e-06,
     "venue": "OKX swap",
-    "observed_at": 1794298865769,
+    "observed_at": 1794299103071,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "PROMUSDT": {
     "symbol": "PROMUSDT",
-    "price": 5.2,
+    "price": 5.187,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865446,
+    "observed_at": 1794299100996,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "PUMPUSDT": {
     "symbol": "PUMPUSDT",
-    "price": 0.003549,
+    "price": 0.003532,
     "venue": "OKX swap",
-    "observed_at": 1794298865773,
+    "observed_at": 1794299103077,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "QNTUSDT": {
     "symbol": "QNTUSDT",
-    "price": 190.19,
+    "price": 189.6,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865334,
+    "observed_at": 1794299102678,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "QQQBUSDT": {
     "symbol": "QQQBUSDT",
-    "price": 678.89,
+    "price": 678.77,
     "venue": "Binance spot",
-    "observed_at": 1794298864653,
+    "observed_at": 1794299101653,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "RLUSDUSDT": {
     "symbol": "RLUSDUSDT",
-    "price": 1.0012,
+    "price": 1.0013,
     "venue": "Bitget spot",
-    "observed_at": 1794298865767,
+    "observed_at": 1794299102919,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "RSRUSDT": {
     "symbol": "RSRUSDT",
-    "price": 0.001637,
+    "price": 0.00164,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865116,
+    "observed_at": 1794299101165,
+    "transport": "websocket",
+    "clock": "exchange_timestamp"
+   },
+   "RWUSDUSDT": {
+    "symbol": "RWUSDUSDT",
+    "price": 0.9999,
+    "venue": "Binance spot",
+    "observed_at": 1794299102761,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SKHYBUSDT": {
     "symbol": "SKHYBUSDT",
-    "price": 134.51,
+    "price": 134.38,
     "venue": "Binance spot",
-    "observed_at": 1794298862671,
+    "observed_at": 1794299099671,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SNDKBUSDT": {
     "symbol": "SNDKBUSDT",
-    "price": 888.06,
+    "price": 888.31,
     "venue": "Binance spot",
-    "observed_at": 1794298864630,
+    "observed_at": 1794299102630,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SOLUSDT": {
     "symbol": "SOLUSDT",
-    "price": 85.74,
+    "price": 85.61,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102273,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SOXLBUSDT": {
     "symbol": "SOXLBUSDT",
-    "price": 56.09,
+    "price": 55.86,
     "venue": "Binance spot",
-    "observed_at": 1794298864668,
+    "observed_at": 1794299102668,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SPCXBUSDT": {
     "symbol": "SPCXBUSDT",
-    "price": 142.1,
+    "price": 142.05,
     "venue": "Binance spot",
-    "observed_at": 1794298865632,
+    "observed_at": 1794299100632,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "SUIUSDT": {
     "symbol": "SUIUSDT",
-    "price": 0.8454,
+    "price": 0.8432,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299101931,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "TAOUSDT": {
     "symbol": "TAOUSDT",
-    "price": 222.18,
+    "price": 221.85,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865195,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "TRUMPUSDT": {
     "symbol": "TRUMPUSDT",
-    "price": 1.138,
+    "price": 1.134,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864379,
+    "observed_at": 1794299103155,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "TRXUSDT": {
     "symbol": "TRXUSDT",
-    "price": 0.31916,
+    "price": 0.31909,
     "venue": "Bitunix futures",
-    "observed_at": 1794298864000,
+    "observed_at": 1794299102125,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "UNIUSDT": {
     "symbol": "UNIUSDT",
-    "price": 7.01,
+    "price": 7.006,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299103156,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
@@ -6311,7 +6364,7 @@
     "symbol": "USD1USDT",
     "price": 0.99915,
     "venue": "Bitget spot",
-    "observed_at": 1794298865767,
+    "observed_at": 1794299102919,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
@@ -6319,47 +6372,47 @@
     "symbol": "UUSDT",
     "price": 1.0006,
     "venue": "Bitget spot",
-    "observed_at": 1794298865773,
+    "observed_at": 1794299102926,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "WLDUSDT": {
     "symbol": "WLDUSDT",
-    "price": 0.3186,
+    "price": 0.3181,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102758,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "WLFIUSDT": {
     "symbol": "WLFIUSDT",
-    "price": 0.04816,
+    "price": 0.04804,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865740,
+    "observed_at": 1794299101288,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "XAUTUSDT": {
     "symbol": "XAUTUSDT",
-    "price": 4102.56,
+    "price": 4102.58,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865901,
+    "observed_at": 1794299101787,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "XLMUSDT": {
     "symbol": "XLMUSDT",
-    "price": 0.14811,
+    "price": 0.14781,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "XRPUSDT": {
     "symbol": "XRPUSDT",
-    "price": 1.0896,
+    "price": 1.0874,
     "venue": "Bitunix futures",
-    "observed_at": 1794298866004,
+    "observed_at": 1794299102173,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
@@ -6367,30 +6420,28 @@
     "symbol": "XUSDUSDT",
     "price": 1.1803,
     "venue": "MEXC spot",
-    "observed_at": 1794298865049,
+    "observed_at": 1794299102055,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ZECUSDT": {
     "symbol": "ZECUSDT",
-    "price": 1140.3,
+    "price": 1139.45,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865057,
+    "observed_at": 1794299103000,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    },
    "ZROUSDT": {
     "symbol": "ZROUSDT",
-    "price": 1.4875,
+    "price": 1.4878,
     "venue": "Bitunix futures",
-    "observed_at": 1794298865000,
+    "observed_at": 1794299102249,
     "transport": "websocket",
     "clock": "exchange_timestamp"
    }
   },
-  "missing": [
-   "RWUSDUSDT"
-  ],
+  "missing": [],
   "source_errors": {},
   "markets": {
    "AAVEUSDT": "Bitunix futures",
@@ -6432,6 +6483,7 @@
    "QQQBUSDT": "Binance spot",
    "RLUSDUSDT": "Bitget spot",
    "RSRUSDT": "Bitunix futures",
+   "RWUSDUSDT": "Binance spot",
    "SKHYBUSDT": "Binance spot",
    "SNDKBUSDT": "Binance spot",
    "SOLUSDT": "Bitunix futures",
