@@ -84,6 +84,28 @@ def derivative_observation(key, world, intel, cycle_at):
     return None, None, {}
 
 
+def resolve_strategy_references(root, routes):
+    """Match the named section and its content, never promote a documentary reference."""
+    import hashlib
+    expected = {"s1":"S1","s2":"S2","liam_s":"Liam S Checklist"}
+    path = "AuraLiam369_Trading_Agent_Master_Spec_FA_v2.1.md"
+    try:
+        doc = (root/path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        doc = ""
+    for key, title in expected.items():
+        rule = mapping(mapping(routes).get(key))
+        ref = mapping(rule.get("reference"))
+        mark = "## " + title + "\n"
+        parts = ("\n"+doc).split("\n"+mark)
+        body = parts[1].split("\n## ",1)[0].strip() if len(parts)==2 else ""
+        verified = bool(body and ref.get("path")==path and ref.get("heading")==title and
+                        hashlib.sha256(body.encode()).hexdigest()==ref.get("section_sha256"))
+        rule["reference_verified"] = verified
+        if verified:
+            rule["documented_rules"] = [line.lstrip("- ").strip() for line in body.splitlines() if line.strip()]
+
+
 def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None, intel=None):
     data = mapping(raw)
     stats, missing = {}, []
@@ -158,9 +180,11 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
              and bool(observed), "شمارش مسیرهای اسکن")
         declared = mapping(routes)
         contract = ("s1","s2","liam_s","ibs_pullback_plus","one_idm_wick_15")
-        stats["registry"] = {k:{f:mapping(declared.get(k)).get(f) for f in ("strategy_id","version","status")}
+        stats["registry"] = {k:{f:mapping(declared.get(k)).get(f) for f in ("strategy_id","version","status","reference","reference_verified","documented_rules","missing_requirements")}
                              for k in contract}
         for key, rule in stats["registry"].items():
+            if key in ("s1","s2","liam_s"):
+                need(rule["reference_verified"] is True, f"تطبیق متن مرجع {key}")
             need(rule["strategy_id"] and rule["version"] and rule["status"] in ("LIVE_SIGNAL","EXPERIMENT_ONLY"),
                  f"تعریف اجرایی نسخه‌دار {key}")
         primary = mapping(cycle)
