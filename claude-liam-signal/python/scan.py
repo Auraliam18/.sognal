@@ -232,7 +232,9 @@ def main():
 
     t0 = time.time()
     syms = top_by_48h(args.symbols)
-    from hamid import market_quotes
+    from hamid import market_quotes, signal_liquidity
+    ranking = signal_liquidity.policy()
+    syms = signal_liquidity.prioritize(syms, args.symbols, ranking)
     market_quotes.prewarm(syms)
     pairs = [(s, tf) for tf in tfs for s in syms]
     print(f"scanning the {len(syms)} most-traded pairs of the last 48h "
@@ -310,8 +312,11 @@ def main():
             held += 1
     print(f"learning room consulted on {consulted} setups, held back {held}", flush=True)
 
+    signals, liquidity_held = signal_liquidity.screen([s for s in setups if s["stage"] == "SIGNAL"])
+    for row in liquidity_held:
+        row["stage"] = "WATCH"
+        row["skip"] = row["liquidity_check"]["reason"]
     counts = {k: sum(1 for s in setups if s["stage"] == k) for k in STAGE_RANK}
-    signals = [s for s in setups if s["stage"] == "SIGNAL"]
 
     # Each strategy is counted on its own. Blurring them together would hide the
     # thing worth knowing, which is whether one of them is carrying the other.
@@ -363,6 +368,8 @@ def main():
         "symbols": len(syms), "series": len(jobs), "timeframes": tfs,
         "counts": counts,
         "per_strategy": per_strategy,
+        "signal_policy": signal_liquidity.policy(),
+        "held_for_liquidity": [{"symbol": s["sym"], **s["liquidity_check"]} for s in liquidity_held],
         "alarms": alarms[:40],
         "learning": {
             "experiences": len(brain.read(brain.LEARNING / "experiences.jsonl")),

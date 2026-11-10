@@ -68,7 +68,7 @@ def _log_final(s):
             execution_gate.push(s)
     except Exception:                                  # noqa: BLE001
         pass
-    log.insert(0, {**{k: s[k] for k in ("kind", "signal_id", "tg_msg_id", "trend_mode", "trend_evidence", "sync", "macro_evidence") if s.get(k) is not None},
+    log.insert(0, {**{k: s[k] for k in ("kind", "signal_id", "tg_msg_id", "trend_mode", "trend_evidence", "sync", "macro_evidence", "liquidity_check") if s.get(k) is not None},
                    "at": int(time.time() * 1000),
                    "sym": s.get("sym"), "dir": s.get("dir"), "tf": s.get("tf"),
                    "trend4": s.get("trend4"), "trend1": s.get("trend1"),
@@ -383,7 +383,7 @@ def send_signals(signals, render_chart, limit=8):
             return False
     fresh = [s for s in signals
              if _key(s) not in sent and f"skip|{_key(s)}" not in sent
-             and not _dup_any(s) and not _sym_worn(s) and not _stable(s)][:limit]
+             and not _dup_any(s) and not _sym_worn(s) and not _stable(s)]
     if not fresh:
         print(f"telegram: {len(signals)} signals, all already sent", flush=True)
         return 0
@@ -405,10 +405,15 @@ def send_signals(signals, render_chart, limit=8):
         if not fresh:
             return 0
 
+    from hamid import signal_liquidity
+    ranking = signal_liquidity.policy()["members"]
+    fresh = sorted((s for s in fresh if s["sym"] in ranking), key=lambda s: ranking[s["sym"]]["rank"])
     ok = 0
     tmp = Path(__file__).resolve().parent / ".charts"
     tmp.mkdir(exist_ok=True)
     for s in fresh:
+        if ok >= limit:
+            break
         from hamid.position_state import geometry
         if not geometry(s.get("dir"), s.get("entry"), s.get("sl"), s.get("tp1"), s.get("tp2")):
             print(f"telegram: invalid price geometry for {s.get('sym')}")
@@ -508,6 +513,12 @@ def send_signals(signals, render_chart, limit=8):
             print(f"telegram: {s['sym']} price gate: {decision}")
             if decision in ("passed_entry","far_from_entry"):
                 sent[f"skip|{_key(s)}"] = now_ms
+            continue
+        s["liquidity_check"] = signal_liquidity.assess(s)
+        if not s["liquidity_check"]["ok"]:
+            print(f"telegram: {s['sym']} liquidity gate: {s['liquidity_check']['reason']}")
+            continue
+        if market_quotes.entry_check(s, quote)[0] != "within_entry_window":
             continue
         s["sync"] = {**quote, "dist_pct": round(distance * 100, 2)}
         # Keep the existing five-minute deduplication key independent of ticks.
