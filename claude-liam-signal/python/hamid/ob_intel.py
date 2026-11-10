@@ -404,11 +404,13 @@ def main():
     a = ap.parse_args()
     import sources
     from scan import top_by_48h
+    from hamid.contract_history import analysis_rows
+    fallback_sources = {}
 
     def fetch(sym, tf, n):
         try:
             return [{"t": k[0], "o": k[1], "h": k[2], "l": k[3], "c": k[4],
-                     "v": k[5]} for k in sources.klines(sym, tf, n) if k[0] + {"4h":14400000,"1h":3600000,"15m":900000}[tf] <= time.time()*1000]
+                     "v": k[5]} for k in analysis_rows(sym, tf, n, fallback_sources) if k[0] + {"4h":14400000,"1h":3600000,"15m":900000}[tf] <= time.time()*1000]
         except Exception:                            # noqa: BLE001
             return []
 
@@ -450,7 +452,7 @@ def main():
     complete = sum(len(v["observed_frames"])==3 for v in out.values())
     missing = {sym: sorted({"15m","1h","4h"}-set(out.get(sym,{}).get("observed_frames", [])))
                for sym in symbols if len(out.get(sym,{}).get("observed_frames",[])) != 3}
-    OUT.write_text(json.dumps({"coverage":{"requested":a.symbols,"ranked":len(symbols),"completed":complete,"complete":complete>=a.symbols,"missing_frames":missing}, "generated": int(time.time() * 1000),
+    OUT.write_text(json.dumps({"contract_history":fallback_sources,"coverage":{"requested":a.symbols,"ranked":len(symbols),"completed":complete,"complete":complete>=a.symbols,"missing_frames":missing}, "generated": int(time.time() * 1000),
                                "symbols": out, "events": events,
                                "states": states}, ensure_ascii=False))
     print(f"رادار OB: {len(out)} نماد، {len(events)} رویداد OB_APPROACHING")

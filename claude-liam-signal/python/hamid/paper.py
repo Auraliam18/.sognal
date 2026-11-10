@@ -131,8 +131,11 @@ def open_from(setups, context):
     """
     # کلید یکتایی شامل دفتر (stage) — دفتر v2 همان ستاپ دفتر اصلی را با
     # همان ورود جدا ثبت می‌کند؛ بدون این، v2 هیچ‌وقت پر نمی‌شد.
+    from hamid import engine_inputs, sizing
+    open_rows = _read(OPEN)
+    equity = None
     have = {(p["sym"], p["entry"], (p.get("why") or {}).get("stage"))
-            for p in _read(OPEN)}
+            for p in open_rows}
     added = 0
     from hamid.universe import STABLES, WRAPPED
     for s in setups:
@@ -165,7 +168,24 @@ def open_from(setups, context):
                     continue
             except Exception:                        # noqa: BLE001
                 pass
-        _append(OPEN, {
+        allocation = {}
+        if _stage in engine_inputs.PRIMARY:
+            if equity is None:
+                equity = _equity()["balance"]
+            decision = engine_inputs.portfolio(open_rows,equity,None)
+            if not decision["approved"]:
+                _append_gatelog(s["symbol"],_stage,decision["reason"])
+                continue
+            size = sizing.position(equity,float(s["entry"]),float(s["sl"]),open_exposure_usd=decision["open_exposure_usd"])
+            # Rounding USD to cents must not allocate more than the remaining cap.
+            if not size["ok"] or not engine_inputs.positive(size["qty"]) or not engine_inputs.positive(size["risk_usd"]) or size["notional_usd"] + decision["open_exposure_usd"] > decision["limit_usd"] + 1e-9:
+                _append_gatelog(s["symbol"],_stage,size["reason"] if not size["ok"] else "unrepresentable_allocation")
+                continue
+            allocation = {k:size[k] for k in ("qty","notional_usd","risk_usd")}
+            allocation["sized_at"] = decision["observed_at"]
+            allocation["equity_at_sizing"] = equity
+        row = {
+            **allocation,
             "sym": s["symbol"], "dir": s["dir"],
             "entry": float(s["entry"]), "sl": float(s["sl"]),
             "tp1": float(s["tp1"]), "tp2": float(s.get("tp2") or 0) or None,
@@ -188,7 +208,9 @@ def open_from(setups, context):
                 "stage": s.get("stage_tag") or ("second" if not s.get("waiting") else "first"),
                 **context,
             },
-        })
+        }
+        _append(OPEN,row)
+        open_rows.append(row)
         have.add(key)
         added += 1
     if added:
@@ -213,6 +235,10 @@ def mark():
     """Walk every open position forward and close what has resolved."""
     positions = _read(OPEN)
     if not positions:
+        if OPEN.parent == BOOK and BOOK.name == "paper" and OPEN.is_file():
+            (BOOK/"reconciliation.json").write_text(json.dumps({"checked_at":int(time.time()*1000),
+                "open_before":0,"exact_closed_matches":0,"remaining_before_mark":0,
+                "market_reads":0,"market_attempts":0,"missing_symbols":[]}),encoding="utf-8")
         print("دفتر باز خالی است")
         return 0, 0
     before = len(positions)
@@ -221,14 +247,17 @@ def mark():
     for pos in positions:
         sym = pos["sym"]
         oldest[sym] = min(oldest.get(sym, pos["opened"]), pos["opened"])
-    if OPEN.parent == BOOK and BOOK.name == "paper":
-        (BOOK/"reconciliation.json").write_text(json.dumps({"checked_at":int(time.time()*1000),"open_before":before,"exact_closed_matches":before-len(positions),"remaining_before_mark":len(positions),"market_reads":len(oldest)}),encoding="utf-8")
-    print(f"paper: {before} open rows; {before-len(positions)} exact closed matches; {len(oldest)} market reads", flush=True)
     # One snapshot per symbol; preserve the original per-order decision window.
     with ThreadPoolExecutor(max_workers=6) as pool:
         candles = dict(zip(oldest, pool.map(_candles_since, oldest, oldest.values())))
-    still, closed = [], 0
     now = time.time() * 1000
+    due = {sym for sym,t in oldest.items() if ((t+899999)//900000+1)*900000 <= now}
+    usable = {sym for sym, bars in candles.items() if sym in due and any(c["t"] >= oldest[sym] and c["t"]+900000 <= now for c in bars)}
+    if OPEN.parent == BOOK and BOOK.name == "paper":
+        (BOOK/"reconciliation.json").write_text(json.dumps({"checked_at":int(now),"open_before":before,
+            "exact_closed_matches":before-len(positions),"remaining_before_mark":len(positions),
+            "market_attempts":len(due),"awaiting_first_bar":len(oldest)-len(due),"market_reads":len(usable),"missing_symbols":sorted(due-usable)}),encoding="utf-8")
+    still, closed = [], 0
 
     for p in positions:
         cd = [c for c in candles[p["sym"]]
@@ -404,7 +433,8 @@ def _equity():
         for t in trades:
             if t.get("R") is None:
                 continue
-            bal += bal * RISK_FRACTION * t["R"]
+            budget = t.get("risk_usd") if t.get("sized_at") else bal * RISK_FRACTION
+            bal += budget * t["R"]
             peak = max(peak, bal)
             dd = max(dd, (peak - bal) / peak)
             n += 1

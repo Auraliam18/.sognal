@@ -53,6 +53,14 @@ def decision_context(sym, directory, now):
     return result
 
 
+def retained_receipts(log):
+    # Watch bursts must not evict a linked trade receipt during its 1h evidence TTL.
+    cutoff = int(time.time()*1000) - 3600000
+    return log[:40] + [e for e in log[40:] if e.get("kind") == "trade_signal" and
+                       isinstance(e.get("at"), (float,int)) and e["at"] >= cutoff and
+                       e.get("signal_id") and type(e.get("tg_msg_id")) is int and e["tg_msg_id"] > 0]
+
+
 def _log_final(s):
     """«سیگنال نهایی» — هر چه واقعاً به تلگرام رفت، برای نمایش در پنل هم ثبت
     می‌شود. یک فایل مشترک با tg_batch، که پنل یک منبع حقیقت داشته باشد."""
@@ -78,7 +86,7 @@ def _log_final(s):
                    "elite": bool(s.get("elite"))})
     TGLOG.parent.mkdir(parents=True, exist_ok=True)
     TGLOG.write_text(json.dumps({"generated": int(time.time() * 1000),
-                                 "sent": log[:40]}, ensure_ascii=False, indent=1))
+                                 "sent": retained_receipts(log)}, ensure_ascii=False, indent=1))
 
 
 def creds():
