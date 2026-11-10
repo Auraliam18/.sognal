@@ -84,6 +84,28 @@ def derivative_observation(key, world, intel, cycle_at):
     return None, None, {}
 
 
+def resolve_strategy_references(root, routes):
+    """Match the named section and its content, never promote a documentary reference."""
+    import hashlib
+    expected = {"s1":"S1","s2":"S2","liam_s":"Liam S Checklist"}
+    path = "AuraLiam369_Trading_Agent_Master_Spec_FA_v2.1.md"
+    try:
+        doc = (root/path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        doc = ""
+    for key, title in expected.items():
+        rule = mapping(mapping(routes).get(key))
+        ref = mapping(rule.get("reference"))
+        mark = "## " + title + "\n"
+        parts = ("\n"+doc).split("\n"+mark)
+        body = parts[1].split("\n## ",1)[0].strip() if len(parts)==2 else ""
+        verified = bool(body and ref.get("path")==path and ref.get("heading")==title and
+                        hashlib.sha256(body.encode()).hexdigest()==ref.get("section_sha256"))
+        rule["reference_verified"] = verified
+        if verified:
+            rule["documented_rules"] = [line.lstrip("- ").strip() for line in body.splitlines() if line.strip()]
+
+
 def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None, cycle=None, intel=None):
     data = mapping(raw)
     stats, missing = {}, []
@@ -139,7 +161,18 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
              and abs(depth["imbalance"]) <= 1 and finite(depth.get("at"))
              and finite(data.get("generated")) and -300000 <= data["generated"] - depth["at"] <= 3600000,
              "نمونهٔ زمان‌دار عمق سفارش بیت‌کوین")
-        need(bool(mapping(world.get("liquidations")).get("source")), "دادهٔ مستقل لیکوییدیشن نمادها")
+        liq_at, origin, liq = derivative_observation("liquidations", world, intel, data.get("generated"))
+        events = [x for x in items(liq.get("events")) if isinstance(x,dict) and isinstance(x.get("symbol"),str)
+                  and x["symbol"].endswith("_USDT") and finite(x.get("fill_price")) and x["fill_price"] > 0
+                  and finite(x.get("order_contracts")) and x["order_contracts"] != 0 and finite(x.get("at"))
+                  and finite(liq_at) and liq_at-3600000 <= x["at"] <= liq_at]
+        stats.update(liquidation_source=liq.get("source"), liquidation_symbols=sorted({x["symbol"] for x in events}),
+                     liquidation_samples=len(events), last_liquidation_at=liq_at)
+        stats["sources"]["liquidations"] = origin
+        need(bool(events) and max(x["at"] for x in events) == liq_at and liq.get("source") == "Gate futures/usdt/liq_orders",
+             "دادهٔ مستقل لیکوییدیشن نمادها")
+        if liq_at and observed:
+            source_clock = (min(*observed,liq_at),3600)
     elif role == "E11":
         observed = mapping(data.get("per_strategy"))
         stats["published_routes"] = sorted(observed)
@@ -147,9 +180,11 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
              and bool(observed), "شمارش مسیرهای اسکن")
         declared = mapping(routes)
         contract = ("s1","s2","liam_s","ibs_pullback_plus","one_idm_wick_15")
-        stats["registry"] = {k:{f:mapping(declared.get(k)).get(f) for f in ("strategy_id","version","status")}
+        stats["registry"] = {k:{f:mapping(declared.get(k)).get(f) for f in ("strategy_id","version","status","reference","reference_verified","documented_rules","missing_requirements")}
                              for k in contract}
         for key, rule in stats["registry"].items():
+            if key in ("s1","s2","liam_s"):
+                need(rule["reference_verified"] is True, f"تطبیق متن مرجع {key}")
             need(rule["strategy_id"] and rule["version"] and rule["status"] in ("LIVE_SIGNAL","EXPERIMENT_ONLY"),
                  f"تعریف اجرایی نسخه‌دار {key}")
         primary = mapping(cycle)
@@ -174,10 +209,14 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
         need(portfolio.get("available") and finite(balance) and balance > 0 and finite(exposure)
              and finite(stats["max_exposure_pct"]) and exposure <= balance * stats["max_exposure_pct"] / 100,
              "اندازه و سقف مواجههٔ دفتر اصلی کاغذی")
-        # The producer currently publishes sizing parameters, not a per-decision risk verdict.
+        # Only a decision from this cycle and this same ledger can attest sizing.
         decision = mapping(data.get("portfolio_risk_decision"))
-        need(isinstance(decision.get("approved"), bool) and decision.get("observed_at") == data.get("generated")
-             and finite(exposure) and decision.get("open_exposure_usd") == exposure,
+        stats["decision"] = decision
+        need(isinstance(decision.get("approved"), bool) and decision.get("cycle_at") == data.get("generated")
+             and finite(decision.get("observed_at")) and finite(data.get("generated"))
+             and 0 <= decision["observed_at"] - data["generated"] <= 3600000
+             and decision.get("open_positions") == portfolio.get("open_positions") and decision.get("equity_usd") == balance
+             and finite(exposure) and finite(decision.get("open_exposure_usd")) and abs(decision["open_exposure_usd"]-exposure)<0.00001,
              "تصمیم زمان‌دار ریسک با مواجههٔ همان دفتر")
     elif role == "E17":
         selected = data.get("selected_for_delivery")
@@ -194,9 +233,9 @@ def inspect(role, raw, *, lessons, reconciliation, risk, portfolio, routes=None,
     elif role == "E19":
         r = reconciliation
         keys = ("open_before","exact_closed_matches","remaining_before_mark","market_reads")
-        stats.update({k:r.get(k) for k in keys})
+        stats.update({k:r.get(k) for k in (*keys,"market_attempts","missing_symbols")})
         need(all(count(r.get(k)) for k in keys) and r["open_before"] == r["exact_closed_matches"]+r["remaining_before_mark"]
-             and (r["remaining_before_mark"] == 0 or r["market_reads"] > 0), "تطبیق دفتر باز با معاملات بسته و قیمت‌خوانی")
+             and (r["remaining_before_mark"] == 0 or ((r["market_reads"] > 0 or (r.get("awaiting_first_bar") or 0) > 0) and r["market_reads"] == r.get("market_attempts") and r.get("missing_symbols") == [])), "تطبیق دفتر باز با معاملات بسته و قیمت‌خوانی")
         source_clock = (r.get("checked_at"), 3600)
     elif role == "E20":
         r = mapping(data.get("review"))

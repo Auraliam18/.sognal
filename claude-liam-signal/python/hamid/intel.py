@@ -34,7 +34,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 import brain                                                  # noqa: E402
-from hamid import research                                    # noqa: E402
+from hamid import engine_inputs, research                                    # noqa: E402
 
 ROOT = HERE.parent.parent.parent
 OUT = ROOT / "brain" / "intel"
@@ -237,6 +237,7 @@ SOURCES = [
     ("fear_greed", fear_greed, "market"),
     ("dominance", dominance, "market"),
     ("funding", funding, "trade"),
+    ("liquidations", lambda: engine_inputs.liquidations(_json), "trade"),
     ("open_interest", open_interest, "trade"),
     ("order_book", order_book, "trade"),
     ("calendar", calendar, "intel"),

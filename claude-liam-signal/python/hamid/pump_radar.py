@@ -1083,8 +1083,9 @@ def reapply(backup_dir):
                 if k not in seen:
                     seen.add(k)
                     union.append(e)
+            from telegram import retained_receipts
             tglog.write_text(json.dumps({"generated": int(time.time() * 1000),
-                                         "sent": union[:40]}, ensure_ascii=False, indent=1))
+                                         "sent": retained_receipts(union)}, ensure_ascii=False, indent=1))
         except Exception as e:                       # noqa: BLE001
             print(f"اجتماع لاگ تلگرام نشد: {type(e).__name__}")
     try:

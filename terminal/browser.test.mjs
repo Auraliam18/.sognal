@@ -11,7 +11,16 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000},serviceWorkers:'block'}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   const snapshot=JSON.parse(await fs.readFile('terminal/data/snapshot.json','utf8'));
-  snapshot.feeds.scan.data.signals = [{sym:'TSLABUSDT'}, {sym:'CAPUSDT'}];
+  // Monitoring may quote spot listings. Signal candidates require the futures top-50 policy.
+  snapshot.feeds.scan.data.alarms = [{sym:'TSLABUSDT'}, {sym:'CAPUSDT'}];
+  const members=Object.fromEntries(['QAOKUSDT','QASLIPUSDT',...Array.from({length:48},(_,i)=>'QA'+i+'USDT')]
+    .map((s,i)=>[s,{rank:i+1,volume_usdt:1000000-i}]));
+  const policy={at:Date.now(),venue:'Bitunix futures',metric:'quoteVol_24h_USDT',limit:50,members};
+  snapshot.feeds.scan.data.signal_policy=policy;
+  snapshot.feeds.hamid.data.signal_policy=policy;
+  snapshot.feeds.hamid.data.setups=[];
+  snapshot.feeds.scan.data.signals=[{sym:'QAOKUSDT',liquidity_check:{ok:true}},
+    {sym:'QAOUTUSDT',liquidity_check:{ok:true}},{sym:'QASLIPUSDT',liquidity_check:{ok:false}}];
   snapshot.feeds.hamid.data.quote_book={markets:{
     BTCUSDT:'OKX swap', TSLABUSDT:'Binance spot', CAPUSDT:'MEXC spot'
   }};
@@ -40,6 +49,8 @@ try {
     await page.locator(`nav a[data-view="${route}"].active`).waitFor();
     assert.equal(await page.locator('.error-box').count(),0,route);
     if(route==='signals') {
+      assert.equal(await page.locator('[data-market-quote="QAOKUSDT"]').count(),1);
+      assert.equal(await page.locator('[data-market-quote="QAOUTUSDT"],[data-market-quote="QASLIPUSDT"]').count(),0);
       await page.locator('[data-market-quote="TSLABUSDT"]').first().getByText('234.56',{exact:true}).waitFor();
       await page.locator('[data-market-quote="CAPUSDT"]').first().getByText('0.01234',{exact:true}).waitFor();
     }

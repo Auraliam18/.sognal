@@ -204,6 +204,7 @@ def engine_packets(root, feeds, history, now):
     registry = yaml.safe_load((root / "config/engine_registry.yaml").read_text(encoding="utf-8"))
     registry_file = root / "strategies/registry.yaml"
     routes = yaml.safe_load(registry_file.read_text(encoding="utf-8")) if registry_file.exists() else {}
+    role_evidence.resolve_strategy_references(root, routes)
     lessons = role_evidence.mapping(read_json(root / "brain/memory/lessons.json"))
     reconciliation = role_evidence.mapping(read_json(root / "brain/paper/reconciliation.json"))
     intel = role_evidence.mapping(read_json(root / "brain/intel/latest.json"))

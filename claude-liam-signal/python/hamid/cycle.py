@@ -160,6 +160,8 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
     import threading
     slot_lock = threading.Lock()
     next_slot = 0.0
+    from hamid.contract_history import analysis_rows
+    fallback_sources = {}
     fetch_errors = {}
     def candles(sym, tf, n):
         nonlocal next_slot
@@ -170,7 +172,7 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
         if slot > now:
             time.sleep(slot-now)
         try:
-            rows = sources.klines(sym, tf, n)
+            rows = analysis_rows(sym, tf, n, fallback_sources)
         except Exception as exc:                     # one failed listing cannot stop the scan
             fetch_errors[f"{sym}:{tf}"] = str(exc)[:360]
             return []
@@ -240,6 +242,7 @@ def run_active(symbols, limit_4h=200, limit_1h=300, limit_15m=300, on_ready=None
                         stats["recovered_frames"] += 1
             yield from (s for s in symbols if s in pending)
         stats["source_errors"] = dict(sorted(fetch_errors.items()))
+        stats["contract_history"] = dict(sorted(fallback_sources.items()))
     reads, setups, inds = [], [], []
     first["symbol_history"] = {}
     for sym in read_order():
@@ -1061,7 +1064,7 @@ def main():
               "mode": mode, "why": why, "pacing": pace,
               "world": {k: world.get(k) for k in
                         ("verdict", "fear_greed", "dominance", "funding",
-                         "calendar", "news", "trending", "open_interest", "order_book", "failed", "gathered") if k in world}}
+                         "calendar", "news", "trending", "open_interest", "order_book", "liquidations", "failed", "gathered") if k in world}}
 
     # اول تسویه و یادگیری، بعد تصمیم — تا وتو و مشورتِ حافظه با دانشِ همین
     # لحظه باشد، نه یک چرخه کهنه‌تر.
@@ -1746,6 +1749,11 @@ def main():
     if "quote_book" not in report:
         from hamid import market_quotes
         report["quote_book"] = market_quotes.snapshot(["BTCUSDT","ETHUSDT","SOLUSDT"])
+    if "paper" in report:
+        from hamid import engine_inputs, paper
+        report["portfolio_risk_decision"] = engine_inputs.portfolio(
+            paper._read(paper.OPEN), report["paper"]["balance"], report["generated"],
+            available=paper.OPEN.is_file() or paper.jsonl_store.parts(paper.OPEN).is_dir())
     report["activity"] = ACTIVITY[-25:]
     if not a.dry:
         _save_state(st)
