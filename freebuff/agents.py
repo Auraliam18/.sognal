@@ -147,6 +147,7 @@ def agent_derivatives(ctx):
     flag = None
     if out["oi"].get("chg_pct") is not None and abs(out["oi"]["chg_pct"]) > 3:
         flag = out["oi"]["verdict"]
+    out["venues"] = {k:v for k,v in futures.used().items() if k in ("oi", "funding", "longshort")}
     return {"rows": [], "summary": out, "flag": flag, "memory_items": items}
 
 
