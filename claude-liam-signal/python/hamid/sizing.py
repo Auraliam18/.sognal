@@ -61,7 +61,8 @@ def position(equity_usd, entry, sl, leverage=1,
     stop_frac = abs(entry - sl) / entry
     notional = risk_usd / stop_frac
     # سقف اکسپوژر کل — پوزیشن جدید نباید مجموع را از سقف بگذراند
-    max_expo = equity_usd * c["max_total_exposure_pct"] / 100
+    from decimal import Decimal, ROUND_DOWN
+    max_expo = float((Decimal(str(equity_usd)) * Decimal(str(c["max_total_exposure_pct"])) / 100).quantize(Decimal("0.01"), rounding=ROUND_DOWN))
     if open_exposure_usd + notional > max_expo:
         room = max_expo - open_exposure_usd
         if room <= 0:
