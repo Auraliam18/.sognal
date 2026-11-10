@@ -84,10 +84,13 @@ def merge_delivery(path):
         generated = max(generated,data.get("generated") or 0)
         for r in data.get("sent",[]):
             # Multiple watch candidates can share a single message.
-            k = (r.get("tg_msg_id"),r.get("sym"),r.get("dir"),r.get("kind")) if r.get("tg_msg_id") else json.dumps(r,sort_keys=True)
+            k = (r.get("tg_msg_id"),r.get("sym"),r.get("dir"),r.get("kind"),r.get("signal_id")) if r.get("tg_msg_id") else json.dumps(r,sort_keys=True)
             if k not in rows or r.get("at",0) > rows[k].get("at",0):
                 rows[k] = r
-    latest = sorted(rows.values(),key=lambda r:r.get("at",0),reverse=True)[:40]
+    module_dir = Path(__file__).resolve().parents[1] / "claude-liam-signal" / "python"
+    sys.path.insert(0, str(module_dir))
+    from telegram import retained_receipts
+    latest = retained_receipts(sorted(rows.values(),key=lambda r:r.get("at",0),reverse=True))
     (ROOT/path).write_text(json.dumps({"generated":generated,"sent":latest},ensure_ascii=False,indent=1),encoding="utf-8")
     return f"{len(latest)} delivery records"
 
