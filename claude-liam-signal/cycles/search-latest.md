@@ -1,4 +1,4 @@
-# Parameter search — 2026-11-26 10:01 UTC
+# Parameter search — 2026-11-27 10:06 UTC
 
 320 of 320 configurations measured, fitted on 200 markets and judged on 200 the engine never saw. 0s this run.
 
